@@ -256,6 +256,7 @@ func (c *Config) ValidateForServing(ctx context.Context) error {
 		"tokens":        c.Tokens != nil,
 		"webAuthn":      c.WebAuthn != nil,
 		"email":         c.Email != nil,
+		"httpClient":    c.HTTPClient != nil,
 		"grpcServer":    c.GRPCServer != nil,
 	} {
 		if !present {

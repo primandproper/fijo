@@ -1,0 +1,36 @@
+// What a signed-in owner or staff member is, as the frontend reads it: the
+// directory's user and studio, and the one fact Fijo keeps about them itself.
+
+syntax = "proto3";
+
+package fijo.v1;
+
+import "primandproper/platform/identity/v1/identity.proto";
+
+option go_package = "github.com/primandproper/fijo/internal/grpc/fijopb;fijopb";
+
+service OwnersService {
+  rpc GetSelf(GetSelfRequest) returns (GetSelfResponse);
+  rpc SetTimeZone(SetTimeZoneRequest) returns (SetTimeZoneResponse);
+}
+
+message GetSelfRequest {}
+
+message GetSelfResponse {
+  primandproper.platform.identity.v1.User user = 1;
+  // The active studio, absent for a caller who belongs to none.
+  primandproper.platform.identity.v1.Account studio = 2;
+  // The roles the caller holds in the active studio plus their service roles.
+  repeated string roles = 3;
+  // The caller's own time zone, or empty when they have never set one, in
+  // which case the frontend falls back to the studio's.
+  string time_zone = 4;
+}
+
+message SetTimeZoneRequest {
+  string time_zone = 1;
+}
+
+message SetTimeZoneResponse {
+  string time_zone = 1;
+}

@@ -1,0 +1,117 @@
+// The owner sign-in surface Fijo adds beside platform-go's: passkeys, the
+// password reset, and signing out. Password sign-in and the refresh exchange
+// are platform's, on primandproper.platform.signin.v1.SignInService, mounted on
+// the same server; what is here is what that service does not do.
+//
+// The WebAuthn options and responses travel as the JSON the browser's
+// credential API produces and consumes. The shapes are the W3C's rather than
+// this schema's, and a proto mirror of them would be a second copy of a
+// specification that changes on the browser's schedule.
+
+syntax = "proto3";
+
+package fijo.v1;
+
+import "google/protobuf/timestamp.proto";
+import "primandproper/platform/signin/v1/signin.proto";
+
+option go_package = "github.com/primandproper/fijo/internal/grpc/fijopb;fijopb";
+
+service OwnerAuthService {
+  // Passkey enrolment, for a signed-in owner.
+  rpc BeginPasskeyRegistration(BeginPasskeyRegistrationRequest) returns (BeginPasskeyRegistrationResponse);
+  rpc FinishPasskeyRegistration(FinishPasskeyRegistrationRequest) returns (FinishPasskeyRegistrationResponse);
+  rpc ListPasskeys(ListPasskeysRequest) returns (ListPasskeysResponse);
+  rpc ArchivePasskey(ArchivePasskeyRequest) returns (ArchivePasskeyResponse);
+
+  // Passkey sign-in, for anybody at the door.
+  rpc BeginPasskeyLogin(BeginPasskeyLoginRequest) returns (BeginPasskeyLoginResponse);
+  rpc FinishPasskeyLogin(FinishPasskeyLoginRequest) returns (FinishPasskeyLoginResponse);
+
+  // Password reset over email, for anybody at the door.
+  rpc RequestPasswordReset(RequestPasswordResetRequest) returns (RequestPasswordResetResponse);
+  rpc CompletePasswordReset(CompletePasswordResetRequest) returns (CompletePasswordResetResponse);
+
+  // Ends the caller's session and revokes their refresh-token family.
+  rpc SignOut(SignOutRequest) returns (SignOutResponse);
+}
+
+message Passkey {
+  string id = 1;
+  string friendly_name = 2;
+  repeated string transports = 3;
+  google.protobuf.Timestamp created_at = 4;
+  google.protobuf.Timestamp last_used_at = 5;
+}
+
+message BeginPasskeyRegistrationRequest {}
+
+message BeginPasskeyRegistrationResponse {
+  // The PublicKeyCredentialCreationOptions, as JSON, for navigator.credentials.create.
+  bytes options_json = 1;
+}
+
+message FinishPasskeyRegistrationRequest {
+  // The PublicKeyCredential the browser produced, as JSON.
+  bytes attestation_json = 1;
+  string friendly_name = 2;
+}
+
+message FinishPasskeyRegistrationResponse {
+  Passkey passkey = 1;
+}
+
+message ListPasskeysRequest {}
+
+message ListPasskeysResponse {
+  repeated Passkey passkeys = 1;
+}
+
+message ArchivePasskeyRequest {
+  string id = 1;
+}
+
+message ArchivePasskeyResponse {
+  Passkey passkey = 1;
+}
+
+message BeginPasskeyLoginRequest {
+  // Optional. Empty begins a discoverable login and lets the authenticator say
+  // who is signing in.
+  string username = 1;
+}
+
+message BeginPasskeyLoginResponse {
+  // The PublicKeyCredentialRequestOptions, as JSON, for navigator.credentials.get.
+  bytes options_json = 1;
+}
+
+message FinishPasskeyLoginRequest {
+  // The same username the login began with, or empty for a discoverable one.
+  string username = 1;
+  // The PublicKeyCredential the browser produced, as JSON.
+  bytes assertion_json = 2;
+}
+
+message FinishPasskeyLoginResponse {
+  // The same token a password sign-in answers with.
+  primandproper.platform.signin.v1.IssuedToken token = 1;
+}
+
+message RequestPasswordResetRequest {
+  string email_address = 1;
+}
+
+// Deliberately empty whether or not the address was known.
+message RequestPasswordResetResponse {}
+
+message CompletePasswordResetRequest {
+  string token = 1;
+  string new_password = 2;
+}
+
+message CompletePasswordResetResponse {}
+
+message SignOutRequest {}
+
+message SignOutResponse {}

@@ -18,6 +18,7 @@ import (
 	"github.com/primandproper/primitives-go/v2/database/dialect"
 	emailcfg "github.com/primandproper/primitives-go/v2/email/config"
 	"github.com/primandproper/primitives-go/v2/email/resend"
+	"github.com/primandproper/primitives-go/v2/httpclient"
 	"github.com/primandproper/primitives-go/v2/observability"
 	"github.com/primandproper/primitives-go/v2/observability/logging"
 	loggingcfg "github.com/primandproper/primitives-go/v2/observability/logging/config"
@@ -59,7 +60,13 @@ const (
 	productionRPID           = "app.fijo.example"
 
 	passkeyCeremonyTimeout = 5 * time.Minute
-	tokenIssuer            = "fijo"
+
+	// A studio invites a second owner or a teacher; a week to answer is
+	// generous and a month is the most an owner may ask for.
+	invitationTTL     = 7 * 24 * time.Hour
+	maxInvitationTTL  = 30 * 24 * time.Hour
+	httpClientTimeout = 15 * time.Second
+	tokenIssuer       = "fijo"
 )
 
 // localDevSigningKey is a fixed 32-byte key so a local token survives a restart.
@@ -104,7 +111,13 @@ func platform(name string, level logging.Level, db databasecfg.ConnectionDetails
 			WriteConnection: db,
 			RunMigrations:   runMigrations,
 		},
-		Identity: &identitycfg.Config{},
+		// Spelled out rather than left at its defaults: a block holding nothing
+		// but the library's defaults is released as unconfigured, and a process
+		// with no identity block has no directory.
+		Identity: &identitycfg.Config{
+			InvitationTTL:    invitationTTL,
+			MaxInvitationTTL: maxInvitationTTL,
+		},
 		Authorization: &rbaccfg.Config{
 			Provider: rbaccfg.ProviderDatabase,
 			Database: &rbac.Config{Dialect: dialect.Postgres},
@@ -122,6 +135,10 @@ func platform(name string, level logging.Level, db databasecfg.ConnectionDetails
 		},
 		Email:      email,
 		GRPCServer: &grpcserver.Config{Port: grpcPort},
+		// The mailer sends through this client. Every field is set explicitly
+		// because a block holding nothing but defaults is released as
+		// unconfigured, and an unconfigured client is a mailer with no transport.
+		HTTPClient: &httpclient.Config{Timeout: httpClientTimeout, MaxIdleConns: 16, MaxIdleConnsPerHost: 8, EnableTracing: true},
 	}
 }
 

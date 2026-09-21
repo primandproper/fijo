@@ -50,6 +50,16 @@
 	"grpcServer": {
 		"port": 50051
 	},
+	"httpClient": {
+		"timeout": 15000000000,
+		"maxIdleConns": 16,
+		"maxIdleConnsPerHost": 8,
+		"enableTracing": true
+	},
+	"identity": {
+		"invitationTTL": 604800000000000,
+		"maxInvitationTTL": 2592000000000000
+	},
 	"tokens": {
 		"provider": "jwt",
 		"issuer": "fijo",
@@ -88,13 +98,13 @@
 	"shutdownTimeout": 30000000000,
 	"auth": {
 		"sessions": {},
-		"passwordReset": {
-			"linkBaseURL": "http://localhost:5173/reset-password",
-			"tokenLifetime": 3600000000000
-		},
 		"mail": {
 			"fromAddress": "fijo@localhost",
 			"fromName": "Fijo"
+		},
+		"passwordReset": {
+			"linkBaseURL": "http://localhost:5173/reset-password",
+			"tokenLifetime": 3600000000000
 		},
 		"accessTokenTTL": 900000000000,
 		"refreshTokenTTL": 2592000000000000,

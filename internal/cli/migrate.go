@@ -13,9 +13,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// errNoDatabase is a migrate run over a config that names no database, which
-// is the one thing the command cannot guess.
-var errNoDatabase = platformerrors.New("the configuration names no database; set the database block or FIJO_DATABASE_* to migrate")
+// The refusals a workload makes before it composes anything.
+var (
+	errNoConfig   = platformerrors.New("no configuration was loaded")
+	errNoDatabase = platformerrors.New("the configuration names no database; set the database block or FIJO_DATABASE_* to migrate")
+)
 
 // newMigrateCommand returns the `migrate` subcommand, which brings the
 // configured database to the current schema and seeds the authorization
