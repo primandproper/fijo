@@ -1,0 +1,5 @@
+node_modules
+build
+.svelte-kit
+packages/api-client/src/generated
+package-lock.json

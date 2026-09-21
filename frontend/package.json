@@ -1,0 +1,22 @@
+{
+  "name": "fijo-frontend",
+  "private": true,
+  "workspaces": [
+    "owner",
+    "packages/*"
+  ],
+  "scripts": {
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "npm run lint -w owner",
+    "lint:fix": "npm run lint:fix -w owner",
+    "check": "npm run check -w owner",
+    "test": "npm run test:run -w owner",
+    "build": "npm run build -w owner",
+    "dev": "npm run dev -w owner"
+  },
+  "devDependencies": {
+    "prettier": "3.8.1",
+    "prettier-plugin-svelte": "3.5.1"
+  }
+}
