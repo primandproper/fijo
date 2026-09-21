@@ -1,9 +1,103 @@
 {
+	"audit": {
+		"dialect": "postgres",
+		"retention": {
+			"basis": "audit entries are kept for the configured retention window; past it they are evidence nobody is obliged to hold, in a table that grows forever if nothing removes them",
+			"retention": 220752000000000000,
+			"batchSize": 1000,
+			"scopePageSize": 100
+		}
+	},
+	"authorization": {
+		"database": {
+			"dialect": "postgres"
+		},
+		"provider": "database"
+	},
+	"database": {
+		"provider": "postgres",
+		"readConnection": {
+			"username": "fijo",
+			"password": "fijo",
+			"database": "fijo",
+			"hostname": "localhost",
+			"port": 5432,
+			"disableSSL": true
+		},
+		"writeConnection": {
+			"username": "fijo",
+			"password": "fijo",
+			"database": "fijo",
+			"hostname": "localhost",
+			"port": 5432,
+			"disableSSL": true
+		},
+		"pingWaitPeriod": 1000000000,
+		"maxPingAttempts": 50,
+		"connMaxLifetime": 1800000000000,
+		"maxIdleConns": 5,
+		"maxOpenConns": 7,
+		"runMigrations": true
+	},
+	"email": {
+		"provider": "noop",
+		"circuitBreakerConfig": {
+			"name": "UNKNOWN",
+			"circuitBreakerErrorPercentage": 100,
+			"circuitBreakerMinimumOccurrenceThreshold": 20
+		}
+	},
+	"grpcServer": {
+		"port": 50051
+	},
+	"tokens": {
+		"provider": "jwt",
+		"issuer": "fijo",
+		"audience": "fijo",
+		"base64EncodedSigningKey": "Zmlqby1sb2NhbGRldi1zaWduaW5nLWtleS0wMDAwMDA="
+	},
+	"webAuthn": {
+		"sweepInterval": 300000000000,
+		"provider": "database",
+		"relyingParty": {
+			"rpID": "localhost",
+			"rpDisplayName": "Fijo (local)",
+			"rpOrigins": [
+				"http://localhost:5173"
+			],
+			"ceremonyTimeout": 300000000000
+		}
+	},
+	"name": "fijo",
 	"observability": {
+		"profiling": {
+			"serviceName": "fijo"
+		},
 		"logging": {
 			"serviceName": "fijo",
 			"level": "debug",
 			"provider": "slog"
+		},
+		"metrics": {
+			"serviceName": "fijo"
+		},
+		"tracing": {
+			"service_name": "fijo"
 		}
+	},
+	"shutdownTimeout": 30000000000,
+	"auth": {
+		"sessions": {},
+		"passwordReset": {
+			"linkBaseURL": "http://localhost:5173/reset-password",
+			"tokenLifetime": 3600000000000
+		},
+		"mail": {
+			"fromAddress": "fijo@localhost",
+			"fromName": "Fijo"
+		},
+		"accessTokenTTL": 900000000000,
+		"refreshTokenTTL": 2592000000000000,
+		"credentialSweepInterval": 600000000000
 	}
 }

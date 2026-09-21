@@ -1,9 +1,103 @@
 {
+	"audit": {
+		"dialect": "postgres",
+		"retention": {
+			"basis": "audit entries are kept for the configured retention window; past it they are evidence nobody is obliged to hold, in a table that grows forever if nothing removes them",
+			"retention": 220752000000000000,
+			"batchSize": 1000,
+			"scopePageSize": 100
+		}
+	},
+	"authorization": {
+		"database": {
+			"dialect": "postgres"
+		},
+		"provider": "database"
+	},
+	"database": {
+		"provider": "postgres",
+		"readConnection": {
+			"username": "fijo",
+			"password": "REPLACE_AT_DEPLOY",
+			"database": "fijo",
+			"hostname": "postgres.fijo.internal",
+			"port": 5432
+		},
+		"writeConnection": {
+			"username": "fijo",
+			"password": "REPLACE_AT_DEPLOY",
+			"database": "fijo",
+			"hostname": "postgres.fijo.internal",
+			"port": 5432
+		},
+		"pingWaitPeriod": 1000000000,
+		"maxPingAttempts": 50,
+		"connMaxLifetime": 1800000000000,
+		"maxIdleConns": 5,
+		"maxOpenConns": 7
+	},
+	"email": {
+		"resend": {
+			"apiToken": "REPLACE_AT_DEPLOY"
+		},
+		"provider": "resend",
+		"circuitBreakerConfig": {
+			"name": "UNKNOWN",
+			"circuitBreakerErrorPercentage": 100,
+			"circuitBreakerMinimumOccurrenceThreshold": 20
+		}
+	},
+	"grpcServer": {
+		"port": 50051
+	},
+	"tokens": {
+		"provider": "jwt",
+		"issuer": "fijo",
+		"audience": "fijo",
+		"base64EncodedSigningKey": "UkVQTEFDRV9BVF9ERVBMT1lfc2lnbmluZ19rZXlfMDA="
+	},
+	"webAuthn": {
+		"sweepInterval": 300000000000,
+		"provider": "database",
+		"relyingParty": {
+			"rpID": "app.fijo.example",
+			"rpDisplayName": "Fijo",
+			"rpOrigins": [
+				"https://app.fijo.example"
+			],
+			"ceremonyTimeout": 300000000000
+		}
+	},
+	"name": "fijo",
 	"observability": {
+		"profiling": {
+			"serviceName": "fijo"
+		},
 		"logging": {
 			"serviceName": "fijo",
 			"level": "info",
 			"provider": "slog"
+		},
+		"metrics": {
+			"serviceName": "fijo"
+		},
+		"tracing": {
+			"service_name": "fijo"
 		}
+	},
+	"shutdownTimeout": 30000000000,
+	"auth": {
+		"sessions": {},
+		"passwordReset": {
+			"linkBaseURL": "https://app.fijo.example/reset-password",
+			"tokenLifetime": 3600000000000
+		},
+		"mail": {
+			"fromAddress": "no-reply@fijo.example",
+			"fromName": "Fijo"
+		},
+		"accessTokenTTL": 900000000000,
+		"refreshTokenTTL": 2592000000000000,
+		"credentialSweepInterval": 600000000000
 	}
 }

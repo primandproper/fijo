@@ -27,7 +27,7 @@ func TestNew(t *testing.T) {
 		test.Eq(t, loggingcfg.ProviderSlog, cfg.Observability.Logging.Provider)
 		test.Eq(t, logging.InfoLevel, cfg.Observability.Logging.Level)
 
-		must.NoError(t, cfg.Validate(context.Background()))
+		must.NoError(t, cfg.ValidateWithContext(context.Background()))
 
 		pillars, err := cfg.Observability.NewPillars(context.Background())
 		must.NoError(t, err)
@@ -42,7 +42,7 @@ func TestNew(t *testing.T) {
 
 		test.Eq(t, "custom", cfg.Observability.Logging.ServiceName)
 		test.Eq(t, logging.DebugLevel, cfg.Observability.Logging.Level)
-		must.NoError(t, cfg.Validate(context.Background()))
+		must.NoError(t, cfg.ValidateWithContext(context.Background()))
 	})
 }
 
@@ -113,10 +113,11 @@ func TestLoadFromFile(t *testing.T) {
 		must.Error(t, err)
 	})
 
-	t.Run("a file omitting the service name is valid for a stdout provider", func(t *testing.T) {
+	t.Run("a file omitting the service name takes the default", func(t *testing.T) {
 		// The platform requires a service name only for the providers that ship
 		// telemetry somewhere (otelslog); slog writes to stdout, so a file that
-		// omits it loads cleanly.
+		// omits it loads cleanly — and the embedded service.Config propagates the
+		// defaulted Name onto every pillar that named none.
 		path := filepath.Join(t.TempDir(), "config.json")
 		must.NoError(t, os.WriteFile(path, []byte(
 			`{"observability":{"logging":{"provider":"slog"}}}`,
@@ -124,7 +125,8 @@ func TestLoadFromFile(t *testing.T) {
 
 		cfg, err := LoadFromFile(context.Background(), path)
 		must.NoError(t, err)
-		test.Eq(t, "", cfg.Observability.Logging.ServiceName)
+		test.Eq(t, DefaultServiceName, cfg.Name)
+		test.Eq(t, DefaultServiceName, cfg.Observability.Logging.ServiceName)
 	})
 
 	t.Run("a missing file is an error", func(t *testing.T) {
@@ -227,4 +229,73 @@ func TestNewPillarsHonorsAConfiguredProvider(t *testing.T) {
 	pillars, err := cfg.NewPillars(t.Context())
 	must.NoError(t, err)
 	must.NotNil(t, pillars.TracerProvider)
+}
+
+// TestPlatformHalf pins what embedding service.Config buys: a subsystem is
+// composed by being present, and presence is read off the environment or the
+// file rather than off a flag. Environment mutation keeps these serial.
+func TestPlatformHalf(t *testing.T) {
+	t.Run("an empty environment names no subsystem", func(t *testing.T) {
+		cfg, err := Load(context.Background(), Options{})
+		must.NoError(t, err)
+
+		test.Nil(t, cfg.Database)
+		test.Nil(t, cfg.Identity)
+		test.Nil(t, cfg.Tokens)
+		test.Eq(t, DefaultServiceName, cfg.Name)
+	})
+
+	t.Run("a database variable switches the database on", func(t *testing.T) {
+		for _, side := range []string{"READ", "WRITE"} {
+			t.Setenv(EnvVarPrefix+"DATABASE_"+side+"_CONNECTION_HOST", "db.internal")
+			t.Setenv(EnvVarPrefix+"DATABASE_"+side+"_CONNECTION_USERNAME", "fijo")
+			t.Setenv(EnvVarPrefix+"DATABASE_"+side+"_CONNECTION_PASSWORD", "secret")
+			t.Setenv(EnvVarPrefix+"DATABASE_"+side+"_CONNECTION_DATABASE", "fijo")
+			t.Setenv(EnvVarPrefix+"DATABASE_"+side+"_CONNECTION_PORT", "5432")
+		}
+
+		cfg, err := Load(context.Background(), Options{})
+		must.NoError(t, err)
+
+		must.NotNil(t, cfg.Database)
+		test.Eq(t, "db.internal", cfg.Database.WriteConnection.Host)
+		test.Nil(t, cfg.Identity)
+	})
+
+	t.Run("the auth block defaults its lifetimes", func(t *testing.T) {
+		cfg, err := Load(context.Background(), Options{})
+		must.NoError(t, err)
+
+		test.Eq(t, DefaultAccessTokenTTL, cfg.Auth.AccessTokenTTL)
+		test.Eq(t, DefaultRefreshTokenTTL, cfg.Auth.RefreshTokenTTL)
+		test.Eq(t, DefaultPasswordResetTTL, cfg.Auth.PasswordReset.TokenLifetime)
+	})
+
+	t.Run("a relative reset link is refused", func(t *testing.T) {
+		t.Setenv(EnvVarPrefix+"AUTH_PASSWORD_RESET_LINK_BASE_URL", "/reset")
+
+		_, err := Load(context.Background(), Options{})
+		must.Error(t, err)
+	})
+
+	t.Run("serving needs the sign-in subsystems", func(t *testing.T) {
+		cfg, err := Load(context.Background(), Options{})
+		must.NoError(t, err)
+
+		err = cfg.ValidateForServing(context.Background())
+		must.Error(t, err)
+		test.StrContains(t, err.Error(), "database")
+		test.StrContains(t, err.Error(), "identity")
+		test.StrContains(t, err.Error(), "tokens")
+	})
+}
+
+func TestResetLink(t *testing.T) {
+	t.Parallel()
+
+	cfg := PasswordResetConfig{LinkBaseURL: "https://studio.example/reset-password"}
+
+	link, err := cfg.ResetLink("s3cret")
+	must.NoError(t, err)
+	test.Eq(t, "https://studio.example/reset-password?token=s3cret", link)
 }

@@ -30,7 +30,7 @@ func main() {
 		Dir:          ".",
 		Prefix:       config.EnvVarPrefix,
 		UnionKey:     "internal/config.configurations",
-		Dependencies: []string{"github.com/primandproper/primitives-go"},
+		Dependencies: []string{"github.com/primandproper/primitives-go", "github.com/primandproper/platform-go"},
 		OutputPath:   "internal/config/envvars/env_vars.go",
 	}); err != nil {
 		log.Fatalf("generating environment variable constants: %v", err)

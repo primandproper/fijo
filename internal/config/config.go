@@ -1,12 +1,20 @@
-// Package config assembles the application's configuration, most notably the
-// observability settings that the primitives-go observability suite consumes.
+// Package config assembles the application's configuration.
 //
-// The configuration is built in Go with sensible, zero-dependency defaults so
-// the binary boots out of the box: structured slog logging, and tracing,
-// metrics and profiling left unconfigured, which primitives-go resolves to noop
-// providers. Callers may override the service name and log level (see Options),
-// which is how the CLI threads its flags and environment into the platform
-// configuration.
+// The configuration has two halves. The platform half is platform-go's
+// service.Config, embedded so its fields promote onto Config: the service name,
+// the observability pillars, and one pointer sub-config per platform subsystem
+// (database, identity, authorization, audit, tokens, WebAuthn, email, the gRPC
+// server, ...). A subsystem is composed into the process by being present in
+// the config and by nothing else — see platform-go's service package for the
+// rule. The Fijo half is the Auth block: the settings that belong to Fijo's own
+// sign-in flow rather than to any one platform package.
+//
+// The configuration is built in Go with zero-dependency defaults so the binary
+// boots out of the box: structured slog logging, and tracing, metrics and
+// profiling left unconfigured, which primitives-go resolves to noop providers.
+// A config that names no database, no identity store and no token issuer is a
+// valid config — it is what `fijo version` boots with — and one that serves
+// has to name all of them; ValidateForServing is that check.
 //
 // Two loaders build on those defaults using primitives-go's config package:
 //
@@ -29,15 +37,20 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 
+	"github.com/primandproper/platform-go/v14/service"
 	primitivesconfig "github.com/primandproper/primitives-go/v2/config"
+	platformerrors "github.com/primandproper/primitives-go/v2/errors"
 	"github.com/primandproper/primitives-go/v2/observability"
 	"github.com/primandproper/primitives-go/v2/observability/logging"
 	loggingcfg "github.com/primandproper/primitives-go/v2/observability/logging/config"
 	metricsnoop "github.com/primandproper/primitives-go/v2/observability/metrics/noop"
 	profilingnoop "github.com/primandproper/primitives-go/v2/observability/profiling/noop"
 	tracingnoop "github.com/primandproper/primitives-go/v2/observability/tracing/noop"
+
+	validation "github.com/go-ozzo/ozzo-validation/v4"
 )
 
 // DefaultServiceName is the service name reported by the observability suite
@@ -70,15 +83,24 @@ type configurations interface {
 	Config
 }
 
-// Config is the application configuration. It wraps the primitives-go
-// observability configuration; add your own fields here as the application grows.
+// Config is the application configuration.
 //
-// The struct tags let primitives-go's config package populate the config from
-// environment variables (envPrefix) and JSON files (json). Give new fields both
-// tags so they participate in Load and LoadFromFile.
+// service.Config is embedded rather than named so that its fields promote: the
+// JSON a deployment mounts has "name", "observability", "database" and "auth"
+// as siblings, and the environment reads FIJO_DATABASE_* rather than
+// FIJO_PLATFORM_DATABASE_*. The embed carries no env tag on purpose —
+// caarlos0/env reads through an anonymous embedded struct and still composes
+// the nested envPrefix tags, and encoding/json promotes the fields on its own.
 type Config struct {
-	Observability observability.Config `envPrefix:"OBSERVABILITY_" json:"observability"`
+	service.Config
+
+	// Auth is Fijo's own sign-in configuration: the session record behind every
+	// access token, token lifetimes, the password-reset link and the address
+	// reset mail comes from.
+	Auth AuthConfig `envPrefix:"AUTH_" json:"auth"`
 }
+
+var _ validation.ValidatableWithContext = (*Config)(nil)
 
 // Options tune the values that most deployments care about. Empty fields fall
 // back to the built-in defaults.
@@ -90,7 +112,7 @@ type Options struct {
 }
 
 // New builds a Config from the given options, filling in defaults. The result
-// validates cleanly and is ready to hand to observability.Config.NewPillars.
+// validates cleanly and is ready to hand to NewPillars.
 func New(opts Options) *Config {
 	serviceName := strings.TrimSpace(opts.ServiceName)
 	if serviceName == "" {
@@ -98,6 +120,7 @@ func New(opts Options) *Config {
 	}
 
 	cfg := &Config{
+		Name: serviceName,
 		Observability: observability.Config{
 			// slog logging to stdout as structured JSON.
 			Logging: loggingcfg.Config{
@@ -136,7 +159,9 @@ func envVarOptions() []primitivesconfig.Option {
 // defaults; any FIJO_-prefixed environment variable that is set wins over
 // them. Fields left unset in the environment keep their default value, so the
 // binary still boots with structured slog logging and noop telemetry out of the
-// box. The result is validated before it is returned.
+// box. The result is validated before it is returned, and validation is what
+// releases the platform sub-configs that environment parsing allocated and
+// nobody filled in.
 func Load(ctx context.Context, opts Options) (*Config, error) {
 	cfg := New(opts)
 
@@ -144,7 +169,7 @@ func Load(ctx context.Context, opts Options) (*Config, error) {
 		return nil, fmt.Errorf("applying environment variables: %w", err)
 	}
 
-	if err := cfg.Validate(ctx); err != nil {
+	if err := cfg.ValidateWithContext(ctx); err != nil {
 		return nil, fmt.Errorf("validating configuration: %w", err)
 	}
 
@@ -157,16 +182,17 @@ func Load(ctx context.Context, opts Options) (*Config, error) {
 // expected to fully specify the config, so use it once a deployment has a real
 // config file to mount. The result is validated before it is returned. Note
 // that validation is permissive about omissions — an empty logging provider is
-// the documented opt-out into noop logging, and a service name is required only
-// by the providers that export telemetry — so a sparse file loads rather than
-// failing, and takes the zero value for whatever it leaves out.
+// the documented opt-out into noop logging, a missing name takes
+// DefaultServiceName, and a platform subsystem the file leaves out is a
+// subsystem this process is not made of — so a sparse file loads rather than
+// failing.
 func LoadFromFile(ctx context.Context, path string) (*Config, error) {
 	cfg, err := loadFromJSONFile[Config](ctx, path)
 	if err != nil {
 		return nil, err
 	}
 
-	if err = cfg.Validate(ctx); err != nil {
+	if err = cfg.ValidateWithContext(ctx); err != nil {
 		return nil, fmt.Errorf("validating configuration: %w", err)
 	}
 
@@ -186,12 +212,67 @@ func loadFromJSONFile[T configurations](ctx context.Context, path string) (*T, e
 	return cfg, nil
 }
 
-// Validate confirms the assembled configuration is internally consistent.
-func (c *Config) Validate(ctx context.Context) error {
-	return c.Observability.ValidateWithContext(ctx)
+// EnsureDefaults fills in what a config assembled in code or a sparse file
+// leaves out: the service name, and whatever the Auth block defaults.
+func (c *Config) EnsureDefaults() {
+	if strings.TrimSpace(c.Name) == "" {
+		c.Name = DefaultServiceName
+	}
+
+	c.Config.EnsureDefaults()
+	c.Auth.EnsureDefaults()
 }
 
-// NewPillars builds the observability pillars for the application.
+// ValidateWithContext confirms the assembled configuration is internally
+// consistent. The platform half validates itself — which is also what releases
+// the sub-configs environment parsing allocated and nobody configured — and
+// then the Auth block validates.
+func (c *Config) ValidateWithContext(ctx context.Context) error {
+	c.EnsureDefaults()
+
+	if err := c.Config.ValidateWithContext(ctx); err != nil {
+		return err
+	}
+
+	return c.Auth.ValidateWithContext(ctx)
+}
+
+// ValidateForServing is the stricter check a process that serves or works
+// makes: every platform subsystem the sign-in flow is built from has to be
+// present. It is separate from ValidateWithContext because `fijo version` and
+// `fijo migrate` are valid programs over a config that names none of them.
+func (c *Config) ValidateForServing(ctx context.Context) error {
+	if err := c.ValidateWithContext(ctx); err != nil {
+		return err
+	}
+
+	var missing []string
+
+	for name, present := range map[string]bool{
+		"database":      c.Database != nil,
+		"identity":      c.Identity != nil,
+		"authorization": c.Authorization != nil,
+		"audit":         c.Audit != nil,
+		"tokens":        c.Tokens != nil,
+		"webAuthn":      c.WebAuthn != nil,
+		"email":         c.Email != nil,
+		"grpcServer":    c.GRPCServer != nil,
+	} {
+		if !present {
+			missing = append(missing, name)
+		}
+	}
+
+	if len(missing) > 0 {
+		slices.Sort(missing)
+
+		return platformerrors.Newf("serving requires these config blocks, which are absent: %s", strings.Join(missing, ", "))
+	}
+
+	return nil
+}
+
+// NewPillars builds the observability pillars for the CLI process.
 //
 // Turning on real telemetry is a config change rather than an edit here: name a
 // provider in the JSON or in a FIJO_OBSERVABILITY_*_PROVIDER variable and
