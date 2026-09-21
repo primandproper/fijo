@@ -9,6 +9,7 @@ BINARY_NAME   := fijo
 CMD_PACKAGE   := $(THIS)/cmd/main
 ARTIFACTS_DIR := artifacts
 SCRIPTS_DIR   := scripts
+FRONTEND_DIR  := frontend
 COVERAGE_OUT  := $(ARTIFACTS_DIR)/coverage.out
 
 # COMPUTED
@@ -77,10 +78,14 @@ format_golang: go_fix goimports format_imports format_go_fieldalignment format_g
 	@$(SCRIPTS_DIR)/format_golang.sh $(PWD)
 
 .PHONY: format
-format: format_golang
+format: format_golang format_frontend
 
 .PHONY: fmt
 fmt: format
+
+.PHONY: format_frontend
+format_frontend:
+	$(MAKE) -C $(FRONTEND_DIR) format
 
 ## LINTING
 
@@ -92,8 +97,19 @@ golang_lint:
 shellcheck:
 	@$(SCRIPTS_DIR)/shellcheck.sh $(CONTAINER_RUNNER) $(SHELLCHECK_IMAGE) $(SCRIPTS_DIR)
 
+# lint_golang is what CI's Go job runs; lint adds the frontend for a developer
+# who has both toolchains.
+.PHONY: lint_golang
+lint_golang: golang_lint shellcheck
+
+.PHONY: lint_frontend
+lint_frontend:
+	$(MAKE) -C $(FRONTEND_DIR) lint
+	$(MAKE) -C $(FRONTEND_DIR) format-check
+	$(MAKE) -C $(FRONTEND_DIR) check
+
 .PHONY: lint
-lint: golang_lint shellcheck
+lint: lint_golang lint_frontend
 
 ## GENERATED FILES
 
@@ -112,9 +128,30 @@ configs:
 envvars:
 	$(SCRIPTS_DIR)/envvars.sh $(THIS)
 
+# proto regenerates the Go bindings under internal/grpc/fijopb and the
+# TypeScript bindings under frontend/packages/api-client/src/generated from the
+# .proto files under proto/. The platform's schemas are read off the module
+# cache, never copied here — see scripts/proto.sh.
+.PHONY: proto
+proto: proto_golang proto_typescript
+
+.PHONY: proto_golang
+proto_golang:
+	$(SCRIPTS_DIR)/proto.sh $(THIS) golang
+	$(MAKE) format_golang
+
+.PHONY: proto_typescript
+proto_typescript: $(FRONTEND_DIR)/node_modules
+	$(SCRIPTS_DIR)/proto.sh $(THIS) typescript
+
+# The frontend's dependencies, installed once so proto generation and the
+# frontend targets have their tools.
+$(FRONTEND_DIR)/node_modules:
+	$(MAKE) -C $(FRONTEND_DIR) install
+
 # generated regenerates everything under GENERATED FILES.
 .PHONY: generated
-generated: configs envvars
+generated: configs envvars proto
 
 ## EXECUTION
 
@@ -130,6 +167,57 @@ build: $(ARTIFACTS_DIR)
 run:
 	go run $(CMD_PACKAGE) $(ARGS)
 
-.PHONY: test
-test: $(ARTIFACTS_DIR)
+# test_golang is what CI's Go job runs; test adds the frontend for a developer
+# who has both toolchains.
+.PHONY: test_golang
+test_golang: $(ARTIFACTS_DIR)
 	$(SCRIPTS_DIR)/test.sh
+
+.PHONY: test_frontend
+test_frontend: $(FRONTEND_DIR)/node_modules
+	$(MAKE) -C $(FRONTEND_DIR) test
+
+.PHONY: test
+test: test_golang test_frontend
+
+# container_tests runs the Go suite with the Postgres-backed tests switched on.
+# It needs a Docker daemon.
+.PHONY: container_tests
+container_tests: $(ARTIFACTS_DIR)
+	RUN_CONTAINER_TESTS=true $(SCRIPTS_DIR)/test.sh
+
+## FRONTEND
+
+.PHONY: frontend_build
+frontend_build: $(FRONTEND_DIR)/node_modules
+	$(MAKE) -C $(FRONTEND_DIR) build
+
+.PHONY: frontend_dev
+frontend_dev: $(FRONTEND_DIR)/node_modules
+	$(MAKE) -C $(FRONTEND_DIR) dev
+
+## LOCAL DEVELOPMENT
+
+# dev_db stands up the Postgres the localdev config points at.
+.PHONY: dev_db
+dev_db:
+	$(CONTAINER_RUNNER) run -d --rm --name fijo-postgres -e POSTGRES_USER=fijo -e POSTGRES_PASSWORD=fijo -e POSTGRES_DB=fijo -p 5432:5432 postgres:17-alpine
+
+.PHONY: dev_db_stop
+dev_db_stop:
+	$(CONTAINER_RUNNER) stop fijo-postgres
+
+# dev_serve runs the API against config/localdev.json, migrating on boot.
+.PHONY: dev_serve
+dev_serve:
+	go run $(CMD_PACKAGE) serve --config config/localdev.json
+
+.PHONY: dev_worker
+dev_worker:
+	go run $(CMD_PACKAGE) worker --config config/localdev.json
+
+# dev_seed registers an owner and studio on the local database; pass the
+# details through SEED_ARGS. See cmd/tools/devseed.
+.PHONY: dev_seed
+dev_seed:
+	go run $(THIS)/cmd/tools/devseed --config config/localdev.json $(SEED_ARGS)

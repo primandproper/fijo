@@ -169,6 +169,8 @@ Three Fijo-owned domains, each a Store plus Postgres SQL plus mock, DDB-style.
 | Recurrence / series materialization (platform-go#871, candidate) | platform-go | Fijo-local in `schedule`, extraction candidate | file issue, build locally, mark |
 | Third-party OAuth grant store (platform-go#872) | platform-go | per-tenant grant with refresh token, encrypted | file issue; calendar phase |
 | Recovery codes (#867), idempotent refresh (#869) | platform-go | already filed | Jeffrey, in parallel |
+| Sign-in door for a proven principal (platform-go#874) | platform-go | `signin.Service.IssueForPrincipal`; passkey logins mint through it | filed in phase 0; `internal/auth/mint` is the candidate |
+| Tenant scope on `service.Transports` (platform-go#875) | platform-go | a `TenantScope` resolver beside `Extractor`, or `callers.Principal.TenantScope()` | filed in phase 0; audit read surface inert until then |
 
 ## Build order
 
@@ -217,3 +219,66 @@ frontend/                             SvelteKit: owner area, client area,
 config/{localdev,production}.json
 docs/
 ```
+
+## Phase 0 as built (2026-09-21)
+
+Phase 0 is in the tree. What follows records the decisions it took that the
+sections above did not anticipate, and the two platform gaps it found.
+
+### Composition
+
+The composition root is platform-go's `service` package driven from Fijo's
+config, not DDB's hand-assembled registration. `internal/config.Config` embeds
+`service.Config`, so a platform subsystem is switched on by being present in
+`config/<env>.json`; `internal/build/api` adds only what no environment
+variable can express (hooks, the session store, the sign-in service and its
+flows, the interceptors, the authorization requirements) and mounts identity,
+sign-in and audit beside Fijo's two gRPC services through
+`service.RegisterTransports`. `internal/build/worker` is the same registration
+with the servers left out plus the sweepers.
+
+### Sign-in
+
+- **Password** sign-in and the **refresh exchange** are platform-go's own
+  `SignInService`, mounted as-is.
+- **Passkeys, password reset and sign-out** are `fijo.v1.OwnerAuthService`,
+  built over the platform's `passkeys`, `webauthnsessions`, `passwordreset` and
+  `refreshtokens` stores and primitives-go's WebAuthn engine.
+- **Sessions** are the revocation record signin's documentation leaves to the
+  consumer: every mint creates one `sessions` row through the claims builder and
+  names it in the token; the interceptor reads it back on every request. One
+  row per mint rather than per family, because `sessions.Store` has no lookup
+  but by identifier; the rows a refresh leaves behind idle out and are swept.
+- **Audit** entries are recorded through `identity.Hooks` and `signin.Hooks`,
+  inside the platform's transactions, scoped to the studio
+  (`tenancy.Of(accountID)`); an event with no studio is the operator's, in the
+  global scope.
+- **Roles** are seeded by the migrator from `internal/authz/roles`, and the
+  role a membership names is a foreign key onto the seeded table.
+
+### Two platform gaps found in phase 0
+
+| Gap | Tier | Where Fijo stands meanwhile |
+|---|---|---|
+| **A sign-in door for a principal proven by another credential** (platform-go#874). `signin.Service` proves a password or a mailed link on its way to every token; a passkey login has nowhere in the platform to get the same token, family and hooks. | platform-go, additive: a `signin.Service` method taking a proven principal | `internal/auth/mint` duplicates the mint shape (same claims builder, refresh store and hooks) and is marked as the extraction candidate. |
+| **`service.Transports` derives audit's scope from `Principal.Scope()`** (platform-go#875). identity reads that as the directory scope, so it is global here, while Fijo's audit rows are studio-scoped. The auto-mounted audit read surface therefore sees no studio entries. DDB avoids this by hand-mounting audit with its own `ScopeResolver`, which the `service` root does not let a consumer do. | platform-go, additive: a scope-resolver seam on `Transports` (audit's `ScopeResolver`, operations' `OwnerResolver`) | Recording is correct and studio-scoped; the read surface is inert until the seam lands or phase 1 hand-mounts audit the DDB way. |
+
+Both are filed against platform-go as #874 and #875. Neither blocks phase 1.
+
+### Open for phase 1
+
+- **How the first owner comes to exist.** The platform's `Register` RPC needs an
+  authenticated registrar, so `cmd/tools/devseed` is the only door on an empty
+  database today. Production needs a decision: a self-serve "create your studio"
+  page (a public registration door Fijo would have to build over
+  `signin.Service.Register`), operator-created studios through an admin
+  surface, or both.
+- **The operator.** Nothing grants `service_admin` yet; it is a
+  `SetUserServiceRoles` call that itself needs the permission. The seed tool or
+  a one-time migration is the likely answer.
+- **Email in localdev** is the noop provider, so a reset link is visible only in
+  the debug log. A local mail sink (or the platform's mock provider) would make
+  the reset flow exercisable in the browser.
+- **Rendered `production.json` carries `REPLACE_AT_DEPLOY` markers** for the
+  database password, the signing key and the Resend token; the deployment
+  supplies them through `FIJO_*` variables (the envvars package names them).

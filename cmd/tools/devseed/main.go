@@ -84,7 +84,7 @@ func run(ctx context.Context, configPath string, registration *signin.Registrati
 
 	defer func() {
 		if report := i.ShutdownWithContext(ctx); report != nil && !report.Succeed {
-			log.Printf("shutting down: %v", report)
+			fmt.Fprintln(os.Stderr, "shutting down the injector reported errors:", report.Error())
 		}
 	}()
 

@@ -23,9 +23,8 @@ import (
 
 // The refusals.
 var (
-	ErrNilDatabaseClient = platformerrors.Wrap(platformerrors.ErrNilInputParameter, "nil database client for the owners store")
-	ErrNilExecutor       = platformerrors.Wrap(platformerrors.ErrNilInputParameter, "nil query executor")
-	ErrEmptyUserID       = platformerrors.Wrap(platformerrors.ErrEmptyInputParameter, "empty user ID")
+	ErrNilExecutor = platformerrors.Wrap(platformerrors.ErrNilInputParameter, "nil query executor")
+	ErrEmptyUserID = platformerrors.Wrap(platformerrors.ErrEmptyInputParameter, "empty user ID")
 
 	// ErrPreferencesNotFound is a user who has never set anything, which is
 	// every user until they do.

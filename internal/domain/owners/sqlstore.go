@@ -31,8 +31,12 @@ RETURNING user_id, scope, time_zone, created_at, last_updated_at`
 )
 
 // SQLStore is the Postgres implementation of Store.
+//
+// It takes no database.Client: its writes are handed a Tx and its reads an
+// executor, it emits no dialect-dependent SQL, and the database stamps the
+// rows. That is the shape the platform's convention says a store with none of
+// those obligations has.
 type SQLStore struct {
-	client      database.Client
 	o11y        observability.Observer
 	instruments *metrics.OperationSet
 }
@@ -57,20 +61,14 @@ func WithPillars(p *observability.Pillars) Option {
 	}
 }
 
-// NewSQLStore builds the store. It takes the client for its dialect and its
-// clock, not for its writes, which are handed a Tx.
-func NewSQLStore(client database.Client, opts ...Option) (*SQLStore, error) {
-	if client == nil {
-		return nil, ErrNilDatabaseClient
-	}
-
+// NewSQLStore builds the store.
+func NewSQLStore(opts ...Option) (*SQLStore, error) {
 	instruments, err := metrics.NewOperationSet(nil, storeName)
 	if err != nil {
 		return nil, platformerrors.Wrap(err, "creating owners store instruments")
 	}
 
 	s := &SQLStore{
-		client:      client,
 		o11y:        observability.NewObserver(storeName, nil, nil),
 		instruments: instruments,
 	}

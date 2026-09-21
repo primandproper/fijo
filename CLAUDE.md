@@ -4,136 +4,116 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-`github.com/primandproper/fijo` — a batteries-included Go application template built on
-[`github.com/primandproper/primitives-go/v2`](https://github.com/primandproper/primitives-go). Go 1.27.
+`github.com/primandproper/fijo` — scheduling for one- and two-person recurring-appointment
+businesses, built on `github.com/primandproper/platform-go/v14` (the domain tier: identity,
+sign-in, audit, sessions, rbac, ...) over `github.com/primandproper/primitives-go/v2` (the
+infrastructure tier). Go 1.27. Read `docs/DESIGN.md` first: it holds the settled facts, the domain
+model, what Fijo composes from each tier, and the build order. Phase 0 (scaffold and owner sign-in)
+is done; phases 1–6 are ahead.
 
-The application is a **Cobra CLI** that acts as the single entrypoint. Out of the box it bootstraps
-the primitives-go observability suite (logging/tracing/metrics/profiling) with graceful shutdown and
-ships a `version` subcommand. Grow it by adding subcommands (e.g. a `serve` command that stands up
-`primitives-go`'s HTTP server).
+**The reference consumer is `../dinnerdonebetter`.** When you wonder how something is done on this
+stack, read how DDB does it before inventing anything. The two sibling repositories'
+`CLAUDE.md` files (`../primitives-go`, `../platform-go`) are binding conventions here too — the
+tier rule, store shapes (`Tx` for writes, executor for reads), options seams, error mapping.
 
-**Which repository a dependency comes from.** primitives-go is the infrastructure tier — the
-providers behind an interface that every service is built from, and nothing in it owns a table.
-`github.com/primandproper/platform-go/v14` is the domain tier (identity, billing, audit, webhooks,
-and `service`, its composition root). This template requires only primitives-go, because a template
-has no domain yet; platform-go joins when the application grows one. Everything this repo used to
-import from `platform-go/v11` — `observability`, `config`, `version` — now lives in primitives-go,
-so a v11-era import path is always a stale one rather than a second place to look.
+**platform-go v14 is frozen.** Anything Fijo needs from the platform is an additive change there or
+a filed issue, never a local fork and never platform code written in this repository. The open
+issues Fijo depends on are listed in the design doc.
+
+## The one binary
+
+`cmd/main` → `internal/cli`. Every workload is a subcommand: `fijo serve` (gRPC API),
+`fijo worker` (background loops), `fijo migrate` (schema + policy seed), `fijo version`. A new
+workload is a subcommand and a manifest that names it, not a new `cmd/` directory.
+
+`cmd/tools/` holds development-time tools that are never deployed: the config and envvars
+renderers, and `devseed`, which registers the first owner on an empty local database (the
+platform's Register RPC is a registrar's act, so an empty directory has no door that can create
+the first user).
 
 ## Layout
 
-- `cmd/main/main.go` — thin entrypoint: signal-cancellable context → `cli.Execute`.
-- `cmd/tools/codegen/configs/` — codegen tool behind `make configs`: builds each environment's
-  `*config.Config` as a real, typed Go object (`environments.go`) and renders it to
-  `config/<env>.json` via primitives-go's `config.RenderJSONFiles`, which validates and marshals
-  every environment before it writes any of them. The checked-in JSON is a projection of these
-  builders — edit the Go, never the JSON, then re-run `make configs`.
-- `cmd/tools/codegen/envvars/` — codegen tool behind `make envvars`: derives every environment
-  variable that can override the configuration and writes it to `internal/config/envvars` as Go
-  constants. It walks `internal/config`'s `configurations` constraint rather than a list of type
-  names, so the output is complete by construction — a config struct cannot become loadable without
-  appearing there. It prints an advisory stderr line naming the dependency modules it discovered and
-  did not parse; that is expected here, where only primitives-go supplies config structs.
-- `config/` — generated per-environment config files (`localdev.json`, `production.json`); committed so
-  they stay reviewable, and loadable at runtime via `--config`.
-- `internal/cli/` — cobra root command, observability bootstrap + shutdown, subcommands.
-- `internal/config/` — assembles `observability.Config` and builds the pillars. Two loaders use
-  `primitives-go/v2/config`: `Load` overlays `FIJO_`-prefixed environment variables on the
-  flag/default-seeded config, and `LoadFromFile` decodes a complete JSON config file and then
-  overlays the same environment variables. Rendering goes the other way and is primitives-go's
-  `config.RenderJSONFiles` (see `make configs`).
-- `internal/config/envvars/` — generated; do not edit. Regenerate with `make envvars`.
-- `version/` — build metadata (`CommitHash`/`BuildTime`/`CommitTime`), injected via `-ldflags` by
-  `scripts/build.sh`.
+- `internal/config/` — `Config` embeds platform-go's `service.Config`, so a platform subsystem is
+  composed by being present in the config and by nothing else. Fijo's own settings are the `Auth`
+  block. `ValidateForServing` is the stricter check `serve` and `worker` make; `version` and
+  `migrate` are valid over a config naming nothing. `Load` overlays `FIJO_` variables on flag
+  defaults; `LoadFromFile` decodes JSON and overlays the same variables.
+- `internal/build/api/` — the composition root of `serve`, DDB's shape driven by platform-go's
+  `service.Register` / `RegisterTransports` / `New`. What it registers by hand is what no
+  environment variable can express: hooks, the session store, the sign-in service and flows, the
+  interceptors, the authorization requirements. `internal/build/worker/` is the same registration
+  with the servers left out plus the runners.
+- `internal/auth/` — the sign-in layer: `principal` (the caller every handler reads; `Scope()` is
+  the global directory, `StudioScope()` is Fijo's tenant), `session` (the server-side record behind
+  every access token, one per mint), `interceptor` (bearer token → caller in four revocable reads),
+  `auditing` (identity + signin hooks recording to the platform audit log, scoped to the studio),
+  `mint` (a sign-in for a passkey-proven user — an extraction candidate, see the design doc),
+  `passkeyflow`, `resetmail`.
+- `internal/authz/roles/` — the `owner` / `staff` / `service_admin` policy rbac seeds on every
+  migration. Fijo's own RPCs are all self-service today and declared `Public` to the enforcer;
+  the first RPC that acts on somebody else's row brings the first Fijo permission.
+- `internal/database/migrations/` — one sequence: platform DDL spliced in by version (1–8), Fijo's
+  own files from 20. Cascading FKs onto `identity_users` and the role-name FK onto `authz_roles`
+  are added here because the platform packages cannot declare them.
+- `internal/domain/<name>/` — a Store interface, a Postgres implementation, a mock. `owners` is the
+  first (user preferences). The roster, schedule and messaging domains follow the same outline.
+- `internal/services/<name>/grpc/` — Fijo's gRPC servers, each with a `Require` declaring its
+  policy and a `RegisterOn`. Generated bindings live in `internal/grpc/fijopb` from `proto/fijo/v1`.
+- `internal/workers/sweep/` — a `service.Runner` that calls a store's `Sweep` on an interval.
+- `frontend/owner/` — the SvelteKit owner app; `frontend/packages/api-client/` — ts-proto bindings
+  plus promisified clients. `frontend/go.mod` exists only so `./...` never descends into
+  `node_modules`.
+- `config/` — rendered per-environment JSON; edit `cmd/tools/codegen/configs/environments.go`,
+  never the JSON, then `make configs`.
 
 ## Common Commands
 
 ```bash
-make setup          # Create artifacts dir + download the module cache
-make configs        # Render config/<env>.json from the real Go objects in cmd/tools/codegen/configs
-make envvars        # Regenerate internal/config/envvars from the config's env: tags
-make generated      # configs + envvars
-make build          # Compile all packages, then build artifacts/fijo with version metadata
-make run ARGS="version"   # go run the CLI with arguments
-make format         # Format all Go code (imports, field alignment, tag alignment, gofmt)
-make lint           # Run golangci-lint (Docker) + shellcheck
-make test           # Run tests (race detector, shuffle, failfast); excludes cmd packages
+make setup           # artifacts dir + module cache
+make dev_db          # local Postgres (fijo/fijo/fijo on :5432)
+make dev_serve       # fijo serve --config config/localdev.json (migrates on boot)
+make dev_seed SEED_ARGS="--username ... --email ... --password ... --studio ..."
+make configs         # render config/<env>.json from the Go builders
+make envvars         # regenerate internal/config/envvars
+make proto           # regenerate Go + TypeScript bindings (needs protoc 33.1, frontend deps)
+make generated       # configs + envvars + proto
+make format          # Go + frontend formatting
+make lint            # golangci-lint + shellcheck (Docker) + eslint/prettier/svelte-check
+make test            # Go unit tests (excludes cmd) + vitest
+make container_tests # Go suite with RUN_CONTAINER_TESTS=true (needs Docker)
 ```
 
-Run a single test:
-```bash
-go test -run TestName ./internal/config/...
-```
-
-Linting runs in Docker (`golangci/golangci-lint` image). Formatting runs locally via `go tool` with
-`gci`, `goimports`, `fieldalignment`, `tagalign`, and `gofmt` (declared in the `tool` block of go.mod).
-
-This template does **not** vendor dependencies (primitives-go's dependency tree is large); builds and
-tests run against the module cache. Vendoring targets (`make vendor` / `make revendor`) exist for
-consumers who want them.
-
-`scripts/go_files.sh` is the one place that decides which Go files the formatters see, and
-`format_golang.sh`, `format_imports.sh`, `goimports.sh`, and the `gofmt` check in
-`.github/workflows/formatting.yaml` all take their list from it. It asks the Go toolchain
-(`go list -e -f '{{.Dir}}' ./...`, then `find -maxdepth 1`) rather than writing out an exclusion
-list, so `vendor/`, `testdata/`, and any `_`- or `.`-prefixed directory are skipped for the same
-reason `go test ./...` skips them. Point new filesystem-walking tooling at it rather than adding a
-fourth spelling of the same exclusion.
-
-Two things about it are load-bearing. It **fails loudly rather than emitting an empty list** — an
-out-of-sync `vendor/modules.txt` makes `go list` exit non-zero, and a formatter that quietly formats
-nothing (or a CI check that quietly checks nothing) is worse than a stop. And its callers read it
-**through a file, not `< <(...)`**, because process substitution discards the exit status of what it
-runs, which is exactly how that empty list would go unnoticed.
-
-## Import Ordering
-
-Import ordering uses `gci` with four sections, separated by blank lines:
-
-1. Standard library
-2. `github.com/primandproper/fijo` (this module)
-3. `github.com/primandproper` (org-level packages, including primitives-go)
-4. Everything else (third-party)
-
-The Makefile `THIS` variable must be the full module path (`github.com/primandproper/fijo`)
-because `format_imports.sh` runs `dirname` on it to derive the org-level prefix.
-
-## Testing
-
-- Tests use `shoenig/test`: `test` for non-fatal assertions, `must` for fatal ones. Both take
-  `(t, expected, actual)` and annotate failures via `test.Sprintf` / `must.Sprintf` settings rather
-  than `...f` variants.
-- Tests call `t.Parallel()` by default.
-- `make test` excludes `cmd` packages, so keep testable logic in `internal/` and `version/`.
-- Test command: `CGO_ENABLED=1 go test -shuffle=on -race -vet=all -failfast`.
+`make test_golang` / `make lint_golang` and `make test_frontend` / `make lint_frontend` are the
+halves CI runs. Run a single Go test with `go test -run TestName ./internal/...`.
 
 ## Conventions worth knowing
 
-- Observability logs are structured slog written to **stdout**. `version` prints its data to stdout
-  and emits nothing at the default `info` level, so `fijo version` stays machine-parseable.
-- The `--log-level` / `--service-name` persistent flags default from the `FIJO_LOG_LEVEL` and
-  `FIJO_SERVICE_NAME` environment variables. The `--config` flag (default from
-  `FIJO_CONFIG_FILEPATH`) points at a JSON config file; when set, `bootstrap` loads it via
-  `config.LoadFromFile` instead of the flag/env defaults.
-- Configuration is layered: defaults (or a JSON file) < `FIJO_`-prefixed environment variables.
-  Env vars follow primitives-go's nested `envPrefix` tags, e.g.
-  `FIJO_OBSERVABILITY_LOGGING_LEVEL`. Give new `Config` fields both `envPrefix`/`env` and `json`
-  tags so they participate in `Load` and `LoadFromFile`.
-- To enable real tracing/metrics/profiling, name a provider in the Tracing/Metrics/Profiling
-  sub-config — in the JSON or via `FIJO_OBSERVABILITY_*_PROVIDER`. No code edit is needed:
-  `Config.NewPillars` hands a configured config to `observability.Config.NewPillars`, exporters and
-  all.
-- `Config.NewPillars` builds the three noops itself when nothing is configured, and that branch is
-  load-bearing rather than a leftover. primitives-go's tracing sub-config logs an unconditional
-  `"tracing disabled"` at info on its way to the noop (its two siblings are silent), structured logs
-  go to stdout, and so does `version` — so delegating unconditionally would put a log line in front
-  of every `fijo version` and cost the documented machine-parseable output. No setting
-  silences it. `TestNewPillarsIsQuietWhenUnconfigured` is the guard; do not "simplify" that branch
-  away.
+- **Config presence is composition.** A platform block holding nothing but the library's defaults
+  is released as unconfigured and never registered; the environment builders set at least one
+  field explicitly on every block Fijo depends on. `ValidateForServing` names the missing ones.
+- **envDefault beats the file.** Environment overlay applies an `envDefault` over whatever a file
+  said. That is why `Auth.Sessions` is Fijo's own struct with the database provider fixed rather
+  than the platform's `sessionscfg.Config`, whose `Provider` defaults to `cache`.
+- **Tenancy.** The identity directory is `tenancy.Global()` (one directory, studios are accounts in
+  it). Fijo rows and audit entries carry the studio: `tenancy.Of(accountID)`. `callers.Principal.Scope()`
+  must stay global because identity's gRPC surface reads it as the directory scope.
+- **Sessions are one per mint.** A refresh exchange creates a new session row rather than finding
+  its predecessor, because `sessions.Store` has no lookup but by identifier; the old row idles out
+  and the sweeper removes it. Sign-out deletes the current row and revokes the refresh family.
+- **`Config.NewPillars`** builds the three noops itself when nothing is configured, so
+  `fijo version` prints nothing but its data; `TestNewPillarsIsQuietWhenUnconfigured` guards it.
+  `serve` and `worker` let `service.Register` build their own pillars from the same config.
+- **Structured logs go to stdout**, and so does `version`'s output.
+- Tests use `shoenig/test` (`test` non-fatal, `must` fatal), call `t.Parallel()` by default, and
+  container-backed tests gate on `RUN_CONTAINER_TESTS=true` through primitives-go's `pgtest`;
+  `internal/testutils/pgclient` opens a migrated client on one.
+- Import ordering is `gci` with four sections: stdlib, this module, `github.com/primandproper`,
+  everything else. The Makefile `THIS` variable must be the full module path.
+- `scripts/go_files.sh` is the one place deciding which Go files the formatters see; point new
+  filesystem-walking tooling at it.
 
 ## Linting
 
-- ~46 linters enabled via `.golangci.yml` (golangci-lint v2 format).
-- Formatters: `gci` and `gofmt` (configured in the `formatters:` section).
-- Notable strictness: `errcheck` (with `check-blank` + `check-type-assertions`), `errorlint`,
-  `gosec`, `forcetypeassert`, `unconvert`, `unparam`. Many are relaxed for `_test.go` files.
+- ~46 linters via `.golangci.yml` (golangci-lint v2). Formatters: `gci`, `gofmt`. Notable
+  strictness: `errcheck`, `errorlint`, `gosec`, `forcetypeassert`, `unconvert`, `unparam`,
+  `goconst`, `gocritic`. Many relaxed for `_test.go`. Generated files are skipped by header.

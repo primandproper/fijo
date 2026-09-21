@@ -58,6 +58,10 @@ const (
 	KeyRemovedUser = "removed_user_id"
 )
 
+// fieldHashedPassword names the column a password write touches, in the
+// entries that record one without recording it.
+const fieldHashedPassword = "hashed_password"
+
 // ErrNilRecorder is a Hooks built over nothing.
 var ErrNilRecorder = platformerrors.Wrap(platformerrors.ErrNilInputParameter, "nil audit recorder")
 
@@ -382,7 +386,7 @@ func (h *Hooks) AfterUpdateUserPassword(ctx context.Context, tx database.Tx, _ t
 	}
 
 	return h.record(ctx, tx, "", entry(ResourceUser, u.ID, audit.EventUpdated, u.ID, map[string]string{
-		KeyFields:                  "hashed_password",
+		KeyFields:                  fieldHashedPassword,
 		"requires_password_change": boolString(requiresChange),
 	}))
 }
@@ -439,7 +443,7 @@ func (h *Hooks) AfterUpdatePassword(ctx context.Context, tx database.Tx, _ tenan
 		return nil
 	}
 
-	return h.record(ctx, tx, "", entry(ResourceUser, u.ID, audit.EventUpdated, u.ID, map[string]string{KeyFields: "hashed_password", KeyReason: "update_password"}))
+	return h.record(ctx, tx, "", entry(ResourceUser, u.ID, audit.EventUpdated, u.ID, map[string]string{KeyFields: fieldHashedPassword, KeyReason: "update_password"}))
 }
 
 // AfterAttachPassword records a passwordless user acquiring a password.
@@ -448,7 +452,7 @@ func (h *Hooks) AfterAttachPassword(ctx context.Context, tx database.Tx, _ tenan
 		return nil
 	}
 
-	return h.record(ctx, tx, "", entry(ResourceUser, u.ID, audit.EventUpdated, u.ID, map[string]string{KeyFields: "hashed_password", KeyReason: "attach_password"}))
+	return h.record(ctx, tx, "", entry(ResourceUser, u.ID, audit.EventUpdated, u.ID, map[string]string{KeyFields: fieldHashedPassword, KeyReason: "attach_password"}))
 }
 
 func boolString(b bool) string {

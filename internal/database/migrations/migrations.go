@@ -137,7 +137,9 @@ func NewMigrator(logger logging.Logger) (*Migrator, error) {
 		migrate.WithLockKey(lockKey),
 	}
 
-	for _, g := range generated {
+	for idx := range generated {
+		g := &generated[idx]
+
 		body, renderErr := g.render()
 		if renderErr != nil {
 			return nil, errors.Wrapf(renderErr, "rendering %s", g.name)

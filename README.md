@@ -1,169 +1,128 @@
 # fijo
 
-A batteries-included Go application template built on
-[`primandproper/primitives-go`](https://github.com/primandproper/primitives-go).
+Scheduling for one- and two-person recurring-appointment businesses: the weekly
+grid of standing appointments with exceptions, cancellations and make-ups, and
+the texts that keep a household showing up. The first tenant is a music studio;
+nothing music-specific lives in the core.
 
-Unlike a bare scaffold, this template ships a **real, runnable application**: a
-[Cobra](https://github.com/spf13/cobra) CLI that bootstraps the primitives-go
-observability suite (logging, tracing, metrics, profiling) with graceful
-shutdown, plus the full build/format/lint/test toolchain and CI to go with it.
+Fijo is built on [`primandproper/platform-go`](https://github.com/primandproper/platform-go)
+(the domain tier: identity, sign-in, audit, sessions, ...) over
+[`primandproper/primitives-go`](https://github.com/primandproper/primitives-go)
+(the infrastructure tier: database, observability, gRPC, WebAuthn, email, ...),
+and it follows [dinnerdonebetter](https://github.com/primandproper/dinnerdonebetter)
+as the reference consumer of that stack. The design is in
+[`docs/DESIGN.md`](docs/DESIGN.md); this file is how to run it.
 
-The CLI is meant to be your single entrypoint. Building a one-off tool? Add a
-subcommand. A long-running worker? Add a subcommand. An HTTP service? Add a
-`serve` subcommand that stands up `primitives-go`'s HTTP server. You start here.
+## What is here today (phase 0)
 
-`primitives-go` is the infrastructure tier: the providers behind an interface
-that every service is built from. When the application grows a domain — users,
-billing, audit, webhooks — that is
-[`platform-go`](https://github.com/primandproper/platform-go), which requires
-this module's dependency and adds a composition root (`service`) over it. The
-template does not depend on it, because a template has no domain yet.
+- **One deployed binary, four workloads.** `fijo serve` is the gRPC API,
+  `fijo worker` the background loops, `fijo migrate` the schema, `fijo version`
+  the build. Adding a workload means a subcommand, not a new `cmd/` directory.
+- **The platform composed by config.** A subsystem is switched on by being
+  present in `config/<env>.json` and by nothing else — see
+  [`internal/config`](internal/config) and platform-go's `service` package.
+- **Owner sign-in.** Password and passkey, refresh tokens with reuse detection,
+  password reset over email, a server-side session behind every access token,
+  and sign-out that revokes on the next request. Every identity and sign-in
+  event lands in the audit log, scoped to the studio.
+- **Roles.** `owner` and `staff` on a studio membership, `service_admin` on the
+  operator, seeded from Go on every migration.
+- **Time zones from day one.** The studio's on the identity account, the
+  person's in Fijo's `user_preferences` side table.
+- **A SvelteKit owner app** under [`frontend/owner`](frontend/owner) whose server
+  calls the Go API over gRPC, with the API's tokens in one encrypted cookie.
+
+Not here yet: the grid, the roster, texts, money. Those are phases 1–5 in the
+design.
 
 ## Quickstart
 
-Requires **Go 1.27+**. [Docker](https://www.docker.com/) is used for linting and
-shellcheck.
+Requires **Go 1.27+**, **Node 22+ with npm 11+**, **protoc 33.1**, and
+[Docker](https://www.docker.com/) for Postgres, linting and shellcheck.
 
 ```bash
-make setup                  # create artifacts/ and download the module cache
-make build                  # compile everything, produce artifacts/fijo
-./artifacts/fijo version
-./artifacts/fijo --help
+make setup                                   # artifacts/ + the Go module cache
+make dev_db                                  # Postgres on localhost:5432 (fijo/fijo/fijo)
+make dev_serve                               # migrate on boot, then serve gRPC on :50051
 ```
 
-Or run without building a binary:
+An empty database has nobody to sign in as, and the platform's registration RPC
+is a registrar's act rather than a visitor's, so seed the first owner:
 
 ```bash
-make run ARGS="version"
+make dev_seed SEED_ARGS="--username maria --email maria@example.com \
+  --password 'correct horse battery staple' --first-name Maria \
+  --studio 'Casa de Musica' --time-zone US/Central"
 ```
 
-## What's included
+Then the owner app, in a second terminal:
 
-- **A working CLI** — `cmd/main` → `internal/cli` (cobra root + `version`
-  subcommand), wired to the observability suite in `internal/config`.
-- **Observability out of the box** — structured slog logging; tracing, metrics,
-  and profiling default to noop so the binary is quiet and dependency-free until
-  you turn them on, which is a config change rather than a code edit.
-- **Config as compiled objects** — `config/*.json` is rendered from real, typed,
-  validated Go values (`make configs`), never hand-edited.
-- **Environment variables you can't typo** — `make envvars` derives every
-  variable that can override the config and emits it as Go constants.
-- **`Makefile` + `scripts/`** — thin Makefile delegating to shellcheck-clean
-  scripts for build, format, lint, and test.
-- **`.golangci.yml`** — ~46 linters (golangci-lint v2), with `gci` + `gofmt`
-  formatters and a strict-but-practical policy.
-- **GitHub Actions** — `build`, `formatting`, `lint`, `shellcheck`, and
-  `unit tests`, each mirroring a `make` target and path-filtered.
-- **`CLAUDE.md`**, issue/PR templates, and a Go `.gitignore`.
+```bash
+cd frontend && npm install
+cp owner/.env.example owner/.env            # set COOKIE_ENCRYPTION_KEY (openssl rand -base64 32)
+npm run dev                                  # http://localhost:5173/login
+```
+
+Passkeys work on `localhost` because the localdev relying party names it. The
+localdev mailer drops every message, so a password-reset link is visible only
+in the API's debug log.
 
 ## Common commands
 
 ```bash
-make format     # imports (gci), field/tag alignment, gofmt -s
-make lint       # golangci-lint (Docker) + shellcheck (Docker)
-make test       # go test -shuffle -race -vet=all -failfast (excludes cmd)
-make build      # compile all packages + build the binary with version metadata
-make generated  # re-render config/*.json and the envvars constants
+make format          # Go (gci, alignment, gofmt) + frontend (prettier)
+make lint            # golangci-lint + shellcheck (Docker) + eslint, prettier, svelte-check
+make test            # go test -shuffle -race -vet=all (excludes cmd) + vitest
+make container_tests # the Go suite with the Postgres-backed tests switched on
+make build           # compile all packages + build artifacts/fijo with version metadata
+make generated       # configs + envvars + proto
+make proto           # regenerate Go and TypeScript bindings from proto/
 ```
 
-## Configuration
-
-The CLI's own persistent flags, each defaulting from an environment variable:
-
-| Flag             | Environment variable          | Default       | Values                           |
-| ---------------- | ----------------------------- | ------------- | -------------------------------- |
-| `--log-level`    | `FIJO_LOG_LEVEL`       | `info`        | `debug`, `info`, `warn`, `error` |
-| `--service-name` | `FIJO_SERVICE_NAME`    | `fijo` | any string                       |
-| `--config`       | `FIJO_CONFIG_FILEPATH` | unset         | path to a JSON config file       |
-
-With `--config` set, that file is loaded in place of the flag/env defaults and
-`FIJO_`-prefixed variables are overlaid on top of it. The files under
-`config/` are rendered from real, typed, validated Go objects in
-`cmd/tools/codegen/configs` — edit the Go, then `make configs`, never the JSON.
-
-```bash
-FIJO_LOG_LEVEL=debug ./artifacts/fijo version
-```
-
-Observability logs are structured slog written to **stdout**. The `version`
-subcommand prints its data to stdout and emits nothing at the default `info`
-level, so `fijo version` stays machine-parseable.
-
-### Turning on telemetry
-
-Tracing, metrics and profiling are off until one of them names a provider, and
-naming one is all it takes — no code edit:
-
-```bash
-FIJO_OBSERVABILITY_TRACING_PROVIDER=otel \
-FIJO_OBSERVABILITY_TRACING_OTELGRPC_COLLECTOR_ENDPOINT=localhost:4317 \
-  ./artifacts/fijo version
-```
-
-`internal/config/envvars` is the full list, generated from the `env:` tags
-reachable from the config rather than written down by hand:
-
-```bash
-make envvars    # regenerate after changing the Config struct
-```
-
-That package exists because the failure it prevents is invisible. A variable one
-underscore off its tag is simply not read — the default stands, and the process
-comes up healthy and wrong. Referring to
-`envvars.ObservabilityTracingProviderEnvVarKey` in a deployment manifest puts a
-compiler in front of that mistake. The walk starts from `internal/config`'s
-`configurations` constraint, so a new loadable config struct cannot skip it.
+`make test_golang`, `make lint_golang`, `make test_frontend` and `make
+lint_frontend` are the halves CI runs separately.
 
 ## Layout
 
 ```
-cmd/main/             # entrypoint: signal-cancellable context -> cli.Execute
-cmd/tools/codegen/    # the generators behind `make configs` and `make envvars`
-config/               # generated per-environment JSON, committed and reviewable
-internal/cli/         # cobra root command, observability bootstrap, subcommands
-internal/config/      # assembles observability.Config and builds the pillars
-internal/config/envvars/  # generated: every env var that can override the config
-version/              # build metadata, injected via -ldflags by scripts/build.sh
-scripts/              # build/format/lint/test/shellcheck helpers
-.github/workflows/    # CI mirroring the make targets
+cmd/main/                      the binary
+cmd/tools/codegen/{configs,envvars}   config renderers
+cmd/tools/devseed/             registers the first owner on a local database
+internal/cli/                  root, version, serve, worker, migrate
+internal/config/               Config = platform service.Config + Fijo's Auth block
+internal/build/{api,worker}/   composition roots
+internal/auth/                 principal, session, interceptor, auditing, mint,
+                               passkeyflow, resetmail
+internal/authz/roles/          the policy rbac seeds
+internal/database/migrations/  the one migration sequence, platform DDL spliced in
+internal/domain/owners/        user preferences (the time zone)
+internal/services/{ownerauth,owners}/grpc   Fijo's two gRPC services
+internal/grpc/fijopb/          generated from proto/fijo/v1
+internal/workers/sweep/        the credential sweepers the worker runs
+proto/fijo/v1/                 OwnerAuthService, OwnersService
+frontend/owner/                the SvelteKit owner app
+frontend/packages/api-client/  ts-proto bindings + promisified clients
+config/                        rendered per-environment configs (edit the Go, not these)
+docs/DESIGN.md                 the design and build order
 ```
 
-## Make it yours
+## Configuration
 
-After creating a repository from this template, run the rename script with your
-new module path. It rewrites every reference to this template's module path and
-app name, reformats the code, and then deletes itself — leaving no trace that the
-project started from a template:
+The CLI's persistent flags, each defaulting from an environment variable:
 
-```bash
-./rename.sh github.com/acme/coolapp
-```
+| Flag             | Environment variable   | Default | Values                           |
+| ---------------- | ---------------------- | ------- | -------------------------------- |
+| `--log-level`    | `FIJO_LOG_LEVEL`       | `info`  | `debug`, `info`, `warn`, `error` |
+| `--service-name` | `FIJO_SERVICE_NAME`    | `fijo`  | any string                       |
+| `--config`       | `FIJO_CONFIG_FILEPATH` | unset   | path to a JSON config file       |
 
-Then confirm everything is wired up:
+With `--config` set, that file is loaded and `FIJO_`-prefixed variables are
+overlaid on top of it. Every variable that can override the config is a constant
+in `internal/config/envvars`, regenerated by `make envvars`. Production secrets
+arrive that way: `FIJO_DATABASE_WRITE_CONNECTION_PASSWORD`,
+`FIJO_DATABASE_READ_CONNECTION_PASSWORD`, `FIJO_TOKENS_SIGNING_KEY` and
+`FIJO_EMAIL_RESEND_API_TOKEN` replace the `REPLACE_AT_DEPLOY` markers in
+`config/production.json`.
 
-```bash
-make setup && make build && make test
-```
-
-<details>
-<summary>What the script changes (in case you prefer to do it by hand)</summary>
-
-- **`go.mod`** — the `module` path.
-- **`Makefile`** — `THIS` (full module path) and `BINARY_NAME`.
-- **`.golangci.yml`** — the `prefix(...)` entries under `formatters.gci.sections`
-  (this module and its org).
-- **`scripts/`** — the module path in `scripts/test.sh` and
-  `scripts/format_imports.sh`, and `VERSION_PKG` in `scripts/build.sh`.
-- **`internal/`** — `DefaultServiceName` and the `FIJO_*` env-var prefixes.
-- **`CLAUDE.md`** and this **`README.md`** — project details.
-
-The `Makefile` `THIS` variable must be the full module path, because
-`scripts/format_imports.sh` runs `dirname` on it to derive the org-level import
-prefix (section 3 of the `gci` ordering). `primitives-go` (also under
-`github.com/primandproper`) intentionally moves to the third-party import group
-once your module lives under a different org.
-</details>
-
-## License
-
-[AGPL-3.0](./LICENSE).
+The frontend reads `GRPC_API_SERVER_URL`, `GRPC_INSECURE`,
+`COOKIE_ENCRYPTION_KEY` and `COOKIE_NAME`; see `frontend/owner/.env.example`.

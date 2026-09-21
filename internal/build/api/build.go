@@ -441,12 +441,7 @@ func registerDomains(i do.Injector) {
 			return nil, err
 		}
 
-		client, err := do.Invoke[database.Client](i)
-		if err != nil {
-			return nil, err
-		}
-
-		store, err := owners.NewSQLStore(client, owners.WithPillars(pillars))
+		store, err := owners.NewSQLStore(owners.WithPillars(pillars))
 		if err != nil {
 			return nil, err
 		}

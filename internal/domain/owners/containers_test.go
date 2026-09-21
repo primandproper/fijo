@@ -25,7 +25,7 @@ func TestSQLStoreAgainstPostgres(t *testing.T) {
 		directory, err := identity.NewSQLStore(client)
 		must.NoError(t, err)
 
-		store, err := NewSQLStore(client)
+		store, err := NewSQLStore()
 		must.NoError(t, err)
 
 		scope := tenancy.Global()

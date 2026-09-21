@@ -59,6 +59,9 @@ const (
 	productionFrontendOrigin = "https://app.fijo.example"
 	productionRPID           = "app.fijo.example"
 
+	// brand is the display name the relying party and the mail sender carry.
+	brand = "Fijo"
+
 	passkeyCeremonyTimeout = 5 * time.Minute
 
 	// A studio invites a second owner or a teacher; a week to answer is
@@ -95,7 +98,7 @@ func connection(host string, port uint16, name, user, password string, disableSS
 // platform is what both environments share: every subsystem present, the
 // dialect Postgres, the table prefixes left at their defaults because Fijo has
 // the database to itself.
-func platform(name string, level logging.Level, db databasecfg.ConnectionDetails, runMigrations bool, rp webauthn.Config, key string, email *emailcfg.Config) service.Config {
+func platform(name string, level logging.Level, db databasecfg.ConnectionDetails, runMigrations bool, rp *webauthn.Config, key string, email *emailcfg.Config) service.Config {
 	return service.Config{
 		Name: name,
 		Observability: observability.Config{
@@ -131,7 +134,7 @@ func platform(name string, level logging.Level, db databasecfg.ConnectionDetails
 		},
 		WebAuthn: &webauthnsessionscfg.Config{
 			Provider:     webauthnsessionscfg.ProviderDatabase,
-			RelyingParty: rp,
+			RelyingParty: *rp,
 		},
 		Email:      email,
 		GRPCServer: &grpcserver.Config{Port: grpcPort},
@@ -152,9 +155,9 @@ func buildLocalDevConfig() *config.Config {
 			logging.DebugLevel,
 			connection(localDatabaseHost, localDatabasePort, localDatabaseName, localDatabaseUser, localDatabasePass, true),
 			true,
-			webauthn.Config{
+			&webauthn.Config{
 				RPID:            "localhost",
-				RPDisplayName:   "Fijo (local)",
+				RPDisplayName:   brand + " (local)",
 				RPOrigins:       []string{localFrontendOrigin},
 				CeremonyTimeout: passkeyCeremonyTimeout,
 			},
@@ -167,7 +170,7 @@ func buildLocalDevConfig() *config.Config {
 			},
 			Mail: config.MailConfig{
 				FromAddress: "fijo@localhost",
-				FromName:    "Fijo",
+				FromName:    brand,
 			},
 		},
 	}
@@ -183,9 +186,9 @@ func buildProductionConfig() *config.Config {
 			logging.InfoLevel,
 			connection("postgres.fijo.internal", localDatabasePort, localDatabaseName, localDatabaseUser, replaceAtDeploy, false),
 			false,
-			webauthn.Config{
+			&webauthn.Config{
 				RPID:            productionRPID,
-				RPDisplayName:   "Fijo",
+				RPDisplayName:   brand,
 				RPOrigins:       []string{productionFrontendOrigin},
 				CeremonyTimeout: passkeyCeremonyTimeout,
 			},
@@ -201,7 +204,7 @@ func buildProductionConfig() *config.Config {
 			},
 			Mail: config.MailConfig{
 				FromAddress: "no-reply@fijo.example",
-				FromName:    "Fijo",
+				FromName:    brand,
 			},
 		},
 	}

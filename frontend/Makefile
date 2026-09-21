@@ -1,7 +1,9 @@
 .PHONY: install check test build lint lint-fix format format-check dev
 
+# npm >= 11 is required: npm 10's tree builder fails on vitest 4's optional
+# peers ("Cannot read properties of null (reading 'edgesOut')").
 install:
-	npm install
+	npm ci
 
 check:
 	npm run check

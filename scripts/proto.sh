@@ -37,6 +37,14 @@ if [ "${#FIJO_PROTOS[@]}" -eq 0 ]; then
   exit 1
 fi
 
+# protoc itself is pinned by version: its version lands in every generated
+# header, so a different one is a diff in files nobody edited.
+REQUIRED_PROTOC="libprotoc ${PROTOC_VERSION:-33.1}"
+if [ "$(protoc --version)" != "${REQUIRED_PROTOC}" ]; then
+  echo "proto.sh: need ${REQUIRED_PROTOC}, have $(protoc --version)" >&2
+  exit 1
+fi
+
 # The module cache is read-only, which protoc tolerates for reading.
 INCLUDES=(--proto_path proto --proto_path "${FILTERING_PATH}" --proto_path "${IDENTITY_PATH}" --proto_path "${SIGNIN_PATH}")
 
@@ -46,7 +54,15 @@ generate_golang() {
   tmp="$(mktemp -d)"
   trap 'rm -rf "${tmp}"' RETURN
 
+  # The plugins are the versions go.mod pins as tools, built here rather than
+  # taken from PATH, so two machines generate the same header and CI's diff
+  # check compares like with like.
+  go build -o "${tmp}/bin/protoc-gen-go" google.golang.org/protobuf/cmd/protoc-gen-go
+  go build -o "${tmp}/bin/protoc-gen-go-grpc" google.golang.org/grpc/cmd/protoc-gen-go-grpc
+
   protoc \
+    --plugin="protoc-gen-go=${tmp}/bin/protoc-gen-go" \
+    --plugin="protoc-gen-go-grpc=${tmp}/bin/protoc-gen-go-grpc" \
     --go_out="${tmp}" --go-grpc_out="${tmp}" \
     --go_opt=module="${MODULE_PATH}" --go-grpc_opt=module="${MODULE_PATH}" \
     --go_opt="M${FILTERING_PROTO}=github.com/primandproper/primitives-go/v2/filtering/filteringpb" \
