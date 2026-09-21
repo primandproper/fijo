@@ -1,9 +1,10 @@
 // Package cli wires the command-line interface together and bootstraps the
 // primitives-go observability suite that the rest of the application builds on.
 //
-// The CLI is the template's single entrypoint: whether you are building a
-// one-off tool, a long-running worker, or an HTTP service, you start here and
-// hang new subcommands off the root command.
+// The CLI is the one deployed binary, and every workload is a subcommand of it:
+// `fijo serve` is the API, `fijo worker` the background loops, `fijo migrate`
+// the schema, `fijo version` the build. Adding a workload means adding a
+// subcommand here and a manifest that names it, not a new cmd/ directory.
 package cli
 
 import (
@@ -32,6 +33,7 @@ const shutdownTimeout = 5 * time.Second
 // The logger is populated by bootstrap and shared with subcommands, which reach
 // it through the application receiver on their RunE closures.
 type application struct {
+	cfg     *config.Config
 	pillars *observability.Pillars
 	logger  logging.Logger
 }
@@ -59,7 +61,7 @@ func (a *application) newRootCommand() *cobra.Command {
 
 	rootCmd := &cobra.Command{
 		Use:          config.DefaultServiceName,
-		Short:        "A Go application template built on primandproper/primitives-go.",
+		Short:        "Fijo: scheduling for one- and two-person recurring-appointment businesses.",
 		SilenceUsage: true,
 		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
 			return a.bootstrap(cmd.Context(), config.Options{ServiceName: serviceName, LogLevel: logLevel}, configPath)
@@ -75,7 +77,12 @@ func (a *application) newRootCommand() *cobra.Command {
 	rootCmd.PersistentFlags().StringVar(&serviceName, "service-name", envOr("FIJO_SERVICE_NAME", config.DefaultServiceName), "service name reported in telemetry")
 	rootCmd.PersistentFlags().StringVar(&configPath, "config", envOr(ConfigFilePathEnvVar, ""), "path to a JSON config file; when set, it is loaded in place of the flag/env defaults")
 
-	rootCmd.AddCommand(a.newVersionCommand())
+	rootCmd.AddCommand(
+		a.newVersionCommand(),
+		a.newServeCommand(),
+		a.newWorkerCommand(),
+		a.newMigrateCommand(),
+	)
 
 	return rootCmd
 }
@@ -104,6 +111,7 @@ func (a *application) bootstrap(ctx context.Context, opts config.Options, config
 		return err
 	}
 
+	a.cfg = cfg
 	a.pillars = pillars
 	a.logger = logging.NewNamedLogger(pillars.Logger, cfg.Observability.Logging.ServiceName)
 
