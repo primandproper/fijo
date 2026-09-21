@@ -20,7 +20,7 @@ import (
 	"context"
 	"log"
 
-	"github.com/primandproper/template-go/internal/config"
+	"github.com/primandproper/fijo/internal/config"
 
 	"github.com/primandproper/primitives-go/v2/config/envvars"
 )

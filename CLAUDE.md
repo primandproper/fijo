@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-`github.com/primandproper/template-go` — a batteries-included Go application template built on
+`github.com/primandproper/fijo` — a batteries-included Go application template built on
 [`github.com/primandproper/primitives-go/v2`](https://github.com/primandproper/primitives-go). Go 1.27.
 
 The application is a **Cobra CLI** that acts as the single entrypoint. Out of the box it bootstraps
@@ -38,7 +38,7 @@ so a v11-era import path is always a stale one rather than a second place to loo
   they stay reviewable, and loadable at runtime via `--config`.
 - `internal/cli/` — cobra root command, observability bootstrap + shutdown, subcommands.
 - `internal/config/` — assembles `observability.Config` and builds the pillars. Two loaders use
-  `primitives-go/v2/config`: `Load` overlays `TEMPLATE_GO_`-prefixed environment variables on the
+  `primitives-go/v2/config`: `Load` overlays `FIJO_`-prefixed environment variables on the
   flag/default-seeded config, and `LoadFromFile` decodes a complete JSON config file and then
   overlays the same environment variables. Rendering goes the other way and is primitives-go's
   `config.RenderJSONFiles` (see `make configs`).
@@ -53,7 +53,7 @@ make setup          # Create artifacts dir + download the module cache
 make configs        # Render config/<env>.json from the real Go objects in cmd/tools/codegen/configs
 make envvars        # Regenerate internal/config/envvars from the config's env: tags
 make generated      # configs + envvars
-make build          # Compile all packages, then build artifacts/template-go with version metadata
+make build          # Compile all packages, then build artifacts/fijo with version metadata
 make run ARGS="version"   # go run the CLI with arguments
 make format         # Format all Go code (imports, field alignment, tag alignment, gofmt)
 make lint           # Run golangci-lint (Docker) + shellcheck
@@ -91,11 +91,11 @@ runs, which is exactly how that empty list would go unnoticed.
 Import ordering uses `gci` with four sections, separated by blank lines:
 
 1. Standard library
-2. `github.com/primandproper/template-go` (this module)
+2. `github.com/primandproper/fijo` (this module)
 3. `github.com/primandproper` (org-level packages, including primitives-go)
 4. Everything else (third-party)
 
-The Makefile `THIS` variable must be the full module path (`github.com/primandproper/template-go`)
+The Makefile `THIS` variable must be the full module path (`github.com/primandproper/fijo`)
 because `format_imports.sh` runs `dirname` on it to derive the org-level prefix.
 
 ## Testing
@@ -110,24 +110,24 @@ because `format_imports.sh` runs `dirname` on it to derive the org-level prefix.
 ## Conventions worth knowing
 
 - Observability logs are structured slog written to **stdout**. `version` prints its data to stdout
-  and emits nothing at the default `info` level, so `template-go version` stays machine-parseable.
-- The `--log-level` / `--service-name` persistent flags default from the `TEMPLATE_GO_LOG_LEVEL` and
-  `TEMPLATE_GO_SERVICE_NAME` environment variables. The `--config` flag (default from
-  `TEMPLATE_GO_CONFIG_FILEPATH`) points at a JSON config file; when set, `bootstrap` loads it via
+  and emits nothing at the default `info` level, so `fijo version` stays machine-parseable.
+- The `--log-level` / `--service-name` persistent flags default from the `FIJO_LOG_LEVEL` and
+  `FIJO_SERVICE_NAME` environment variables. The `--config` flag (default from
+  `FIJO_CONFIG_FILEPATH`) points at a JSON config file; when set, `bootstrap` loads it via
   `config.LoadFromFile` instead of the flag/env defaults.
-- Configuration is layered: defaults (or a JSON file) < `TEMPLATE_GO_`-prefixed environment variables.
+- Configuration is layered: defaults (or a JSON file) < `FIJO_`-prefixed environment variables.
   Env vars follow primitives-go's nested `envPrefix` tags, e.g.
-  `TEMPLATE_GO_OBSERVABILITY_LOGGING_LEVEL`. Give new `Config` fields both `envPrefix`/`env` and `json`
+  `FIJO_OBSERVABILITY_LOGGING_LEVEL`. Give new `Config` fields both `envPrefix`/`env` and `json`
   tags so they participate in `Load` and `LoadFromFile`.
 - To enable real tracing/metrics/profiling, name a provider in the Tracing/Metrics/Profiling
-  sub-config — in the JSON or via `TEMPLATE_GO_OBSERVABILITY_*_PROVIDER`. No code edit is needed:
+  sub-config — in the JSON or via `FIJO_OBSERVABILITY_*_PROVIDER`. No code edit is needed:
   `Config.NewPillars` hands a configured config to `observability.Config.NewPillars`, exporters and
   all.
 - `Config.NewPillars` builds the three noops itself when nothing is configured, and that branch is
   load-bearing rather than a leftover. primitives-go's tracing sub-config logs an unconditional
   `"tracing disabled"` at info on its way to the noop (its two siblings are silent), structured logs
   go to stdout, and so does `version` — so delegating unconditionally would put a log line in front
-  of every `template-go version` and cost the documented machine-parseable output. No setting
+  of every `fijo version` and cost the documented machine-parseable output. No setting
   silences it. `TestNewPillarsIsQuietWhenUnconfigured` is the guard; do not "simplify" that branch
   away.
 

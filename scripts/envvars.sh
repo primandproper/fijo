@@ -4,7 +4,7 @@ set -euo pipefail
 # Generate the Go constants for every environment variable that can override the
 # application's configuration.
 # Usage: envvars.sh <module_path>
-#   e.g. envvars.sh github.com/primandproper/template-go
+#   e.g. envvars.sh github.com/primandproper/fijo
 #
 # The generator prints an advisory line to stderr naming the dependency modules
 # it discovered and did not parse. That is expected: only primitives-go supplies

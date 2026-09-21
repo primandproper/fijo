@@ -1,4 +1,4 @@
-module github.com/primandproper/template-go
+module github.com/primandproper/fijo
 
 go 1.27
 

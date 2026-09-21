@@ -1,4 +1,4 @@
-# template-go
+# fijo
 
 A batteries-included Go application template built on
 [`primandproper/primitives-go`](https://github.com/primandproper/primitives-go).
@@ -26,9 +26,9 @@ shellcheck.
 
 ```bash
 make setup                  # create artifacts/ and download the module cache
-make build                  # compile everything, produce artifacts/template-go
-./artifacts/template-go version
-./artifacts/template-go --help
+make build                  # compile everything, produce artifacts/fijo
+./artifacts/fijo version
+./artifacts/fijo --help
 ```
 
 Or run without building a binary:
@@ -72,22 +72,22 @@ The CLI's own persistent flags, each defaulting from an environment variable:
 
 | Flag             | Environment variable          | Default       | Values                           |
 | ---------------- | ----------------------------- | ------------- | -------------------------------- |
-| `--log-level`    | `TEMPLATE_GO_LOG_LEVEL`       | `info`        | `debug`, `info`, `warn`, `error` |
-| `--service-name` | `TEMPLATE_GO_SERVICE_NAME`    | `template-go` | any string                       |
-| `--config`       | `TEMPLATE_GO_CONFIG_FILEPATH` | unset         | path to a JSON config file       |
+| `--log-level`    | `FIJO_LOG_LEVEL`       | `info`        | `debug`, `info`, `warn`, `error` |
+| `--service-name` | `FIJO_SERVICE_NAME`    | `fijo` | any string                       |
+| `--config`       | `FIJO_CONFIG_FILEPATH` | unset         | path to a JSON config file       |
 
 With `--config` set, that file is loaded in place of the flag/env defaults and
-`TEMPLATE_GO_`-prefixed variables are overlaid on top of it. The files under
+`FIJO_`-prefixed variables are overlaid on top of it. The files under
 `config/` are rendered from real, typed, validated Go objects in
 `cmd/tools/codegen/configs` — edit the Go, then `make configs`, never the JSON.
 
 ```bash
-TEMPLATE_GO_LOG_LEVEL=debug ./artifacts/template-go version
+FIJO_LOG_LEVEL=debug ./artifacts/fijo version
 ```
 
 Observability logs are structured slog written to **stdout**. The `version`
 subcommand prints its data to stdout and emits nothing at the default `info`
-level, so `template-go version` stays machine-parseable.
+level, so `fijo version` stays machine-parseable.
 
 ### Turning on telemetry
 
@@ -95,9 +95,9 @@ Tracing, metrics and profiling are off until one of them names a provider, and
 naming one is all it takes — no code edit:
 
 ```bash
-TEMPLATE_GO_OBSERVABILITY_TRACING_PROVIDER=otel \
-TEMPLATE_GO_OBSERVABILITY_TRACING_OTELGRPC_COLLECTOR_ENDPOINT=localhost:4317 \
-  ./artifacts/template-go version
+FIJO_OBSERVABILITY_TRACING_PROVIDER=otel \
+FIJO_OBSERVABILITY_TRACING_OTELGRPC_COLLECTOR_ENDPOINT=localhost:4317 \
+  ./artifacts/fijo version
 ```
 
 `internal/config/envvars` is the full list, generated from the `env:` tags
@@ -154,7 +154,7 @@ make setup && make build && make test
   (this module and its org).
 - **`scripts/`** — the module path in `scripts/test.sh` and
   `scripts/format_imports.sh`, and `VERSION_PKG` in `scripts/build.sh`.
-- **`internal/`** — `DefaultServiceName` and the `TEMPLATE_GO_*` env-var prefixes.
+- **`internal/`** — `DefaultServiceName` and the `FIJO_*` env-var prefixes.
 - **`CLAUDE.md`** and this **`README.md`** — project details.
 
 The `Makefile` `THIS` variable must be the full module path, because

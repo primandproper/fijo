@@ -176,7 +176,7 @@ func TestCheckedInConfigsLoad(t *testing.T) {
 // TestNewPillarsIsQuietWhenUnconfigured pins the contract the version
 // subcommand depends on: at the default info level a config that names no
 // telemetry provider must produce no output at all, because the slog provider
-// writes to stdout and that is where `template-go version` prints too.
+// writes to stdout and that is where `fijo version` prints too.
 //
 // The aggregate observability constructor does not have this property — the
 // tracing sub-config announces "tracing disabled" on its way to the noop — so
