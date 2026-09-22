@@ -31,8 +31,12 @@ the "Settled facts" section; the rest is derived from it.
   US/Central.
 - Stripe only, via Stripe Checkout. Metering of texts from day one; plan gating
   and Fijo's own pricing deferred.
-- No SMS brand registration (10DLC, toll-free verification) yet. Evaluation runs
-  on a Twilio account with verified recipient numbers. Per-tenant numbers deferred.
+- SMS is Twilio, and Fijo is the **ISV** on one Twilio account: each studio is
+  registered as its own A2P 10DLC **Sole Proprietor** brand through Twilio's ISV
+  API, so a studio sends under its own brand from its own number. Per-tenant
+  numbers are therefore required rather than deferred. Evaluation until the
+  first paying studio runs on verified recipient numbers. See "Messaging
+  vendors" below.
 - Google Calendar: read-only push with a sync button, after v1.
 - platform-go v14 is frozen. Platform changes are additive or filed as issues.
 
@@ -123,7 +127,7 @@ Three Fijo-owned domains, each a Store plus Postgres SQL plus mock, DDB-style.
 
 "v1" is phases 0–4 below; "money" is phase 5; "later" is phase 6.
 
-### primitives-go (v2.5.0)
+### primitives-go (v2.6.0)
 
 | Package | Used for | When |
 |---|---|---|
@@ -136,7 +140,7 @@ Three Fijo-owned domains, each a Store plus Postgres SQL plus mock, DDB-style.
 | `secrets/env` | localdev secrets | v1 |
 | `webhooks/inbound` | Twilio inbound (new verifier), Stripe callbacks | v1 / money |
 | `capitalism/stripe` | checkout and subscriptions | money |
-| **`sms` (gap)** | interface, config, noop, mock, twilio | v1, phase 3 |
+| `sms` | interface, config, noop, mock, twilio | v1, phase 3 |
 | `messagequeue`, `jobs` | not needed while timers + outbox + in-process workers suffice | later |
 
 ### platform-go (v14.0.0)
@@ -163,11 +167,11 @@ Three Fijo-owned domains, each a Store plus Postgres SQL plus mock, DDB-style.
 
 | Gap | Tier | Shape | Action |
 |---|---|---|---|
-| SMS sending (primitives-go#20) | primitives-go | `sms` like `email`: `Sender` interface, `OutboundSMS`, config, noop, mock, twilio, and a sentinel for a recipient who opted out | build additive in primitives-go, release v2.6 |
+| ~~SMS sending (primitives-go#20)~~ | primitives-go | `sms` like `email`: `Sender` (`SendSMS` returning a `Receipt` carrying the provider message ID), `OutboundSMS`, config, noop, mock, twilio, and `ErrRecipientOptedOut` | **closed**: built in #25, released in v2.6.0, pinned here |
 | Phone verification codes (platform-go#870) | platform-go | store like `signin/magiclinks`: digest at rest, single use, expiry, sweeper | build additive in platform-go v14.x |
-| Twilio inbound verifier (primitives-go#21) | primitives-go | `webhooks/inbound/twilio`, X-Twilio-Signature | build additive |
+| ~~Twilio inbound verifier (primitives-go#21)~~ | primitives-go | `webhooks/inbound/twilio`, X-Twilio-Signature over the URL and sorted form params rather than the body | **closed**: built in #23, released in v2.6.0, pinned here |
 | Recurrence / series materialization (platform-go#871, candidate) | platform-go | Fijo-local in `schedule`, extraction candidate | file issue, build locally, mark |
-| Third-party OAuth grant store (platform-go#872) | platform-go | per-tenant grant with refresh token, encrypted | file issue; calendar phase |
+| Third-party OAuth grant store (platform-go#872) | platform-go | per-tenant grant with refresh token, encrypted | file issue; Stripe (money) and calendar phases. Not needed for Twilio: the ISV model keeps one account and stores registration state, not per-studio credentials |
 | Recovery codes (#867), idempotent refresh (#869) | platform-go | already filed | Jeffrey, in parallel |
 | Sign-in door for a proven principal (platform-go#874) | platform-go | `signin.Service.IssueForPrincipal`; passkey logins mint through it | filed in phase 0; `internal/auth/mint` is the candidate |
 | Tenant scope on `service.Transports` (platform-go#875) | platform-go | a `TenantScope` resolver beside `Extractor`, or `callers.Principal.TenantScope()` | filed in phase 0; audit read surface inert until then |
@@ -195,8 +199,8 @@ Three Fijo-owned domains, each a Store plus Postgres SQL plus mock, DDB-style.
    balance ledger, recurring as subscriptions with price override, Stripe
    Checkout, `billing/sync` on the Stripe webhook.
 6. **Later.** Waitlist, dataprivacy and retention flows, entitlements gating,
-   Google Calendar push (OAuth grant store gap), per-tenant numbers and A2P
-   registration.
+   Google Calendar push (OAuth grant store gap). Per-tenant numbers and A2P
+   registration moved into phase 3, where the ISV model puts them.
 
 ## Repo skeleton (derived from fijo)
 
@@ -265,20 +269,96 @@ with the servers left out plus the sweepers.
 
 Both are filed against platform-go as #874 and #875. Neither blocks phase 1.
 
+### How a studio comes to exist (decided 2026-09-22)
+
+Studios are **operator-provisioned**. Self-serve "create your studio" is
+deferred to phase 5, where a sign-up page has a Stripe Checkout behind it and
+a reason to exist; building a public account-minting door before then is a
+surface with no customer.
+
+Two acts have no authenticated door on an empty database — registering the
+first user, and granting `service_admin`, which is a `SetUserServiceRoles`
+call needing a permission nobody holds yet. Both live in `internal/bootstrap`,
+which is deliberately unreachable over the wire and authorized by the database
+credential its caller already had to hold. Three callers share it:
+`cmd/tools/bootstrap` (the operator's, run once against a deployment, safe to
+run again), `cmd/tools/devseed` (the developer's, local) and container tests
+through `internal/testutils/seed`, because a test of anything scoped to a
+studio needs a studio before it can begin. The shape follows DDB's
+`cmd/tools/bootstrap`: flags rather than environment variables, idempotent by
+username, the password hashed at boot rather than baked into a migration, and
+the promotion a second write after the registration.
+
+**Every studio after the first goes through the front door.** Once an operator
+exists, identity's `Register` RPC is an ordinary authorized call, and the
+studio CRUD an operator needs is identity's account surface, which `serve`
+already mounts and `service_admin` already holds the permissions for
+(`CreateAccounts`, `ListAllAccounts`, `ArchiveAccounts`,
+`TransferAccountOwnership`, and `UpdateAccounts` by inheriting `owner`). What
+does not exist is a client for it: `grpcurl` until an admin page in the owner
+app is worth the day it costs. Note that `CreateAccount` mints the account for
+the *calling* principal, so the provisioning call is `Register`, not
+`CreateAccount`.
+
+The public registration door Fijo does build is the **invitation-answering**
+one, in phase 2, when a two-person studio's second person needs to sign in:
+`signin.Registration` already carries `InvitationID` and `InvitationToken`, no
+account is minted, and the token is the authorization rather than the door
+being open.
+
+
+### Messaging vendors (decided 2026-09-22)
+
+**Twilio, with Fijo as the ISV.** 10DLC is a carrier requirement enforced
+through The Campaign Registry, so no provider avoids it and changing vendors
+changes nothing about the registration. What varies is the onboarding model,
+and the ISV one is the reason this is tolerable for the customer: Fijo holds
+one Twilio account with an approved ISV Reseller profile and registers each
+studio's brand and campaign through Twilio's API.
+
+What a studio does to get texting is fill in a Fijo form — name, email,
+contact phone, a US or Canadian mobile, address, business name — and reply to
+one OTP text sent to that mobile. No Twilio account, no console, no EIN. The
+Sole Proprietor brand type exists precisely for a person without a tax ID,
+which a one-person studio generally is; a studio that *has* an EIN registers
+as Low-Volume Standard instead, which is the same flow with better throughput.
+
+Sole Proprietor limits are one campaign, one number, about one message per
+second, roughly 1,000/day on T-Mobile and around 15/minute on AT&T. A studio
+of sixty students on two reminders each sends about 240 texts a week, so the
+ceiling is not a consideration until a studio is far larger than the product
+is for.
+
+Consequences:
+
+- **Per-tenant numbers are phase 3, not "later."** A sole proprietor brand
+  carries one number, so the studio's number is part of its registration.
+  Inbound matching files on the number the text arrived at as well as the
+  sender.
+- **The messaging domain grows registration state** per studio: brand ID,
+  campaign ID, number, and where in the OTP round trip it is. Not credentials
+  — Fijo holds the only Twilio account.
+- **Each studio is the sender of record for its own content**, which is the
+  right side of that line to be on.
+- **This leans hosted.** A self-hosted deployment would have to be its own ISV
+  or register directly, so the ISV model and the single-tenant story do not
+  compose. That is consistent with the studio provisioning decision above.
+- **Toll-free is not the escape hatch** it used to be: as of early 2026
+  verification requires a business registration number matching a legal entity.
+
+Open: whether Twilio will approve an ISV Reseller profile for a US sole
+proprietor with no EIN. To be confirmed with Twilio (and with Telnyx, whose
+equivalent ISV programme prices lower and which the model ports to unchanged)
+before phase 3 starts. If the answer is no, an EIN is a free same-day IRS
+application and does not require forming an entity.
+
 ### Open for phase 1
 
-- **How the first owner comes to exist.** The platform's `Register` RPC needs an
-  authenticated registrar, so `cmd/tools/devseed` is the only door on an empty
-  database today. Production needs a decision: a self-serve "create your studio"
-  page (a public registration door Fijo would have to build over
-  `signin.Service.Register`), operator-created studios through an admin
-  surface, or both.
-- **The operator.** Nothing grants `service_admin` yet; it is a
-  `SetUserServiceRoles` call that itself needs the permission. The seed tool or
-  a one-time migration is the likely answer.
 - **Email in localdev** is the noop provider, so a reset link is visible only in
-  the debug log. A local mail sink (or the platform's mock provider) would make
-  the reset flow exercisable in the browser.
+  the debug log. primitives-go has no SMTP provider and its email mock is a moq
+  mock rather than a config-selectable one, so a local sink is an additive
+  primitives-go provider rather than a config change — a small piece of work in
+  a tier that is not frozen, whenever it is worth doing.
 - **Rendered `production.json` carries `REPLACE_AT_DEPLOY` markers** for the
   database password, the signing key and the Resend token; the deployment
   supplies them through `FIJO_*` variables (the envvars package names them).

@@ -2,12 +2,10 @@
 // database, for a developer who has just brought a local stack up and has
 // nobody to sign in as.
 //
-// It is a development-time tool and is never deployed. The platform's sign-in
-// surface registers a user only for an authenticated caller — registration is
-// a registrar's act, not the visitor's — so on an empty database there is no
-// door that can create the first owner, and this is the ladder over the wall.
-// How a studio comes to exist in production (a self-serve sign-up page, an
-// operator's invitation, or both) is a phase-1 decision; see docs/DESIGN.md.
+// It is a development-time tool and is never deployed. The work is
+// internal/bootstrap's, which container tests call too; this is the flag
+// parsing around it. The operator's half — making the first service_admin on
+// a real deployment — is cmd/tools/bootstrap.
 //
 // Usage:
 //
@@ -23,15 +21,9 @@ import (
 	"log"
 	"os"
 
-	"github.com/primandproper/fijo/internal/authz/roles"
+	"github.com/primandproper/fijo/internal/bootstrap"
 	"github.com/primandproper/fijo/internal/build/api"
 	"github.com/primandproper/fijo/internal/config"
-
-	"github.com/primandproper/platform-go/v14/authentication/signin"
-	"github.com/primandproper/platform-go/v14/identity"
-	"github.com/primandproper/primitives-go/v2/tenancy"
-
-	"github.com/samber/do/v2"
 )
 
 func main() {
@@ -48,30 +40,24 @@ func main() {
 
 	flag.Parse()
 
-	for name, value := range map[string]string{"config": *configPath, "username": *username, "email": *email, "password": *password, "studio": *studio} {
-		if value == "" {
-			log.Fatalf("--%s is required", name)
-		}
+	if *configPath == "" {
+		log.Fatal("--config is required")
 	}
 
-	if err := run(context.Background(), *configPath, &signin.Registration{
-		User: &identity.User{
-			Username:      *username,
-			EmailAddress:  *email,
-			FirstName:     *firstName,
-			LastName:      *lastName,
-			DisplayName:   *firstName,
-			AccountStatus: identity.StatusGood,
-		},
-		Account:    &identity.Account{Name: *studio, TimeZone: *timeZone},
-		Credential: signin.Password(*password),
-		OwnerRoles: []string{roles.Owner},
+	if err := run(context.Background(), *configPath, &bootstrap.Studio{
+		Username:     *username,
+		EmailAddress: *email,
+		Password:     *password,
+		FirstName:    *firstName,
+		LastName:     *lastName,
+		Name:         *studio,
+		TimeZone:     *timeZone,
 	}); err != nil {
 		log.Fatalf("seeding: %v", err)
 	}
 }
 
-func run(ctx context.Context, configPath string, registration *signin.Registration) error {
+func run(ctx context.Context, configPath string, studio *bootstrap.Studio) error {
 	cfg, err := config.LoadFromFile(ctx, configPath)
 	if err != nil {
 		return err
@@ -88,12 +74,12 @@ func run(ctx context.Context, configPath string, registration *signin.Registrati
 		}
 	}()
 
-	svc, err := do.Invoke[*signin.Service](i)
+	seeder, err := bootstrap.FromInjector(i)
 	if err != nil {
 		return err
 	}
 
-	registered, err := svc.Register(ctx, tenancy.Global(), registration)
+	registered, err := seeder.ProvisionStudio(ctx, studio)
 	if err != nil {
 		return err
 	}

@@ -26,10 +26,11 @@ issues Fijo depends on are listed in the design doc.
 `fijo worker` (background loops), `fijo migrate` (schema + policy seed), `fijo version`. A new
 workload is a subcommand and a manifest that names it, not a new `cmd/` directory.
 
-`cmd/tools/` holds development-time tools that are never deployed: the config and envvars
-renderers, and `devseed`, which registers the first owner on an empty local database (the
-platform's Register RPC is a registrar's act, so an empty directory has no door that can create
-the first user).
+`cmd/tools/` holds tools that are never deployed: the config and envvars renderers, `devseed`,
+which registers an owner and their studio on a local database, and `bootstrap`, which an operator
+runs once against a deployment to make the first `service_admin`. Both are flag parsing around
+`internal/bootstrap`; registering and granting a service role are a registrar's acts, so an empty
+directory has no door for either, and what authorizes these is the database credential.
 
 ## Layout
 
@@ -43,6 +44,11 @@ the first user).
   environment variable can express: hooks, the session store, the sign-in service and flows, the
   interceptors, the authorization requirements. `internal/build/worker/` is the same registration
   with the servers left out plus the runners.
+- `internal/bootstrap/` — the two acts an empty database has no authenticated door for:
+  provisioning a studio with its owner, and granting `service_admin`. Deliberately not reachable
+  over the wire. Its three callers are `cmd/tools/devseed`, `cmd/tools/bootstrap` and container
+  tests, which reach it through `internal/testutils/seed`. Every studio after the first goes
+  through identity's own `Register` RPC, which an operator is authorized to call.
 - `internal/auth/` — the sign-in layer: `principal` (the caller every handler reads; `Scope()` is
   the global directory, `StudioScope()` is Fijo's tenant), `session` (the server-side record behind
   every access token, one per mint), `interceptor` (bearer token → caller in four revocable reads),
@@ -73,6 +79,7 @@ make setup           # artifacts dir + module cache
 make dev_db          # local Postgres (fijo/fijo/fijo on :5432)
 make dev_serve       # fijo serve --config config/localdev.json (migrates on boot)
 make dev_seed SEED_ARGS="--username ... --email ... --password ... --studio ..."
+make dev_bootstrap BOOTSTRAP_ARGS="--username ... --email ... --password ..."   # the operator
 make configs         # render config/<env>.json from the Go builders
 make envvars         # regenerate internal/config/envvars
 make proto           # regenerate Go + TypeScript bindings (needs protoc 33.1, frontend deps)

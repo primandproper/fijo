@@ -221,3 +221,10 @@ dev_worker:
 .PHONY: dev_seed
 dev_seed:
 	go run $(THIS)/cmd/tools/devseed --config config/localdev.json $(SEED_ARGS)
+
+# dev_bootstrap makes the operator on the local database; pass the details
+# through BOOTSTRAP_ARGS. It is the same tool an operator runs once against a
+# deployment, and is safe to run again. See cmd/tools/bootstrap.
+.PHONY: dev_bootstrap
+dev_bootstrap:
+	go run $(THIS)/cmd/tools/bootstrap --config config/localdev.json $(BOOTSTRAP_ARGS)
