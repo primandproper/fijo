@@ -6,7 +6,7 @@ require (
 	github.com/go-ozzo/ozzo-validation/v4 v4.4.1
 	github.com/go-webauthn/webauthn v0.18.2
 	github.com/primandproper/platform-go/v14 v14.0.0
-	github.com/primandproper/primitives-go/v2 v2.5.0
+	github.com/primandproper/primitives-go/v2 v2.6.0
 	github.com/samber/do/v2 v2.1.0
 	github.com/shoenig/test v1.13.2
 	github.com/spf13/cobra v1.10.2
