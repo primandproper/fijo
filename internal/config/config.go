@@ -98,6 +98,10 @@ type Config struct {
 	// access token, token lifetimes, the password-reset link and the address
 	// reset mail comes from.
 	Auth AuthConfig `envPrefix:"AUTH_" json:"auth"`
+
+	// Schedule is the grid's: how often the materializer runs, and how far
+	// ahead a studio that has set nothing is written.
+	Schedule ScheduleConfig `envPrefix:"SCHEDULE_" json:"schedule"`
 }
 
 var _ validation.ValidatableWithContext = (*Config)(nil)
@@ -221,12 +225,13 @@ func (c *Config) EnsureDefaults() {
 
 	c.Config.EnsureDefaults()
 	c.Auth.EnsureDefaults()
+	c.Schedule.EnsureDefaults()
 }
 
 // ValidateWithContext confirms the assembled configuration is internally
 // consistent. The platform half validates itself — which is also what releases
 // the sub-configs environment parsing allocated and nobody configured — and
-// then the Auth block validates.
+// then the Auth and Schedule blocks validate.
 func (c *Config) ValidateWithContext(ctx context.Context) error {
 	c.EnsureDefaults()
 
@@ -234,7 +239,11 @@ func (c *Config) ValidateWithContext(ctx context.Context) error {
 		return err
 	}
 
-	return c.Auth.ValidateWithContext(ctx)
+	if err := c.Auth.ValidateWithContext(ctx); err != nil {
+		return err
+	}
+
+	return c.Schedule.ValidateWithContext(ctx)
 }
 
 // ValidateForServing is the stricter check a process that serves or works

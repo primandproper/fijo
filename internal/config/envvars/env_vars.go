@@ -1782,6 +1782,14 @@ const (
 	// `Config.Config.Saga.Worker.StepTimeout`.
 	SagaWorkerStepTimeoutEnvVarKey = "FIJO_SAGA_WORKER_STEP_TIMEOUT"
 
+	// ScheduleDefaultHorizonWeeksEnvVarKey is the environment variable name to set to override
+	// `Config.Schedule.DefaultHorizonWeeks`.
+	ScheduleDefaultHorizonWeeksEnvVarKey = "FIJO_SCHEDULE_DEFAULT_HORIZON_WEEKS"
+
+	// ScheduleMaterializeIntervalEnvVarKey is the environment variable name to set to override
+	// `Config.Schedule.MaterializeInterval`.
+	ScheduleMaterializeIntervalEnvVarKey = "FIJO_SCHEDULE_MATERIALIZE_INTERVAL"
+
 	// SecretsCacheTTLEnvVarKey is the environment variable name to set to override
 	// `Config.Config.Secrets.CacheTTL`.
 	SecretsCacheTTLEnvVarKey = "FIJO_SECRETS_CACHE_TTL"

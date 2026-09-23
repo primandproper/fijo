@@ -109,5 +109,9 @@
 		"accessTokenTTL": 900000000000,
 		"refreshTokenTTL": 2592000000000000,
 		"credentialSweepInterval": 600000000000
+	},
+	"schedule": {
+		"materializeInterval": 900000000000,
+		"defaultHorizonWeeks": 8
 	}
 }

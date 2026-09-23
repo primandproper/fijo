@@ -5,8 +5,9 @@
 // credential tables — refresh tokens and reset tokens — which the platform
 // stores expose but do not schedule, because one sweep for the fleet is a
 // deployment's decision and not a store's. The session and WebAuthn ceremony
-// stores sweep themselves from their own configs. Phase 1's materializer and
-// phase 3's reminder sender join the runners here.
+// stores sweep themselves from their own configs, and phase 1's materializer
+// turns every studio's standing slots into rows out to its horizon. Phase 3's
+// reminder sender joins the runners here.
 package worker
 
 import (
@@ -14,10 +15,14 @@ import (
 
 	"github.com/primandproper/fijo/internal/config"
 	"github.com/primandproper/fijo/internal/database/migrations"
+	"github.com/primandproper/fijo/internal/domain/schedule"
+	"github.com/primandproper/fijo/internal/studios"
+	"github.com/primandproper/fijo/internal/workers/materialize"
 	"github.com/primandproper/fijo/internal/workers/sweep"
 
 	"github.com/primandproper/platform-go/v14/authentication/passwordreset"
 	"github.com/primandproper/platform-go/v14/authentication/signin/refreshtokens"
+	"github.com/primandproper/platform-go/v14/identity"
 	"github.com/primandproper/platform-go/v14/service"
 	"github.com/primandproper/primitives-go/v2/database"
 	platformerrors "github.com/primandproper/primitives-go/v2/errors"
@@ -91,6 +96,55 @@ func BuildInjector(ctx context.Context, cfg *config.Config) (*do.RootScope, erro
 		return passwordreset.NewSQLStore(&passwordreset.Config{}, client, passwordreset.WithLogger(pillars.Logger), passwordreset.WithTracerProvider(pillars.TracerProvider), passwordreset.WithMetricsProvider(pillars.MetricsProvider))
 	})
 
+	do.Provide(i, func(i do.Injector) (schedule.Store, error) {
+		pillars, err := observability.InvokePillars(i)
+		if err != nil {
+			return nil, err
+		}
+
+		return schedule.NewSQLStore(schedule.WithPillars(pillars))
+	})
+
+	// The studio's time zone is identity's column, which the schedule's
+	// statements cannot join. This is the seam that answers it.
+	do.Provide(i, func(i do.Injector) (schedule.Zones, error) {
+		accounts, err := do.Invoke[identity.Store](i)
+		if err != nil {
+			return nil, err
+		}
+
+		client, err := do.Invoke[database.Client](i)
+		if err != nil {
+			return nil, err
+		}
+
+		return studios.NewZones(accounts, client.Reader())
+	})
+
+	do.Provide(i, func(i do.Injector) (*schedule.Materializer, error) {
+		pillars, err := observability.InvokePillars(i)
+		if err != nil {
+			return nil, err
+		}
+
+		client, err := do.Invoke[database.Client](i)
+		if err != nil {
+			return nil, err
+		}
+
+		store, err := do.Invoke[schedule.Store](i)
+		if err != nil {
+			return nil, err
+		}
+
+		zones, err := do.Invoke[schedule.Zones](i)
+		if err != nil {
+			return nil, err
+		}
+
+		return schedule.NewMaterializer(client, store, zones, schedule.WithMaterializerPillars(pillars))
+	})
+
 	return i, nil
 }
 
@@ -128,5 +182,15 @@ func NewService(ctx context.Context, cfg *config.Config) (*service.Service, erro
 		return nil, err
 	}
 
-	return service.New(i, service.WithRunners(refreshSweeper, resetSweeper))
+	materializer, err := do.Invoke[*schedule.Materializer](i)
+	if err != nil {
+		return nil, platformerrors.Wrap(err, "building the schedule materializer")
+	}
+
+	grid, err := materialize.New(cfg.Schedule.MaterializeInterval, materializer.RunOnce, pillars)
+	if err != nil {
+		return nil, err
+	}
+
+	return service.New(i, service.WithRunners(refreshSweeper, resetSweeper, grid))
 }

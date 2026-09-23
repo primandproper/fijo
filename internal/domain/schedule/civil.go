@@ -31,11 +31,24 @@ func Today(now time.Time, loc *time.Location) Date {
 
 // At is the instant this date and clock time name in loc.
 //
-// Go normalizes a wall-clock time that does not exist — the hour a spring
-// forward skips — to the following hour, and resolves an ambiguous one — the
-// hour an autumn back repeats — to the first of the two. Both are the answer a
-// studio means: the lesson after the clocks change is at the time the clock
-// says, and a lesson does not happen twice.
+// What a studio means by "Tuesdays at four" is four o'clock on the clock in
+// the room, and that is what this returns on every Tuesday of the year,
+// including the two when the clocks move. The UTC instant moves instead, which
+// is the point of storing the rule as a wall clock.
+//
+// The two wall-clock times a year that are not ordinary are resolved by Go,
+// and both answers are recorded here because they are product behavior rather
+// than an implementation detail:
+//
+//   - An hour the spring forward skips does not exist. Go resolves it
+//     backwards: 02:30 on the day US/Central springs forward comes back as
+//     01:30 CST, an hour earlier than asked, not later.
+//   - An hour the autumn back repeats happens twice. Go resolves it to the
+//     first of the two, so the lesson is at the earlier 01:30 CDT and does not
+//     happen again an hour later.
+//
+// Neither is a time anybody teaches at, which is why they are documented and
+// tested rather than special-cased.
 func (d Date) At(clock ClockTime, loc *time.Location) time.Time {
 	return time.Date(d.Year, d.Month, d.Day, clock.Hour, clock.Minute, 0, 0, orUTC(loc))
 }

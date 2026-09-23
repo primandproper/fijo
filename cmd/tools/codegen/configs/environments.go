@@ -173,6 +173,13 @@ func buildLocalDevConfig() *config.Config {
 				FromName:    brand,
 			},
 		},
+		// A developer watching the grid fill in does not want to wait a
+		// quarter of an hour for it, and a short horizon keeps the local
+		// database small.
+		Schedule: config.ScheduleConfig{
+			MaterializeInterval: time.Minute,
+			DefaultHorizonWeeks: 4,
+		},
 	}
 }
 
@@ -206,6 +213,10 @@ func buildProductionConfig() *config.Config {
 				FromAddress: "no-reply@fijo.example",
 				FromName:    brand,
 			},
+		},
+		Schedule: config.ScheduleConfig{
+			MaterializeInterval: config.DefaultMaterializeInterval,
+			DefaultHorizonWeeks: config.DefaultHorizonWeeks,
 		},
 	}
 }
