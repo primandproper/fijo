@@ -202,6 +202,95 @@ Three Fijo-owned domains, each a Store plus Postgres SQL plus mock, DDB-style.
    Google Calendar push (OAuth grant store gap). Per-tenant numbers and A2P
    registration moved into phase 3, where the ISV model puts them.
 
+## Phase 1 as built (2026-09-22)
+
+The grid is in the tree: the schema, the store, the materializer, the audited
+commands and the gRPC surface, driven end to end against a running API.
+
+### What it is
+
+`internal/domain/schedule` holds seven tables and the logic over them.
+Offerings are what a studio sells, series are the standing slots, occurrences
+are the appointments those slots produce, and closures are the days the studio
+is shut. `Date` and `ClockTime` are civil types with no zone, because a series
+is a rule — Tuesdays at four — and only an occurrence is an instant.
+
+Attendees and the balance ledger are absent. Both need the roster, which is
+phase 2, and nothing here assumes their absence beyond not naming them.
+
+### Three decisions the schema made
+
+- **Durations and wall clocks are integers.** An INTERVAL does not cross
+  `database/sql` without a custom type and a TIME column arrives as a string,
+  which a container test found before any of this shipped. Minutes and days.
+- **A series stores a rule, not instants.** Weekday, minute of day, civil
+  start date. The instant is computed in the studio's zone when the row is
+  materialized, which is the only place daylight saving is resolved. Both
+  awkward wall clocks a year are documented at `Date.At` and pinned by tests:
+  Go resolves a skipped hour backwards, and an ambiguous one to the first of
+  the two.
+- **Materialization is idempotent** by a partial unique index on
+  `(series_id, starts_at)`, so the worker can run on a cadence and a series
+  edit can re-run it immediately.
+
+### Taking sqlc
+
+The schedule's first table was the point to decide, and sqlc came with it.
+`sqlc.yaml` renders a querier per domain package as DDB's does, with
+`emit_methods_with_db_argument` so the platform's convention survives codegen:
+a generated method takes its executor, so a write is handed a `Tx` and a read
+a reader. sqlc reads Fijo's half of the migration sequence; the platform's half
+is rendered at runtime, so a query here cannot join `identity_users` — the
+boundary the tier rule already draws. `owners` was converted as the pilot.
+
+### The audit read, and why it is not what phase 1 planned
+
+Phase 0 recorded that the audit read surface is inert because
+`service.Transports` derives audit's scope from `Principal.Scope()`, which is
+the global directory here (platform-go#875), and proposed hand-mounting audit
+the DDB way in phase 1.
+
+**That is not available.** `service.Transports` has no opt-out: audit mounts
+whenever an `audit.Reader` is in the injector, and `auditcfg.RegisterReader`
+puts one there whenever the audit config block is present — which it must be,
+because the same block registers the recorder the commands write through.
+Hand-mounting would mean abandoning `service.RegisterTransports` for every
+surface and losing the "config presence is composition" property the whole
+composition root is built on.
+
+So the grid's history is **Fijo's own RPC**: `ScheduleService.ListHistory`
+reads `audit.Reader` in the caller's studio scope, which is the scope the
+commands recorded under. The platform's mounted surface stays where it was —
+correct for the operator's global entries, blind to a studio's — and #875
+remains filed. Fijo's read is the better shape for the product anyway: an
+owner's history is filtered by occurrence and series, not by the generic
+console's fields.
+
+### The command layer
+
+Every act that changes the grid is a `schedule.Commands` method: one
+transaction holding the rows and the audit entry, because an entry that can be
+missing describes a history that can lie. The store knows how to change a row
+and refuses an illegal transition; the command layer knows who asked, why, and
+what else changes with it — ending a series cancels what stands after its last
+day, closing the studio cancels what stands inside the range, a move writes a
+new row and leaves the old one naming it, and whether a cancellation was late
+is judged against the notice window at that moment and then kept.
+
+The caller is an argument rather than something read off the context, so a
+layer that is called from somewhere without a principal cannot fail to notice.
+
+### Open for phase 2
+
+- **The roster** brings attendees, which join series and occurrences through
+  tables this schema deliberately left room for, and the payer that the
+  balance ledger needs.
+- **Materializing on a series edit.** The worker's cadence is the floor; an
+  owner who changes a standing slot should see the grid change without waiting
+  for it. The materializer is already safe to call directly.
+- **The owner app** has no grid yet. The gRPC surface and the TypeScript
+  bindings are there; the SvelteKit week view is not.
+
 ## Repo skeleton (derived from fijo)
 
 ```

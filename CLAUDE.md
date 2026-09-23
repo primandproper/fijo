@@ -61,11 +61,18 @@ directory has no door for either, and what authorizes these is the database cred
 - `internal/database/migrations/` — one sequence: platform DDL spliced in by version (1–8), Fijo's
   own files from 20. Cascading FKs onto `identity_users` and the role-name FK onto `authz_roles`
   are added here because the platform packages cannot declare them.
-- `internal/domain/<name>/` — a Store interface, a Postgres implementation, a mock. `owners` is the
-  first (user preferences). The roster, schedule and messaging domains follow the same outline.
+- `internal/domain/<name>/` — a Store interface, sqlc queries in `sqlc_queries/` rendering a
+  `generated/` querier, a Postgres implementation, a mock. `owners` is the smallest (user
+  preferences); `schedule` is phase 1's grid — offerings, series, occurrences, closures, the
+  civil `Date`/`ClockTime` types, the `Materializer` that turns rules into rows, and `Commands`,
+  the audited acts that write rows and their audit entry on one transaction. The roster and
+  messaging domains follow the same outline.
+- `internal/studios/` — what a studio is that identity owns rather than Fijo: today the time zone
+  the materializer resolves a wall clock in, behind the narrow interface the domain takes.
 - `internal/services/<name>/grpc/` — Fijo's gRPC servers, each with a `Require` declaring its
   policy and a `RegisterOn`. Generated bindings live in `internal/grpc/fijopb` from `proto/fijo/v1`.
-- `internal/workers/sweep/` — a `service.Runner` that calls a store's `Sweep` on an interval.
+- `internal/workers/sweep/` — a `service.Runner` that calls a function on an interval; despite the
+  name it is the generic loop. `internal/workers/materialize/` names the schedule's use of it.
 - `frontend/owner/` — the SvelteKit owner app; `frontend/packages/api-client/` — ts-proto bindings
   plus promisified clients. `frontend/go.mod` exists only so `./...` never descends into
   `node_modules`.
@@ -83,7 +90,7 @@ make dev_bootstrap BOOTSTRAP_ARGS="--username ... --email ... --password ..."   
 make configs         # render config/<env>.json from the Go builders
 make envvars         # regenerate internal/config/envvars
 make proto           # regenerate Go + TypeScript bindings (needs protoc 33.1, frontend deps)
-make generated       # configs + envvars + proto
+make generated       # configs + envvars + proto + querier
 make format          # Go + frontend formatting
 make lint            # golangci-lint + shellcheck (Docker) + eslint/prettier/svelte-check
 make test            # Go unit tests (excludes cmd) + vitest
@@ -111,6 +118,12 @@ halves CI runs. Run a single Go test with `go test -run TestName ./internal/...`
   `fijo version` prints nothing but its data; `TestNewPillarsIsQuietWhenUnconfigured` guards it.
   `serve` and `worker` let `service.Register` build their own pillars from the same config.
 - **Structured logs go to stdout**, and so does `version`'s output.
+- **A wall clock is not an instant.** A series stores a weekday, a minute of the day and a civil
+  date; the instant is computed in the studio's zone when an occurrence is materialized. Durations
+  are whole minutes or days, because an INTERVAL does not cross `database/sql` without a custom
+  type and a TIME column arrives as a string.
+- **The grid's history is Fijo's own RPC**, not the platform's mounted audit surface, which derives
+  its scope from `Principal.Scope()` and so cannot see a studio's entries (platform-go#875).
 - Tests use `shoenig/test` (`test` non-fatal, `must` fatal), call `t.Parallel()` by default, and
   container-backed tests gate on `RUN_CONTAINER_TESTS=true` through primitives-go's `pgtest`;
   `internal/testutils/pgclient` opens a migrated client on one.

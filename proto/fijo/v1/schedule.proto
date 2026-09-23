@@ -1,0 +1,259 @@
+// The grid: what a studio sells, the standing slots it sells them in, the
+// appointments those slots produce, and the commands that change them.
+//
+// Three conventions run through this file. A civil date is an ISO string
+// ("2026-03-10") because a date is not an instant and a Timestamp would make it
+// look like one. A wall-clock time is minutes since midnight, in the studio's
+// zone, for the same reason. An actual instant is a Timestamp, and every
+// occurrence carries two.
+
+syntax = "proto3";
+
+package fijo.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/primandproper/fijo/internal/grpc/fijopb;fijopb";
+
+service ScheduleService {
+  // The studio's rules.
+  rpc GetScheduleSettings(GetScheduleSettingsRequest) returns (GetScheduleSettingsResponse);
+  rpc SetScheduleSettings(SetScheduleSettingsRequest) returns (SetScheduleSettingsResponse);
+
+  // What the studio sells.
+  rpc ListOfferings(ListOfferingsRequest) returns (ListOfferingsResponse);
+  rpc CreateOffering(CreateOfferingRequest) returns (CreateOfferingResponse);
+  rpc UpdateOffering(UpdateOfferingRequest) returns (UpdateOfferingResponse);
+  rpc ArchiveOffering(ArchiveOfferingRequest) returns (ArchiveOfferingResponse);
+
+  // The standing slots.
+  rpc ListSeries(ListSeriesRequest) returns (ListSeriesResponse);
+  rpc CreateSeries(CreateSeriesRequest) returns (CreateSeriesResponse);
+  rpc UpdateSeries(UpdateSeriesRequest) returns (UpdateSeriesResponse);
+  rpc EndSeries(EndSeriesRequest) returns (EndSeriesResponse);
+
+  // The grid itself.
+  rpc ListOccurrences(ListOccurrencesRequest) returns (ListOccurrencesResponse);
+
+  // The commands, each its own audited act.
+  rpc CancelOccurrence(CancelOccurrenceRequest) returns (OccurrenceResponse);
+  rpc CompleteOccurrence(CompleteOccurrenceRequest) returns (OccurrenceResponse);
+  rpc NoShowOccurrence(NoShowOccurrenceRequest) returns (OccurrenceResponse);
+  rpc RevertOccurrence(RevertOccurrenceRequest) returns (OccurrenceResponse);
+  rpc MoveOccurrence(MoveOccurrenceRequest) returns (OccurrenceResponse);
+  rpc ScheduleMakeUp(ScheduleMakeUpRequest) returns (OccurrenceResponse);
+  rpc ReassignOccurrence(ReassignOccurrenceRequest) returns (OccurrenceResponse);
+
+  // Closing and reopening.
+  rpc ListClosures(ListClosuresRequest) returns (ListClosuresResponse);
+  rpc CloseStudio(CloseStudioRequest) returns (CloseStudioResponse);
+  rpc ReopenStudio(ReopenStudioRequest) returns (ReopenStudioResponse);
+
+  // Who changed what, in this studio.
+  rpc ListHistory(ListHistoryRequest) returns (ListHistoryResponse);
+}
+
+enum OfferingKind {
+  OFFERING_KIND_UNSPECIFIED = 0;
+  OFFERING_KIND_SINGLE = 1;
+  OFFERING_KIND_PACKAGE = 2;
+  OFFERING_KIND_RECURRING = 3;
+}
+
+enum OccurrenceState {
+  OCCURRENCE_STATE_UNSPECIFIED = 0;
+  OCCURRENCE_STATE_SCHEDULED = 1;
+  OCCURRENCE_STATE_COMPLETED = 2;
+  OCCURRENCE_STATE_CANCELLED = 3;
+  OCCURRENCE_STATE_NO_SHOW = 4;
+  OCCURRENCE_STATE_MOVED = 5;
+}
+
+enum Canceller {
+  CANCELLER_UNSPECIFIED = 0;
+  CANCELLER_HOUSEHOLD = 1;
+  CANCELLER_STUDIO = 2;
+  CANCELLER_CLOSURE = 3;
+}
+
+message ScheduleSettings {
+  // How far ahead a household has to cancel for it not to count as late.
+  int32 notice_window_minutes = 1;
+  // How far ahead the materializer writes.
+  int32 horizon_weeks = 2;
+}
+
+message Offering {
+  string id = 1;
+  string name_en = 2;
+  string name_es = 3;
+  OfferingKind kind = 4;
+  int32 duration_minutes = 5;
+  // The advertised price in the smallest currency unit. What it is a price for
+  // depends on the kind: per lesson, per pack, per month.
+  int64 list_price = 6;
+  // The package columns, zero for anything that is not one.
+  int32 lesson_count = 7;
+  int32 expires_after_days = 8;
+  bool shareable = 9;
+  bool archived = 10;
+}
+
+message Series {
+  string id = 1;
+  string offering_id = 2;
+  // 0 is Sunday, as Go counts them.
+  int32 weekday = 3;
+  // Minutes since midnight in the studio's zone.
+  int32 start_minute = 4;
+  // One or two. Fijo's recurrence is weekly with an interval and nothing else.
+  int32 interval_weeks = 5;
+  // ISO civil dates. ends_on is empty for "until otherwise noted".
+  string starts_on = 6;
+  string ends_on = 7;
+  // Overrides the offering's list price for this slot. Absent leaves it.
+  optional int64 price_override = 8;
+  repeated string staff_user_ids = 9;
+  bool archived = 10;
+}
+
+message Occurrence {
+  string id = 1;
+  // Empty for a one-off appointment and for a make-up.
+  string series_id = 2;
+  string offering_id = 3;
+  google.protobuf.Timestamp starts_at = 4;
+  google.protobuf.Timestamp ends_at = 5;
+  OccurrenceState state = 6;
+  // Set only when the state is cancelled.
+  Canceller cancelled_by = 7;
+  optional bool cancelled_inside_notice = 8;
+  string reason = 9;
+  // What this occurrence became when it was moved.
+  string moved_to_occurrence_id = 10;
+  // The cancelled occurrence this make-up answers.
+  string replaces_occurrence_id = 11;
+  repeated string staff_user_ids = 12;
+}
+
+message Closure {
+  string id = 1;
+  // Inclusive at both ends.
+  string starts_on = 2;
+  string ends_on = 3;
+  string reason = 4;
+}
+
+message HistoryEntry {
+  string id = 1;
+  google.protobuf.Timestamp occurred_at = 2;
+  string actor_user_id = 3;
+  string resource_type = 4;
+  string resource_id = 5;
+  string event_type = 6;
+  map<string, string> metadata = 7;
+}
+
+message GetScheduleSettingsRequest {}
+message GetScheduleSettingsResponse { ScheduleSettings settings = 1; }
+
+message SetScheduleSettingsRequest { ScheduleSettings settings = 1; }
+message SetScheduleSettingsResponse { ScheduleSettings settings = 1; }
+
+message ListOfferingsRequest { bool include_archived = 1; }
+message ListOfferingsResponse { repeated Offering offerings = 1; }
+
+message CreateOfferingRequest { Offering offering = 1; }
+message CreateOfferingResponse { Offering offering = 1; }
+
+message UpdateOfferingRequest { Offering offering = 1; }
+message UpdateOfferingResponse { Offering offering = 1; }
+
+message ArchiveOfferingRequest { string id = 1; }
+message ArchiveOfferingResponse {}
+
+message ListSeriesRequest { bool include_archived = 1; }
+message ListSeriesResponse { repeated Series series = 1; }
+
+message CreateSeriesRequest { Series series = 1; }
+message CreateSeriesResponse { Series series = 1; }
+
+message UpdateSeriesRequest { Series series = 1; }
+message UpdateSeriesResponse { Series series = 1; }
+
+message EndSeriesRequest {
+  string id = 1;
+  // The last civil date the rule applies. Everything standing after it is
+  // cancelled by the studio.
+  string ends_on = 2;
+  string reason = 3;
+}
+message EndSeriesResponse { Series series = 1; }
+
+message ListOccurrencesRequest {
+  google.protobuf.Timestamp from = 1;
+  google.protobuf.Timestamp until = 2;
+}
+message ListOccurrencesResponse { repeated Occurrence occurrences = 1; }
+
+message OccurrenceResponse { Occurrence occurrence = 1; }
+
+message CancelOccurrenceRequest {
+  string id = 1;
+  Canceller cancelled_by = 2;
+  string reason = 3;
+}
+
+message CompleteOccurrenceRequest {
+  string id = 1;
+  string reason = 2;
+}
+
+message NoShowOccurrenceRequest {
+  string id = 1;
+  string reason = 2;
+}
+
+message RevertOccurrenceRequest {
+  string id = 1;
+  string reason = 2;
+}
+
+message MoveOccurrenceRequest {
+  string id = 1;
+  google.protobuf.Timestamp starts_at = 2;
+  string reason = 3;
+}
+
+message ScheduleMakeUpRequest {
+  // The cancelled occurrence this answers.
+  string cancelled_occurrence_id = 1;
+  google.protobuf.Timestamp starts_at = 2;
+  string reason = 3;
+}
+
+message ReassignOccurrenceRequest {
+  string id = 1;
+  repeated string staff_user_ids = 2;
+}
+
+message ListClosuresRequest {}
+message ListClosuresResponse { repeated Closure closures = 1; }
+
+message CloseStudioRequest {
+  string starts_on = 1;
+  string ends_on = 2;
+  string reason = 3;
+}
+message CloseStudioResponse { Closure closure = 1; }
+
+message ReopenStudioRequest { string id = 1; }
+message ReopenStudioResponse {}
+
+message ListHistoryRequest {
+  // Narrow to one resource. Both empty reads the studio's whole history.
+  string resource_type = 1;
+  string resource_id = 2;
+  int32 limit = 3;
+}
+message ListHistoryResponse { repeated HistoryEntry entries = 1; }

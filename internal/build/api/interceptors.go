@@ -9,6 +9,7 @@ import (
 	"github.com/primandproper/fijo/internal/auth/principal"
 	ownerauthgrpc "github.com/primandproper/fijo/internal/services/ownerauth/grpc"
 	ownersgrpc "github.com/primandproper/fijo/internal/services/owners/grpc"
+	schedulegrpc "github.com/primandproper/fijo/internal/services/schedule/grpc"
 
 	auditgrpc "github.com/primandproper/platform-go/v14/audit/grpc"
 	signingrpc "github.com/primandproper/platform-go/v14/authentication/signin/grpc"
@@ -38,6 +39,7 @@ func Requirements() (*authzgrpc.Requirements, error) {
 	auditgrpc.Require(b)
 	ownerauthgrpc.Require(b)
 	ownersgrpc.Require(b)
+	schedulegrpc.Require(b)
 
 	for _, method := range []string{
 		grpc_health_v1.Health_Check_FullMethodName,

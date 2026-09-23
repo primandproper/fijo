@@ -27,8 +27,10 @@ import (
 	"github.com/primandproper/fijo/internal/config"
 	"github.com/primandproper/fijo/internal/database/migrations"
 	"github.com/primandproper/fijo/internal/domain/owners"
+	"github.com/primandproper/fijo/internal/domain/schedule"
 	ownerauthgrpc "github.com/primandproper/fijo/internal/services/ownerauth/grpc"
 	ownersgrpc "github.com/primandproper/fijo/internal/services/owners/grpc"
+	schedulegrpc "github.com/primandproper/fijo/internal/services/schedule/grpc"
 
 	"github.com/primandproper/platform-go/v14/audit"
 	"github.com/primandproper/platform-go/v14/authentication/passkeys"
@@ -79,6 +81,7 @@ func BuildInjector(ctx context.Context, cfg *config.Config) (*do.RootScope, erro
 	registerAuth(i, cfg)
 	registerDomains(i)
 	registerServers(i)
+	registerScheduleServer(i)
 	registerInterceptors(i)
 
 	service.RegisterTransports(i, &service.Transports{
@@ -86,6 +89,7 @@ func BuildInjector(ctx context.Context, cfg *config.Config) (*do.RootScope, erro
 		Registrations: []grpcserver.RegistrationFunc{
 			func(srv *grpc.Server) { do.MustInvoke[*ownerauthgrpc.Server](i).RegisterOn(srv) },
 			func(srv *grpc.Server) { do.MustInvoke[*ownersgrpc.Server](i).RegisterOn(srv) },
+			func(srv *grpc.Server) { do.MustInvoke[*schedulegrpc.Server](i).RegisterOn(srv) },
 		},
 	})
 
@@ -448,6 +452,41 @@ func registerDomains(i do.Injector) {
 
 		return store, nil
 	})
+
+	do.Provide(i, func(i do.Injector) (schedule.Store, error) {
+		pillars, err := observability.InvokePillars(i)
+		if err != nil {
+			return nil, err
+		}
+
+		return schedule.NewSQLStore(schedule.WithPillars(pillars))
+	})
+
+	// The command layer puts the rows and the audit entry on one transaction,
+	// which is why it takes the recorder rather than the reader.
+	do.Provide(i, func(i do.Injector) (*schedule.Commands, error) {
+		pillars, err := observability.InvokePillars(i)
+		if err != nil {
+			return nil, err
+		}
+
+		client, err := do.Invoke[database.Client](i)
+		if err != nil {
+			return nil, err
+		}
+
+		store, err := do.Invoke[schedule.Store](i)
+		if err != nil {
+			return nil, err
+		}
+
+		recorder, err := do.Invoke[audit.Recorder](i)
+		if err != nil {
+			return nil, err
+		}
+
+		return schedule.NewCommands(client, store, recorder, schedule.WithCommandsPillars(pillars))
+	})
 }
 
 // registerServers registers Fijo's own gRPC services.
@@ -508,5 +547,41 @@ func registerServers(i do.Injector) {
 		}
 
 		return ownersgrpc.NewServer(store, directory, client, pillars)
+	})
+}
+
+// registerScheduleServer registers the grid's gRPC surface.
+//
+// The history reader is optional: a deployment with no audit log configured
+// still serves the grid, and ListHistory is the only RPC that stops working.
+func registerScheduleServer(i do.Injector) {
+	do.Provide(i, func(i do.Injector) (*schedulegrpc.Server, error) {
+		pillars, err := observability.InvokePillars(i)
+		if err != nil {
+			return nil, err
+		}
+
+		store, err := do.Invoke[schedule.Store](i)
+		if err != nil {
+			return nil, err
+		}
+
+		commands, err := do.Invoke[*schedule.Commands](i)
+		if err != nil {
+			return nil, err
+		}
+
+		client, err := do.Invoke[database.Client](i)
+		if err != nil {
+			return nil, err
+		}
+
+		var opts []schedulegrpc.Option
+
+		if reader, readerErr := do.Invoke[audit.Reader](i); readerErr == nil {
+			opts = append(opts, schedulegrpc.WithHistory(reader))
+		}
+
+		return schedulegrpc.NewServer(store, commands, client, pillars, opts...)
 	})
 }
