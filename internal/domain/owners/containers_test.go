@@ -76,6 +76,13 @@ func TestSQLStoreAgainstPostgres(t *testing.T) {
 		must.NoError(t, err)
 		test.Eq(t, "America/New_York", read.TimeZone)
 
+		// The scope survives the round trip as the scope it was written under.
+		// The global scope is stored as the empty identifier, so a row read back
+		// must be Global and not the zero Scope, which is no decision at all.
+		test.Eq(t, scope, read.Scope)
+		test.True(t, read.Scope.IsGlobal())
+		must.NoError(t, read.Scope.Validate())
+
 		must.Error(t, client.WithTransaction(ctx, func(tx database.Tx) error {
 			_, setErr := store.SetTimeZone(ctx, tx, scope, user.ID, "Local")
 

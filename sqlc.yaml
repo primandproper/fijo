@@ -53,3 +53,13 @@ sql:
               type: "Time"
               pointer: true
             nullable: true
+
+  - engine: "postgresql"
+    schema: "internal/database/migrations/migration_files"
+    queries:
+      - "internal/domain/schedule/sqlc_queries"
+    strict_function_checks: true
+    gen:
+      go:
+        <<: *gen
+        out: "internal/domain/schedule/generated"

@@ -93,7 +93,7 @@ func (s *SQLStore) GetPreferences(ctx context.Context, q database.SQLQueryExecut
 
 	row, err := s.querier.GetUserPreferences(ctx, q, &generated.GetUserPreferencesParams{
 		UserID: userID,
-		Scope:  scope.String(),
+		Scope:  scope.Owner(),
 	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -134,7 +134,7 @@ func (s *SQLStore) SetTimeZone(ctx context.Context, tx database.Tx, scope tenanc
 
 	row, err := s.querier.UpsertUserTimeZone(ctx, tx, &generated.UpsertUserTimeZoneParams{
 		UserID:   userID,
-		Scope:    scope.String(),
+		Scope:    scope.Owner(),
 		TimeZone: timeZone,
 	})
 	if err != nil {
@@ -172,6 +172,9 @@ func rowToPreferences(row *generated.UserPreferences) *Preferences {
 		LastUpdatedAt: database.TimePointerFromNullTime(row.LastUpdatedAt),
 		UserID:        row.UserID,
 		TimeZone:      row.TimeZone,
-		Scope:         tenancy.Of(row.Scope),
+		// FromOwner rather than Of, because the column stores the owner and the
+		// empty identifier is how Global is stored: Of would read it back as the
+		// zero Scope, which is the absence of a decision rather than a decision.
+		Scope: tenancy.FromOwner(row.Scope),
 	}
 }
