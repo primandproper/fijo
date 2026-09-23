@@ -16,7 +16,8 @@ COVERAGE_OUT  := $(ARTIFACTS_DIR)/coverage.out
 TOTAL_PACKAGE_LIST := `go list $(THIS)/...`
 
 # CONTAINER VERSIONS
-LINTER_IMAGE     := golangci/golangci-lint:v2.13.1
+LINTER_IMAGE        := golangci/golangci-lint:v2.13.1
+SQL_GENERATOR_IMAGE := sqlc/sqlc:1.26.0
 SHELLCHECK_IMAGE := koalaman/shellcheck:stable
 
 # COMMANDS
@@ -24,6 +25,7 @@ CONTAINER_RUNNER      := docker
 RUN_CONTAINER         := $(CONTAINER_RUNNER) run --rm --volume $(PWD):$(PWD) --workdir=$(PWD) --network=host
 RUN_CONTAINER_AS_USER := $(RUN_CONTAINER) --user $(MYSELF):$(MY_GROUP)
 LINTER                := $(RUN_CONTAINER) $(LINTER_IMAGE) golangci-lint
+SQL_GENERATOR         := $(RUN_CONTAINER_AS_USER) $(SQL_GENERATOR_IMAGE)
 
 ## non-PHONY folders/files
 
@@ -150,8 +152,14 @@ $(FRONTEND_DIR)/node_modules:
 	$(MAKE) -C $(FRONTEND_DIR) install
 
 # generated regenerates everything under GENERATED FILES.
+# querier renders the sqlc querier each domain declares in sqlc.yaml. A domain
+# owns its .sql files and gets a generated/ package beside them.
+.PHONY: querier
+querier:
+	@$(SCRIPTS_DIR)/querier.sh $(CONTAINER_RUNNER) $(SQL_GENERATOR_IMAGE) "$(SQL_GENERATOR)"
+
 .PHONY: generated
-generated: configs envvars proto
+generated: configs envvars proto querier
 
 ## EXECUTION
 

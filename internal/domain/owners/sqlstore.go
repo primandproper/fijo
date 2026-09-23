@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"errors"
 
+	"github.com/primandproper/fijo/internal/domain/owners/generated"
+
 	"github.com/primandproper/primitives-go/v2/database"
 	platformerrors "github.com/primandproper/primitives-go/v2/errors"
 	"github.com/primandproper/primitives-go/v2/observability"
@@ -13,22 +15,6 @@ import (
 )
 
 const storeName = "owners_store"
-
-// The statements. Hand-written for one table with two queries; the domains
-// that arrive in phase 1 bring the sqlc toolchain DDB uses, and this table
-// joins it then.
-const (
-	getPreferences = `SELECT user_id, scope, time_zone, created_at, last_updated_at
-FROM user_preferences
-WHERE user_id = $1 AND scope = $2`
-
-	upsertTimeZone = `INSERT INTO user_preferences (user_id, scope, time_zone)
-VALUES ($1, $2, $3)
-ON CONFLICT (user_id) DO UPDATE
-	SET time_zone = EXCLUDED.time_zone, last_updated_at = NOW()
-	WHERE user_preferences.scope = EXCLUDED.scope
-RETURNING user_id, scope, time_zone, created_at, last_updated_at`
-)
 
 // SQLStore is the Postgres implementation of Store.
 //
@@ -39,6 +25,10 @@ RETURNING user_id, scope, time_zone, created_at, last_updated_at`
 type SQLStore struct {
 	o11y        observability.Observer
 	instruments *metrics.OperationSet
+
+	// querier is sqlc's, and is stateless: every method takes the executor it
+	// should run on, which is how a write is handed a Tx and a read a reader.
+	querier generated.Querier
 }
 
 var _ Store = (*SQLStore)(nil)
@@ -71,6 +61,7 @@ func NewSQLStore(opts ...Option) (*SQLStore, error) {
 	s := &SQLStore{
 		o11y:        observability.NewObserver(storeName, nil, nil),
 		instruments: instruments,
+		querier:     generated.New(),
 	}
 
 	for _, opt := range opts {
@@ -83,7 +74,7 @@ func NewSQLStore(opts ...Option) (*SQLStore, error) {
 }
 
 // GetPreferences implements Store.
-func (s *SQLStore) GetPreferences(ctx context.Context, q database.SQLQueryExecutor, scope tenancy.Scope, userID string) (prefs *Preferences, err error) {
+func (s *SQLStore) GetPreferences(ctx context.Context, q database.SQLQueryExecutor, scope tenancy.Scope, userID string) (_ *Preferences, err error) {
 	ctx, op := s.o11y.Begin(ctx, observability.WithValue("identity.user_id", userID))
 	defer op.End()
 
@@ -100,7 +91,10 @@ func (s *SQLStore) GetPreferences(ctx context.Context, q database.SQLQueryExecut
 		return nil, op.Error(err, "reading preferences")
 	}
 
-	prefs, err = scan(q.QueryRowContext(ctx, getPreferences, userID, scope))
+	row, err := s.querier.GetUserPreferences(ctx, q, &generated.GetUserPreferencesParams{
+		UserID: userID,
+		Scope:  scope.String(),
+	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, op.Error(ErrPreferencesNotFound, "reading preferences")
@@ -109,11 +103,11 @@ func (s *SQLStore) GetPreferences(ctx context.Context, q database.SQLQueryExecut
 		return nil, op.Error(err, "reading preferences")
 	}
 
-	return prefs, nil
+	return rowToPreferences(row), nil
 }
 
 // SetTimeZone implements Store.
-func (s *SQLStore) SetTimeZone(ctx context.Context, tx database.Tx, scope tenancy.Scope, userID, timeZone string) (prefs *Preferences, err error) {
+func (s *SQLStore) SetTimeZone(ctx context.Context, tx database.Tx, scope tenancy.Scope, userID, timeZone string) (_ *Preferences, err error) {
 	ctx, op := s.o11y.Begin(ctx, observability.WithValue("identity.user_id", userID))
 	defer op.End()
 
@@ -138,7 +132,11 @@ func (s *SQLStore) SetTimeZone(ctx context.Context, tx database.Tx, scope tenanc
 		return nil, op.Error(err, "setting a time zone")
 	}
 
-	prefs, err = scan(tx.QueryRowContext(ctx, upsertTimeZone, userID, scope, timeZone))
+	row, err := s.querier.UpsertUserTimeZone(ctx, tx, &generated.UpsertUserTimeZoneParams{
+		UserID:   userID,
+		Scope:    scope.String(),
+		TimeZone: timeZone,
+	})
 	if err != nil {
 		// The upsert's WHERE refuses to move a row to another scope, and the
 		// database reports that as no row returned.
@@ -149,7 +147,7 @@ func (s *SQLStore) SetTimeZone(ctx context.Context, tx database.Tx, scope tenanc
 		return nil, op.Error(err, "setting a time zone")
 	}
 
-	return prefs, nil
+	return rowToPreferences(row), nil
 }
 
 func checkRead(q database.SQLQueryExecutor, scope tenancy.Scope, userID string) error {
@@ -163,23 +161,17 @@ func checkRead(q database.SQLQueryExecutor, scope tenancy.Scope, userID string) 
 	return scope.Validate()
 }
 
-func scan(row *sql.Row) (*Preferences, error) {
-	var (
-		p       Preferences
-		scope   string
-		updated sql.NullTime
-	)
-
-	if err := row.Scan(&p.UserID, &scope, &p.TimeZone, &p.CreatedAt, &updated); err != nil {
-		return nil, err
+// rowToPreferences turns the generated row into the domain's value.
+func rowToPreferences(row *generated.UserPreferences) *Preferences {
+	if row == nil {
+		return nil
 	}
 
-	p.Scope = tenancy.Of(scope)
-
-	if updated.Valid {
-		t := updated.Time
-		p.LastUpdatedAt = &t
+	return &Preferences{
+		CreatedAt:     row.CreatedAt,
+		LastUpdatedAt: database.TimePointerFromNullTime(row.LastUpdatedAt),
+		UserID:        row.UserID,
+		TimeZone:      row.TimeZone,
+		Scope:         tenancy.Of(row.Scope),
 	}
-
-	return &p, nil
 }
