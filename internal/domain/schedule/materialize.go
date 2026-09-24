@@ -2,6 +2,7 @@ package schedule
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/primandproper/primitives-go/v2/database"
@@ -224,11 +225,6 @@ func (m *Materializer) materializeStudio(ctx context.Context, studio string, ser
 		return 0, platformerrors.Wrapf(err, "reading settings for studio %q", studio)
 	}
 
-	horizonWeeks := settings.HorizonWeeks
-	if horizonWeeks < 1 || horizonWeeks > MaxHorizonWeeks {
-		horizonWeeks = DefaultSettings(studio).HorizonWeeks
-	}
-
 	// Archived offerings are included: a studio that retires an offering has
 	// stopped selling it, not stopped teaching the lessons already sold.
 	offerings, err := m.store.ListOfferings(ctx, m.client.Reader(), scope, true)
@@ -236,32 +232,9 @@ func (m *Materializer) materializeStudio(ctx context.Context, studio string, ser
 		return 0, platformerrors.Wrapf(err, "reading offerings for studio %q", studio)
 	}
 
-	durations := make(map[string]time.Duration, len(offerings))
-	for _, offering := range offerings {
-		durations[offering.ID] = offering.Duration
-	}
-
-	horizon := today.AddDays(horizonWeeks * 7)
-
-	var pending []*Occurrence
-
-	for _, one := range series {
-		duration, known := durations[one.OfferingID]
-		if !known || duration <= 0 {
-			return 0, platformerrors.Wrapf(ErrInvalidSeries, "series %q names offering %q, which the studio does not have", one.ID, one.OfferingID)
-		}
-
-		for _, date := range Plan(one, today, horizon, closures) {
-			startsAt := date.At(one.StartTime, zone)
-
-			pending = append(pending, &Occurrence{
-				SeriesID:   one.ID,
-				OfferingID: one.OfferingID,
-				StartsAt:   startsAt,
-				EndsAt:     startsAt.Add(duration),
-				Staff:      one.Staff,
-			})
-		}
+	pending, err := build(series, offerings, closures, zone, today, today.AddDays(horizonOf(settings, studio)*7))
+	if err != nil {
+		return 0, err
 	}
 
 	if len(pending) == 0 {
@@ -288,4 +261,214 @@ func (m *Materializer) materializeStudio(ctx context.Context, studio string, ser
 	}
 
 	return written, nil
+}
+
+// SyncSeries brings one series' standing rows into line with its rule, on the
+// caller's transaction, and reports what it wrote and what it took away.
+//
+// It is what a series edit runs so the owner sees the grid change without
+// waiting for the worker. A standing row from now on that the rule no longer
+// produces — another day, another time, another offering, another length — is
+// retracted, and what the rule now produces is written. Anything an owner has
+// already acted on (cancelled, completed, moved) is left exactly as it is, and
+// nothing before now is touched.
+func (m *Materializer) SyncSeries(ctx context.Context, tx database.Tx, scope tenancy.Scope, seriesID string) (written, retracted int64, err error) {
+	ctx, op := m.o11y.Begin(ctx)
+	defer op.End()
+
+	env, err := m.environment(ctx, tx, scope)
+	if err != nil {
+		return 0, 0, op.Error(err, "syncing a series")
+	}
+
+	series, err := m.store.GetSeries(ctx, tx, scope, seriesID)
+	if err != nil && !errors.Is(err, ErrNotFound) {
+		return 0, 0, op.Error(err, "syncing a series")
+	}
+
+	var rules []*Series
+	if series != nil {
+		rules = append(rules, series)
+	}
+
+	pending, err := build(rules, env.offerings, env.closures, env.zone, env.today, env.horizon)
+	if err != nil {
+		return 0, 0, op.Error(err, "syncing a series")
+	}
+
+	now := m.now()
+
+	type slot struct {
+		endsAt   time.Time
+		offering string
+	}
+
+	wanted := make(map[int64]slot, len(pending))
+	for _, occurrence := range pending {
+		wanted[occurrence.StartsAt.Unix()] = slot{endsAt: occurrence.EndsAt, offering: occurrence.OfferingID}
+	}
+
+	standing, err := m.store.ListScheduledForSeriesFrom(ctx, tx, scope, seriesID, now)
+	if err != nil {
+		return 0, 0, op.Error(err, "syncing a series")
+	}
+
+	for _, occurrence := range standing {
+		want, ok := wanted[occurrence.StartsAt.Unix()]
+		if ok && want.offering == occurrence.OfferingID && want.endsAt.Equal(occurrence.EndsAt) {
+			continue
+		}
+
+		if err = m.store.RetractOccurrence(ctx, tx, scope, occurrence.ID); err != nil {
+			return 0, 0, op.Error(err, "syncing a series")
+		}
+
+		retracted++
+	}
+
+	written, err = m.write(ctx, tx, scope, pending, now)
+	if err != nil {
+		return 0, 0, op.Error(err, "syncing a series")
+	}
+
+	return written, retracted, nil
+}
+
+// SyncStudio writes whatever a studio's rules produce out to its horizon that
+// is not on the grid yet, on the caller's transaction. It is what a change to
+// the horizon or a reopening runs; it never retracts anything.
+func (m *Materializer) SyncStudio(ctx context.Context, tx database.Tx, scope tenancy.Scope) (_ int64, err error) {
+	ctx, op := m.o11y.Begin(ctx)
+	defer op.End()
+
+	env, err := m.environment(ctx, tx, scope)
+	if err != nil {
+		return 0, op.Error(err, "syncing a studio")
+	}
+
+	series, err := m.store.ListSeries(ctx, tx, scope, false)
+	if err != nil {
+		return 0, op.Error(err, "syncing a studio")
+	}
+
+	pending, err := build(series, env.offerings, env.closures, env.zone, env.today, env.horizon)
+	if err != nil {
+		return 0, op.Error(err, "syncing a studio")
+	}
+
+	written, err := m.write(ctx, tx, scope, pending, m.now())
+	if err != nil {
+		return 0, op.Error(err, "syncing a studio")
+	}
+
+	return written, nil
+}
+
+// environment is what planning one studio needs to know, read on the
+// caller's transaction.
+type environment struct {
+	zone      *time.Location
+	offerings []*Offering
+	closures  []*Closure
+	today     Date
+	horizon   Date
+}
+
+func (m *Materializer) environment(ctx context.Context, tx database.Tx, scope tenancy.Scope) (*environment, error) {
+	studio := scope.Owner()
+
+	zone, err := m.zones.ZoneOf(ctx, studio)
+	if err != nil {
+		return nil, platformerrors.Wrapf(err, "resolving the zone for studio %q", studio)
+	}
+
+	settings, err := m.store.GetSettings(ctx, tx, scope)
+	if err != nil {
+		return nil, platformerrors.Wrapf(err, "reading settings for studio %q", studio)
+	}
+
+	offerings, err := m.store.ListOfferings(ctx, tx, scope, true)
+	if err != nil {
+		return nil, platformerrors.Wrapf(err, "reading offerings for studio %q", studio)
+	}
+
+	closures, err := m.store.ListClosures(ctx, tx, scope)
+	if err != nil {
+		return nil, platformerrors.Wrapf(err, "reading closures for studio %q", studio)
+	}
+
+	today := Today(m.now(), zone)
+
+	return &environment{
+		zone:      zone,
+		offerings: offerings,
+		closures:  closures,
+		today:     today,
+		horizon:   today.AddDays(horizonOf(settings, studio) * 7),
+	}, nil
+}
+
+// write materializes what is pending from an instant onwards. A sync never
+// writes into the past: a series moved to this morning is not a lesson that
+// already happened.
+func (m *Materializer) write(ctx context.Context, tx database.Tx, scope tenancy.Scope, pending []*Occurrence, from time.Time) (int64, error) {
+	var written int64
+
+	for _, occurrence := range pending {
+		if occurrence.StartsAt.Before(from) {
+			continue
+		}
+
+		_, wrote, err := m.store.MaterializeOccurrence(ctx, tx, scope, occurrence)
+		if err != nil {
+			return 0, err
+		}
+
+		if wrote {
+			written++
+		}
+	}
+
+	return written, nil
+}
+
+// horizonOf is the studio's horizon in weeks, or the default when the setting
+// is out of range.
+func horizonOf(settings *Settings, studio string) int {
+	if settings == nil || settings.HorizonWeeks < 1 || settings.HorizonWeeks > MaxHorizonWeeks {
+		return DefaultSettings(studio).HorizonWeeks
+	}
+
+	return settings.HorizonWeeks
+}
+
+// build turns rules into the rows they produce between two dates, in a zone.
+func build(series []*Series, offerings []*Offering, closures []*Closure, zone *time.Location, from, until Date) ([]*Occurrence, error) {
+	durations := make(map[string]time.Duration, len(offerings))
+	for _, offering := range offerings {
+		durations[offering.ID] = offering.Duration
+	}
+
+	var pending []*Occurrence
+
+	for _, one := range series {
+		duration, known := durations[one.OfferingID]
+		if !known || duration <= 0 {
+			return nil, platformerrors.Wrapf(ErrInvalidSeries, "series %q names offering %q, which the studio does not have", one.ID, one.OfferingID)
+		}
+
+		for _, date := range Plan(one, from, until, closures) {
+			startsAt := date.At(one.StartTime, zone)
+
+			pending = append(pending, &Occurrence{
+				SeriesID:   one.ID,
+				OfferingID: one.OfferingID,
+				StartsAt:   startsAt,
+				EndsAt:     startsAt.Add(duration),
+				Staff:      one.Staff,
+			})
+		}
+	}
+
+	return pending, nil
 }

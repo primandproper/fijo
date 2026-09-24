@@ -1191,6 +1191,34 @@ func (s *SQLStore) ArchiveClosure(ctx context.Context, tx database.Tx, scope ten
 	return nil
 }
 
+// RetractOccurrence implements Store.
+func (s *SQLStore) RetractOccurrence(ctx context.Context, tx database.Tx, scope tenancy.Scope, id string) (err error) {
+	ctx, op, done := s.observe(ctx)
+	defer done(&err)
+
+	studio, err := writable(tx, scope)
+	if err != nil {
+		return op.Error(err, "retracting an occurrence")
+	}
+
+	op.Set(keyStudio, studio).Set(keyOccurrence, id)
+
+	if id == "" {
+		return op.Error(ErrEmptyID, "retracting an occurrence")
+	}
+
+	affected, err := s.querier.RetractOccurrence(ctx, tx, &generated.RetractOccurrenceParams{ID: id, StudioID: studio})
+	if err != nil {
+		return op.Error(err, "retracting an occurrence")
+	}
+
+	if affected == 0 {
+		return op.Error(ErrStateTransitionRefused, "retracting an occurrence")
+	}
+
+	return nil
+}
+
 // refused distinguishes the two reasons a guarded update wrote nothing: the
 // occurrence is not there, or it is there in a state the command does not
 // apply to. Both arrive as no rows, and a caller that cannot tell them apart

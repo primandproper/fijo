@@ -16,13 +16,11 @@ import (
 	"github.com/primandproper/fijo/internal/config"
 	"github.com/primandproper/fijo/internal/database/migrations"
 	"github.com/primandproper/fijo/internal/domain/schedule"
-	"github.com/primandproper/fijo/internal/studios"
 	"github.com/primandproper/fijo/internal/workers/materialize"
 	"github.com/primandproper/fijo/internal/workers/sweep"
 
 	"github.com/primandproper/platform-go/v14/authentication/passwordreset"
 	"github.com/primandproper/platform-go/v14/authentication/signin/refreshtokens"
-	"github.com/primandproper/platform-go/v14/identity"
 	"github.com/primandproper/platform-go/v14/service"
 	"github.com/primandproper/primitives-go/v2/database"
 	platformerrors "github.com/primandproper/primitives-go/v2/errors"
@@ -105,45 +103,7 @@ func BuildInjector(ctx context.Context, cfg *config.Config) (*do.RootScope, erro
 		return schedule.NewSQLStore(schedule.WithPillars(pillars))
 	})
 
-	// The studio's time zone is identity's column, which the schedule's
-	// statements cannot join. This is the seam that answers it.
-	do.Provide(i, func(i do.Injector) (schedule.Zones, error) {
-		accounts, err := do.Invoke[identity.Store](i)
-		if err != nil {
-			return nil, err
-		}
-
-		client, err := do.Invoke[database.Client](i)
-		if err != nil {
-			return nil, err
-		}
-
-		return studios.NewZones(accounts, client.Reader())
-	})
-
-	do.Provide(i, func(i do.Injector) (*schedule.Materializer, error) {
-		pillars, err := observability.InvokePillars(i)
-		if err != nil {
-			return nil, err
-		}
-
-		client, err := do.Invoke[database.Client](i)
-		if err != nil {
-			return nil, err
-		}
-
-		store, err := do.Invoke[schedule.Store](i)
-		if err != nil {
-			return nil, err
-		}
-
-		zones, err := do.Invoke[schedule.Zones](i)
-		if err != nil {
-			return nil, err
-		}
-
-		return schedule.NewMaterializer(client, store, zones, schedule.WithMaterializerPillars(pillars))
-	})
+	materialize.Register(i)
 
 	return i, nil
 }

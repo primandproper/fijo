@@ -56,8 +56,11 @@ func (s *Server) SetScheduleSettings(ctx context.Context, request *fijopb.SetSch
 			NoticeWindow: time.Duration(request.GetSettings().GetNoticeWindowMinutes()) * time.Minute,
 			HorizonWeeks: int(request.GetSettings().GetHorizonWeeks()),
 		})
+		if writeErr != nil {
+			return writeErr
+		}
 
-		return writeErr
+		return s.syncStudio(ctx, tx, scope)
 	}); err != nil {
 		return nil, s.fail(err, op, "writing the studio's schedule settings")
 	}
@@ -137,8 +140,27 @@ func (s *Server) UpdateOffering(ctx context.Context, request *fijopb.UpdateOffer
 		var writeErr error
 
 		written, writeErr = s.store.UpdateOffering(ctx, tx, scope, offeringFromProto(request.GetOffering()))
+		if writeErr != nil {
+			return writeErr
+		}
 
-		return writeErr
+		// A new length changes when every lesson it is sold as ends.
+		series, listErr := s.store.ListSeries(ctx, tx, scope, false)
+		if listErr != nil {
+			return listErr
+		}
+
+		for _, one := range series {
+			if one.OfferingID != written.ID {
+				continue
+			}
+
+			if syncErr := s.syncSeries(ctx, tx, scope, one.ID); syncErr != nil {
+				return syncErr
+			}
+		}
+
+		return nil
 	}); err != nil {
 		return nil, s.fail(err, op, "updating an offering")
 	}
@@ -213,8 +235,11 @@ func (s *Server) CreateSeries(ctx context.Context, request *fijopb.CreateSeriesR
 		var writeErr error
 
 		written, writeErr = s.store.CreateSeries(ctx, tx, scope, staged)
+		if writeErr != nil {
+			return writeErr
+		}
 
-		return writeErr
+		return s.syncSeries(ctx, tx, scope, written.ID)
 	}); err != nil {
 		return nil, s.fail(err, op, "creating a series")
 	}
@@ -247,8 +272,11 @@ func (s *Server) UpdateSeries(ctx context.Context, request *fijopb.UpdateSeriesR
 		var writeErr error
 
 		written, writeErr = s.store.UpdateSeries(ctx, tx, scope, staged)
+		if writeErr != nil {
+			return writeErr
+		}
 
-		return writeErr
+		return s.syncSeries(ctx, tx, scope, written.ID)
 	}); err != nil {
 		return nil, s.fail(err, op, "updating a series")
 	}
@@ -507,7 +535,11 @@ func (s *Server) ReopenStudio(ctx context.Context, request *fijopb.ReopenStudioR
 	}
 
 	if err = s.client.WithTransaction(ctx, func(tx database.Tx) error {
-		return s.store.ArchiveClosure(ctx, tx, scope, request.GetId())
+		if archiveErr := s.store.ArchiveClosure(ctx, tx, scope, request.GetId()); archiveErr != nil {
+			return archiveErr
+		}
+
+		return s.syncStudio(ctx, tx, scope)
 	}); err != nil {
 		return nil, s.fail(err, op, "reopening the studio")
 	}

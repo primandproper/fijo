@@ -575,6 +575,36 @@ func (q *Queries) MaterializeOccurrence(ctx context.Context, db DBTX, arg *Mater
 	return &i, err
 }
 
+const retractOccurrence = `-- name: RetractOccurrence :execrows
+UPDATE schedule_occurrences SET
+	archived_at = NOW(),
+	last_updated_at = NOW()
+WHERE schedule_occurrences.id = $1
+	AND schedule_occurrences.studio_id = $2
+	AND schedule_occurrences.series_id IS NOT NULL
+	AND schedule_occurrences.archived_at IS NULL
+	AND schedule_occurrences.state = 'scheduled'
+`
+
+type RetractOccurrenceParams struct {
+	ID       string
+	StudioID string
+}
+
+// RetractOccurrence takes a standing row off the grid because the rule that
+// produced it no longer does: the series moved to another day or time, or now
+// names another offering. Archiving rather than deleting keeps anything that
+// already points at the row resolvable, and frees the (series_id, starts_at)
+// slot for the materializer. Only an untouched, series-produced row qualifies;
+// anything an owner has acted on is history.
+func (q *Queries) RetractOccurrence(ctx context.Context, db DBTX, arg *RetractOccurrenceParams) (int64, error) {
+	result, err := db.ExecContext(ctx, retractOccurrence, arg.ID, arg.StudioID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const setOccurrenceState = `-- name: SetOccurrenceState :one
 UPDATE schedule_occurrences SET
 	state = $1,

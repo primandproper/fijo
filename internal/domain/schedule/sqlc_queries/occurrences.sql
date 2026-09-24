@@ -159,3 +159,19 @@ SELECT schedule_occurrence_staff.occurrence_id, schedule_occurrence_staff.staff_
 FROM schedule_occurrence_staff
 WHERE schedule_occurrence_staff.occurrence_id = ANY(sqlc.arg(occurrence_ids)::text[])
 ORDER BY schedule_occurrence_staff.occurrence_id, schedule_occurrence_staff.staff_user_id;
+
+-- RetractOccurrence takes a standing row off the grid because the rule that
+-- produced it no longer does: the series moved to another day or time, or now
+-- names another offering. Archiving rather than deleting keeps anything that
+-- already points at the row resolvable, and frees the (series_id, starts_at)
+-- slot for the materializer. Only an untouched, series-produced row qualifies;
+-- anything an owner has acted on is history.
+-- name: RetractOccurrence :execrows
+UPDATE schedule_occurrences SET
+	archived_at = NOW(),
+	last_updated_at = NOW()
+WHERE schedule_occurrences.id = sqlc.arg(id)
+	AND schedule_occurrences.studio_id = sqlc.arg(studio_id)
+	AND schedule_occurrences.series_id IS NOT NULL
+	AND schedule_occurrences.archived_at IS NULL
+	AND schedule_occurrences.state = 'scheduled';

@@ -62,6 +62,13 @@ type Querier interface {
 	// does nothing if it is already there. The partial unique index on
 	// (series_id, starts_at) is what makes running the worker twice harmless.
 	MaterializeOccurrence(ctx context.Context, db DBTX, arg *MaterializeOccurrenceParams) (*ScheduleOccurrences, error)
+	// RetractOccurrence takes a standing row off the grid because the rule that
+	// produced it no longer does: the series moved to another day or time, or now
+	// names another offering. Archiving rather than deleting keeps anything that
+	// already points at the row resolvable, and frees the (series_id, starts_at)
+	// slot for the materializer. Only an untouched, series-produced row qualifies;
+	// anything an owner has acted on is history.
+	RetractOccurrence(ctx context.Context, db DBTX, arg *RetractOccurrenceParams) (int64, error)
 	// SetOccurrenceState is completed, no_show, and the revert back to scheduled.
 	// It clears the cancellation columns, because a row that is no longer cancelled
 	// must not still say who cancelled it.

@@ -72,10 +72,19 @@ type Server struct {
 	commands *schedule.Commands
 	client   database.Client
 	history  History
+	grid     Materializer
 	o11y     observability.Observer
 }
 
 var _ fijopb.ScheduleServiceServer = (*Server)(nil)
+
+// Materializer is the slice of *schedule.Materializer this server runs on a
+// write, so an owner who edits a standing slot sees the grid change without
+// waiting for the worker.
+type Materializer interface {
+	SyncSeries(ctx context.Context, tx database.Tx, scope tenancy.Scope, seriesID string) (written, retracted int64, err error)
+	SyncStudio(ctx context.Context, tx database.Tx, scope tenancy.Scope) (int64, error)
+}
 
 // Option configures a Server.
 type Option func(*Server)
@@ -87,6 +96,38 @@ func WithHistory(reader History) Option {
 			s.history = reader
 		}
 	}
+}
+
+// WithMaterializer attaches the materializer the series and settings writes
+// run on their own transaction. Without one the grid waits for the worker.
+func WithMaterializer(grid Materializer) Option {
+	return func(s *Server) {
+		if grid != nil {
+			s.grid = grid
+		}
+	}
+}
+
+// syncSeries brings one series' standing rows into line with its rule.
+func (s *Server) syncSeries(ctx context.Context, tx database.Tx, scope tenancy.Scope, seriesID string) error {
+	if s.grid == nil {
+		return nil
+	}
+
+	_, _, err := s.grid.SyncSeries(ctx, tx, scope, seriesID)
+
+	return err
+}
+
+// syncStudio writes whatever the studio's rules produce that is not there yet.
+func (s *Server) syncStudio(ctx context.Context, tx database.Tx, scope tenancy.Scope) error {
+	if s.grid == nil {
+		return nil
+	}
+
+	_, err := s.grid.SyncStudio(ctx, tx, scope)
+
+	return err
 }
 
 // NewServer builds the server.

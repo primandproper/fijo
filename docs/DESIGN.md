@@ -285,9 +285,11 @@ layer that is called from somewhere without a principal cannot fail to notice.
 - **The roster** brings attendees, which join series and occurrences through
   tables this schema deliberately left room for, and the payer that the
   balance ledger needs.
-- **Materializing on a series edit.** The worker's cadence is the floor; an
-  owner who changes a standing slot should see the grid change without waiting
-  for it. The materializer is already safe to call directly.
+- ~~**Materializing on a series edit.**~~ Done (2026-09-23): creating or
+  updating a series or an offering runs `Materializer.SyncSeries` on the same
+  transaction, which retracts (archives) standing rows from now on that the
+  rule no longer produces and writes what it now does; anything an owner has
+  acted on is left alone. Settings and reopening run `SyncStudio`.
 - **The owner app** has no grid yet. The gRPC surface and the TypeScript
   bindings are there; the SvelteKit week view is not.
 

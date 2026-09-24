@@ -485,6 +485,11 @@ type Store interface {
 	// names what it became.
 	MarkOccurrenceMoved(ctx context.Context, tx database.Tx, scope tenancy.Scope, id, movedToID, reason string) (*Occurrence, error)
 
+	// RetractOccurrence takes an untouched, series-produced row off the grid
+	// because its rule no longer produces it. It refuses anything an owner has
+	// acted on.
+	RetractOccurrence(ctx context.Context, tx database.Tx, scope tenancy.Scope, id string) error
+
 	// SetOccurrenceStaff replaces who is teaching this one.
 	SetOccurrenceStaff(ctx context.Context, tx database.Tx, scope tenancy.Scope, id string, staff []string) (*Occurrence, error)
 

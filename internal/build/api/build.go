@@ -31,6 +31,7 @@ import (
 	ownerauthgrpc "github.com/primandproper/fijo/internal/services/ownerauth/grpc"
 	ownersgrpc "github.com/primandproper/fijo/internal/services/owners/grpc"
 	schedulegrpc "github.com/primandproper/fijo/internal/services/schedule/grpc"
+	"github.com/primandproper/fijo/internal/workers/materialize"
 
 	"github.com/primandproper/platform-go/v14/audit"
 	"github.com/primandproper/platform-go/v14/authentication/passkeys"
@@ -81,6 +82,7 @@ func BuildInjector(ctx context.Context, cfg *config.Config) (*do.RootScope, erro
 	registerAuth(i, cfg)
 	registerDomains(i)
 	registerServers(i)
+	materialize.Register(i)
 	registerScheduleServer(i)
 	registerInterceptors(i)
 
@@ -581,6 +583,13 @@ func registerScheduleServer(i do.Injector) {
 		if reader, readerErr := do.Invoke[audit.Reader](i); readerErr == nil {
 			opts = append(opts, schedulegrpc.WithHistory(reader))
 		}
+
+		grid, err := do.Invoke[*schedule.Materializer](i)
+		if err != nil {
+			return nil, err
+		}
+
+		opts = append(opts, schedulegrpc.WithMaterializer(grid))
 
 		return schedulegrpc.NewServer(store, commands, client, pillars, opts...)
 	})
