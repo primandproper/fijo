@@ -1,8 +1,8 @@
 /**
  * gRPC clients for the Fijo API, promisified, with per-call auth in metadata rather than per-client
  * credentials — the shape DDB's consumer app uses. Three services: platform's sign-in (password
- * login and the refresh exchange), Fijo's owner auth (passkeys, reset, sign-out) and Fijo's owners
- * (who am I, my time zone).
+ * login and the refresh exchange), Fijo's owner auth (passkeys, reset, sign-out), Fijo's owners
+ * (who am I, my time zone) and Fijo's schedule (the grid and the commands that change it).
  */
 import * as grpc from '@grpc/grpc-js';
 import type { Metadata } from '@grpc/grpc-js';
@@ -41,6 +41,29 @@ import {
   type SetTimeZoneRequest,
   type SetTimeZoneResponse,
 } from './generated/fijo/v1/owners.js';
+import {
+  ScheduleServiceClient,
+  type ArchiveOfferingResponse,
+  type Canceller,
+  type CloseStudioResponse,
+  type CreateOfferingResponse,
+  type CreateSeriesResponse,
+  type EndSeriesResponse,
+  type GetScheduleSettingsResponse,
+  type ListClosuresResponse,
+  type ListHistoryResponse,
+  type ListOccurrencesResponse,
+  type ListOfferingsResponse,
+  type ListSeriesResponse,
+  type Offering,
+  type OccurrenceResponse,
+  type ReopenStudioResponse,
+  type ScheduleSettings,
+  type Series,
+  type SetScheduleSettingsResponse,
+  type UpdateOfferingResponse,
+  type UpdateSeriesResponse,
+} from './generated/fijo/v1/schedule.js';
 
 export interface ClientConfig {
   serverUrl: string;
@@ -78,6 +101,14 @@ export function createClients(config: ClientConfig) {
   const signInClient = new SignInServiceClient(config.serverUrl, credentials);
   const ownerAuthClient = new OwnerAuthServiceClient(config.serverUrl, credentials);
   const ownersClient = new OwnersServiceClient(config.serverUrl, credentials);
+  const scheduleClient = new ScheduleServiceClient(config.serverUrl, credentials);
+
+  // Every schedule call is the caller's own studio, so each is the request and a bearer token.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sched = <Req, Res>(method: (...args: any[]) => grpc.ClientUnaryCall) => {
+    const call = promisify<Req, Res>(method.bind(scheduleClient) as Unary<Req, Res>);
+    return (token: string, req: Req): Promise<Res> => call(req, bearer(token));
+  };
 
   // The generated clients overload each method, so the pair is spelled out rather than inferred.
   const loginForToken = promisify<LoginForTokenRequest, LoginForTokenResponse>(
@@ -152,6 +183,44 @@ export function createClients(config: ClientConfig) {
       getSelf: (token: string): Promise<GetSelfResponse> => getSelf({}, bearer(token)),
       setTimeZone: (token: string, timeZone: string): Promise<SetTimeZoneResponse> =>
         setTimeZone({ timeZone }, bearer(token)),
+    },
+    schedule: {
+      getSettings: sched<object, GetScheduleSettingsResponse>(scheduleClient.getScheduleSettings),
+      setSettings: sched<{ settings: ScheduleSettings }, SetScheduleSettingsResponse>(
+        scheduleClient.setScheduleSettings,
+      ),
+      listOfferings: sched<{ includeArchived: boolean }, ListOfferingsResponse>(scheduleClient.listOfferings),
+      createOffering: sched<{ offering: Offering }, CreateOfferingResponse>(scheduleClient.createOffering),
+      updateOffering: sched<{ offering: Offering }, UpdateOfferingResponse>(scheduleClient.updateOffering),
+      archiveOffering: sched<{ id: string }, ArchiveOfferingResponse>(scheduleClient.archiveOffering),
+      listSeries: sched<{ includeArchived: boolean }, ListSeriesResponse>(scheduleClient.listSeries),
+      createSeries: sched<{ series: Series }, CreateSeriesResponse>(scheduleClient.createSeries),
+      updateSeries: sched<{ series: Series }, UpdateSeriesResponse>(scheduleClient.updateSeries),
+      endSeries: sched<{ id: string; endsOn: string; reason: string }, EndSeriesResponse>(scheduleClient.endSeries),
+      listOccurrences: sched<{ from: Date; until: Date }, ListOccurrencesResponse>(scheduleClient.listOccurrences),
+      cancelOccurrence: sched<{ id: string; cancelledBy: Canceller; reason: string }, OccurrenceResponse>(
+        scheduleClient.cancelOccurrence,
+      ),
+      completeOccurrence: sched<{ id: string; reason: string }, OccurrenceResponse>(scheduleClient.completeOccurrence),
+      noShowOccurrence: sched<{ id: string; reason: string }, OccurrenceResponse>(scheduleClient.noShowOccurrence),
+      revertOccurrence: sched<{ id: string; reason: string }, OccurrenceResponse>(scheduleClient.revertOccurrence),
+      moveOccurrence: sched<{ id: string; startsAt: Date; reason: string }, OccurrenceResponse>(
+        scheduleClient.moveOccurrence,
+      ),
+      scheduleMakeUp: sched<{ cancelledOccurrenceId: string; startsAt: Date; reason: string }, OccurrenceResponse>(
+        scheduleClient.scheduleMakeUp,
+      ),
+      reassignOccurrence: sched<{ id: string; staffUserIds: string[] }, OccurrenceResponse>(
+        scheduleClient.reassignOccurrence,
+      ),
+      listClosures: sched<object, ListClosuresResponse>(scheduleClient.listClosures),
+      closeStudio: sched<{ startsOn: string; endsOn: string; reason: string }, CloseStudioResponse>(
+        scheduleClient.closeStudio,
+      ),
+      reopenStudio: sched<{ id: string }, ReopenStudioResponse>(scheduleClient.reopenStudio),
+      listHistory: sched<{ resourceType: string; resourceId: string; limit: number }, ListHistoryResponse>(
+        scheduleClient.listHistory,
+      ),
     },
   };
 }

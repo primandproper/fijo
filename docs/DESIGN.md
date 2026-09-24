@@ -290,8 +290,12 @@ layer that is called from somewhere without a principal cannot fail to notice.
   transaction, which retracts (archives) standing rows from now on that the
   rule no longer produces and writes what it now does; anything an owner has
   acted on is left alone. Settings and reopening run `SyncStudio`.
-- **The owner app** has no grid yet. The gRPC surface and the TypeScript
-  bindings are there; the SvelteKit week view is not.
+- ~~**The owner app** has no grid yet.~~ Done (2026-09-23): `/week` is the
+  week grid in the owner's zone with every occurrence command and its history,
+  `/offerings` and `/series` set up what the grid holds, and `/studio` holds
+  the notice window, the horizon and closures. The account page moved to
+  `/account`. Not yet in the UI: reassigning staff (one-person studios don't
+  need it) and one-off appointments, which have no RPC.
 
 ## Repo skeleton (derived from fijo)
 
