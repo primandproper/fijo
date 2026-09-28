@@ -76,14 +76,19 @@ directory has no door for either, and what authorizes these is the database cred
 - `frontend/owner/` — the SvelteKit owner app; `frontend/packages/api-client/` — ts-proto bindings
   plus promisified clients. `frontend/go.mod` exists only so `./...` never descends into
   `node_modules`.
+- `deploy/environments/localdev/` — the compose stack `make dev` runs: one build of the binaries into
+  a volume, `migrate`, then `serve`, `worker`, `devseed --if-absent` and the owner app's Vite. The
+  Go services read `config/localdev.json` with the database host and origins overridden by `FIJO_`
+  variables.
 - `config/` — rendered per-environment JSON; edit `cmd/tools/codegen/configs/environments.go`,
   never the JSON, then `make configs`.
 
 ## Common Commands
 
 ```bash
+make dev             # the whole stack in the foreground via docker compose (deploy/environments/localdev)
+make dev_reset       # drop the compose stack's database
 make setup           # artifacts dir + module cache
-make dev_db          # local Postgres (fijo/fijo/fijo on :5432)
 make dev_serve       # fijo serve --config config/localdev.json (migrates on boot)
 make dev_seed SEED_ARGS="--username ... --email ... --password ... --studio ..."
 make dev_bootstrap BOOTSTRAP_ARGS="--username ... --email ... --password ..."   # the operator

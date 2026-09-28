@@ -206,14 +206,24 @@ frontend_dev: $(FRONTEND_DIR)/node_modules
 
 ## LOCAL DEVELOPMENT
 
-# dev_db stands up the Postgres the localdev config points at.
-.PHONY: dev_db
-dev_db:
-	$(CONTAINER_RUNNER) run -d --rm --name fijo-postgres -e POSTGRES_USER=fijo -e POSTGRES_PASSWORD=fijo -e POSTGRES_DB=fijo -p 5432:5432 postgres:17-alpine
+LOCALDEV_COMPOSE := $(CONTAINER_RUNNER) compose --file deploy/environments/localdev/docker-compose.yaml
 
-.PHONY: dev_db_stop
-dev_db_stop:
-	$(CONTAINER_RUNNER) stop fijo-postgres
+# dev runs the whole stack in the foreground — Postgres, migrations, the API,
+# the worker, the owner app on :5173 and a seeded owner (maria / "a good long
+# password") — until Ctrl-C. Overrides are in the compose file's header.
+.PHONY: dev
+dev:
+	$(LOCALDEV_COMPOSE) up --remove-orphans
+
+# dev_down removes the stack's containers; dev_reset also drops its database.
+.PHONY: dev_down
+dev_down:
+	$(LOCALDEV_COMPOSE) down --remove-orphans
+
+.PHONY: dev_reset
+dev_reset:
+	$(LOCALDEV_COMPOSE) down --remove-orphans
+	$(CONTAINER_RUNNER) volume rm --force fijo_postgres_data
 
 # dev_serve runs the API against config/localdev.json, migrating on boot.
 .PHONY: dev_serve

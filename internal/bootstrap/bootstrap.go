@@ -202,6 +202,22 @@ func (s *Seeder) ProvisionStudio(ctx context.Context, studio *Studio) (*signin.R
 	return registered, nil
 }
 
+// UserExists reports whether the directory already holds username. It is what
+// a caller asks before ProvisionStudio when a repeat is expected rather than a
+// mistake, as a local stack seeding itself on every start is.
+func (s *Seeder) UserExists(ctx context.Context, username string) (bool, error) {
+	_, err := s.users.GetUserByUsername(ctx, s.reader, tenancy.Global(), strings.TrimSpace(username))
+
+	switch {
+	case err == nil:
+		return true, nil
+	case errors.Is(err, identity.ErrUserNotFound):
+		return false, nil
+	default:
+		return false, platformerrors.Wrapf(err, "looking up %q", username)
+	}
+}
+
 // EnsureServiceAdmin makes the named operator exist and hold service_admin.
 //
 // It is idempotent in both halves: an operator the directory already holds is

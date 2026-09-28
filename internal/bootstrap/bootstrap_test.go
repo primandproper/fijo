@@ -292,3 +292,41 @@ func TestSeeder_EnsureServiceAdmin(t *testing.T) {
 		test.ErrorIs(t, err, ErrIncomplete)
 	})
 }
+
+func TestSeeder_UserExists(t *testing.T) {
+	t.Parallel()
+
+	for name, tc := range map[string]struct {
+		lookupErr error
+		wantErr   error
+		want      bool
+	}{
+		"a user the directory holds":         {want: true},
+		"a user the directory does not hold": {lookupErr: identity.ErrUserNotFound},
+		"a lookup that failed":               {lookupErr: errDatabaseDown, wantErr: errDatabaseDown},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			var looked string
+
+			seeder, err := New(refusing(t), &roleSetterFunc{}, lookupFunc(func(username string) (*identity.User, error) {
+				looked = username
+
+				if tc.lookupErr != nil {
+					return nil, tc.lookupErr
+				}
+
+				return &identity.User{ID: "existing"}, nil
+			}), reader())
+			must.NoError(t, err)
+
+			exists, err := seeder.UserExists(t.Context(), " maria ")
+			test.ErrorIs(t, err, tc.wantErr)
+			test.Eq(t, tc.want, exists)
+			test.Eq(t, "maria", looked)
+		})
+	}
+}
+
+var errDatabaseDown = errors.New("the database is down")

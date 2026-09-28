@@ -1,0 +1,130 @@
+---
+# The whole local stack in one foreground process: `make dev`.
+#
+# Postgres, then one build of the binaries, then the migration, then the API,
+# the worker, the owner app and a seeded owner to sign in as. The Go services
+# run the binaries the build service leaves in a volume, so Ctrl-C and `make
+# dev` again is a rebuild; the owner app is Vite over the mounted source, so a
+# frontend edit is a hot reload.
+#
+# Ports, the seeded owner and the Postgres host port are overridable from the
+# shell or a .env file beside this one; the defaults are what the comments on
+# each service name.
+name: fijo
+
+x-go: &go
+  image: golang:1.27-alpine
+  working_dir: /src
+  volumes:
+    - ../../..:/src
+    - go_mod_cache:/go/pkg/mod
+    - go_build_cache:/root/.cache/go-build
+    - bin:/fijo-bin
+  environment: &go_env
+    CGO_ENABLED: '0'
+    FIJO_CONFIG_FILEPATH: /src/config/localdev.json
+    FIJO_DATABASE_READ_CONNECTION_HOST: postgres
+    FIJO_DATABASE_WRITE_CONNECTION_HOST: postgres
+    # The migrate service has already run by the time anything else starts.
+    FIJO_DATABASE_RUN_MIGRATIONS: 'false'
+    # A passkey is bound to the origin the browser saw.
+    FIJO_WEBAUTHN_RP_ORIGINS: http://localhost:${FIJO_OWNER_PORT:-5173}
+    FIJO_AUTH_PASSWORD_RESET_LINK_BASE_URL: http://localhost:${FIJO_OWNER_PORT:-5173}/reset-password
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: fijo
+      POSTGRES_PASSWORD: fijo
+      POSTGRES_DB: fijo
+    ports:
+      - ${FIJO_POSTGRES_PORT:-5432}:5432
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD, pg_isready, -U, fijo, -d, fijo]
+      interval: 1s
+      timeout: 3s
+      retries: 30
+
+  build:
+    <<: *go
+    command:
+      - sh
+      - -c
+      - go build -o /fijo-bin/fijo ./cmd/main && go build -o /fijo-bin/devseed ./cmd/tools/devseed
+
+  migrate:
+    <<: *go
+    command: [/fijo-bin/fijo, migrate]
+    depends_on:
+      build:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+
+  # An owner to sign in as, registered once and left alone on every later start.
+  seed:
+    <<: *go
+    command:
+      - /fijo-bin/devseed
+      - --if-absent
+      - --username=${FIJO_SEED_USERNAME:-maria}
+      - --email=${FIJO_SEED_EMAIL:-maria@example.com}
+      - --password=${FIJO_SEED_PASSWORD:-a good long password}
+      - --studio=${FIJO_SEED_STUDIO:-Casa de Musica}
+      - --time-zone=${FIJO_SEED_TIME_ZONE:-America/Chicago}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  # gRPC on :50051.
+  api:
+    <<: *go
+    command: [/fijo-bin/fijo, serve]
+    ports:
+      - ${FIJO_API_PORT:-50051}:50051
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  worker:
+    <<: *go
+    command: [/fijo-bin/fijo, worker]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  # The owner app on http://localhost:5173. node_modules is a volume, not the
+  # host's: the host's is built for macOS and the container is Linux.
+  owner:
+    image: node:24-alpine
+    working_dir: /src/frontend
+    command:
+      - sh
+      - -c
+      - npm ci --no-audit --no-fund && npm run dev -w owner -- --host 0.0.0.0 --port 5173 --strictPort
+    environment:
+      GRPC_API_SERVER_URL: api:50051
+      GRPC_INSECURE: 'true'
+      NPM_CONFIG_UPDATE_NOTIFIER: 'false'
+      # A fixed key, so a restart keeps you signed in. Local only.
+      COOKIE_ENCRYPTION_KEY: RDEUfoGJDC9zOkBP+MxwDskeFFQhbnB8+8QHBmRXWcE=
+    ports:
+      - ${FIJO_OWNER_PORT:-5173}:5173
+    volumes:
+      - ../../../frontend:/src/frontend
+      - node_modules:/src/frontend/node_modules
+      - owner_node_modules:/src/frontend/owner/node_modules
+    depends_on:
+      api:
+        condition: service_started
+
+volumes:
+  postgres_data:
+  go_mod_cache:
+  go_build_cache:
+  bin:
+  node_modules:
+  owner_node_modules:

@@ -12,6 +12,9 @@
 //	go run ./cmd/tools/devseed --config config/localdev.json \
 //	  --username maria --email maria@example.com --password '...' \
 //	  --studio "Casa de Musica" --time-zone US/Central
+//
+// --if-absent makes a second run naming the same owner a no-op rather than the
+// registrar's refusal, so the local compose stack can seed on every start.
 package main
 
 import (
@@ -36,6 +39,7 @@ func main() {
 		lastName   = flag.String("last-name", "", "the owner's last name")
 		studio     = flag.String("studio", "", "the studio's name")
 		timeZone   = flag.String("time-zone", "US/Central", "the studio's IANA time zone")
+		ifAbsent   = flag.Bool("if-absent", false, "do nothing when the directory already holds --username")
 	)
 
 	flag.Parse()
@@ -44,7 +48,7 @@ func main() {
 		log.Fatal("--config is required")
 	}
 
-	if err := run(context.Background(), *configPath, &bootstrap.Studio{
+	if err := run(context.Background(), *configPath, *ifAbsent, &bootstrap.Studio{
 		Username:     *username,
 		EmailAddress: *email,
 		Password:     *password,
@@ -57,7 +61,7 @@ func main() {
 	}
 }
 
-func run(ctx context.Context, configPath string, studio *bootstrap.Studio) error {
+func run(ctx context.Context, configPath string, ifAbsent bool, studio *bootstrap.Studio) error {
 	cfg, err := config.LoadFromFile(ctx, configPath)
 	if err != nil {
 		return err
@@ -77,6 +81,19 @@ func run(ctx context.Context, configPath string, studio *bootstrap.Studio) error
 	seeder, err := bootstrap.FromInjector(i)
 	if err != nil {
 		return err
+	}
+
+	if ifAbsent {
+		exists, existsErr := seeder.UserExists(ctx, studio.Username)
+		if existsErr != nil {
+			return existsErr
+		}
+
+		if exists {
+			fmt.Printf("user:    %s already exists; nothing to seed\n", studio.Username)
+
+			return nil
+		}
 	}
 
 	registered, err := seeder.ProvisionStudio(ctx, studio)

@@ -37,31 +37,25 @@ design.
 
 ## Quickstart
 
-Requires **Go 1.27+**, **Node 22+ with npm 11+**, **protoc 33.1**, and
-[Docker](https://www.docker.com/) for Postgres, linting and shellcheck.
+The whole local stack needs nothing but [Docker](https://www.docker.com/):
 
 ```bash
-make setup                                   # artifacts/ + the Go module cache
-make dev_db                                  # Postgres on localhost:5432 (fijo/fijo/fijo)
-make dev_serve                               # migrate on boot, then serve gRPC on :50051
+make dev        # Postgres, migrations, API, worker and owner app, in the foreground
 ```
 
-An empty database has nobody to sign in as, and the platform's registration RPC
-is a registrar's act rather than a visitor's, so seed the first owner:
+That builds the binaries once, migrates, starts `fijo serve` (gRPC on :50051)
+and `fijo worker`, seeds an owner, and serves the owner app at
+http://localhost:5173/login. Sign in as `maria` / `a good long password`. Ctrl-C
+stops everything; `make dev` again rebuilds the Go side, and frontend edits hot
+reload. `make dev_reset` drops the database. Ports and the seeded owner are
+overridable. See the header of `deploy/environments/localdev/docker-compose.yaml`.
 
-```bash
-make dev_seed SEED_ARGS="--username maria --email maria@example.com \
-  --password 'correct horse battery staple' --first-name Maria \
-  --studio 'Casa de Musica' --time-zone US/Central"
-```
-
-Then the owner app, in a second terminal:
-
-```bash
-cd frontend && npm install
-cp owner/.env.example owner/.env            # set COOKIE_ENCRYPTION_KEY (openssl rand -base64 32)
-npm run dev                                  # http://localhost:5173/login
-```
+Working outside Docker (tests, linting, codegen) needs **Go 1.27+**, **Node 22+
+with npm 11+** and **protoc 33.1**. The pieces also run one at a time against
+the compose stack's Postgres (`docker compose -f
+deploy/environments/localdev/docker-compose.yaml up postgres`): `make dev_serve`, `make dev_seed SEED_ARGS=...`, and
+`make frontend_dev` with `frontend/owner/.env` copied from `.env.example` and
+`COOKIE_ENCRYPTION_KEY` set.
 
 Passkeys work on `localhost` because the localdev relying party names it. The
 localdev mailer drops every message, so a password-reset link is visible only
