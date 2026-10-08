@@ -1,8 +1,8 @@
 package bootstrap
 
 import (
-	"github.com/primandproper/platform-go/v14/authentication/signin"
-	"github.com/primandproper/platform-go/v14/identity"
+	"github.com/primandproper/platform-go/v15/authentication/signin"
+	"github.com/primandproper/platform-go/v15/identity"
 	"github.com/primandproper/primitives-go/v2/database"
 
 	"github.com/samber/do/v2"

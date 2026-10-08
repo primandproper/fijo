@@ -21,7 +21,7 @@ import (
 	sync "sync"
 	unsafe "unsafe"
 
-	signinpb "github.com/primandproper/platform-go/v14/authentication/signin/signinpb"
+	signinpb "github.com/primandproper/platform-go/v15/authentication/signin/signinpb"
 
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"

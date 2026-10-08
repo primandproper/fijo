@@ -33,16 +33,16 @@ import (
 	schedulegrpc "github.com/primandproper/fijo/internal/services/schedule/grpc"
 	"github.com/primandproper/fijo/internal/workers/materialize"
 
-	"github.com/primandproper/platform-go/v14/audit"
-	"github.com/primandproper/platform-go/v14/authentication/passkeys"
-	"github.com/primandproper/platform-go/v14/authentication/passwordreset"
-	"github.com/primandproper/platform-go/v14/authentication/signin"
-	"github.com/primandproper/platform-go/v14/authentication/signin/refreshtokens"
-	"github.com/primandproper/platform-go/v14/identity"
-	identitycfg "github.com/primandproper/platform-go/v14/identity/config"
-	"github.com/primandproper/platform-go/v14/service"
-	"github.com/primandproper/platform-go/v14/sessions"
-	sessionscfg "github.com/primandproper/platform-go/v14/sessions/config"
+	"github.com/primandproper/platform-go/v15/audit"
+	"github.com/primandproper/platform-go/v15/authentication/passkeys"
+	"github.com/primandproper/platform-go/v15/authentication/passwordreset"
+	"github.com/primandproper/platform-go/v15/authentication/signin"
+	"github.com/primandproper/platform-go/v15/authentication/signin/refreshtokens"
+	"github.com/primandproper/platform-go/v15/identity"
+	identitycfg "github.com/primandproper/platform-go/v15/identity/config"
+	"github.com/primandproper/platform-go/v15/service"
+	"github.com/primandproper/platform-go/v15/sessions"
+	sessionscfg "github.com/primandproper/platform-go/v15/sessions/config"
 	"github.com/primandproper/primitives-go/v2/authentication"
 	"github.com/primandproper/primitives-go/v2/authentication/argon2"
 	"github.com/primandproper/primitives-go/v2/authentication/tokens"
@@ -233,7 +233,7 @@ func registerAuth(i do.Injector, cfg *config.Config) {
 			return nil, err
 		}
 
-		return signin.NewService(client, directory, authenticator, issuer,
+		return signin.NewService(client, directory, authenticator, issuer, []string{roles.Owner},
 			signin.WithPillars(pillars),
 			signin.WithRefreshTokenStore(refresh),
 			signin.WithClaimsBuilder(claims),

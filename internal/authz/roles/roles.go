@@ -17,9 +17,9 @@
 package roles
 
 import (
-	auditgrpc "github.com/primandproper/platform-go/v14/audit/grpc"
-	identitygrpc "github.com/primandproper/platform-go/v14/identity/grpc"
-	"github.com/primandproper/platform-go/v14/rbac"
+	auditgrpc "github.com/primandproper/platform-go/v15/audit/grpc"
+	identitygrpc "github.com/primandproper/platform-go/v15/identity/grpc"
+	"github.com/primandproper/platform-go/v15/rbac"
 	"github.com/primandproper/primitives-go/v2/authorization"
 )
 
@@ -50,7 +50,6 @@ func Roles() []authorization.Role {
 			Description: "operator of the Fijo deployment",
 			Permissions: []authorization.Permission{
 				identitygrpc.PermissionReadUsers,
-				identitygrpc.PermissionCreateUsers,
 				identitygrpc.PermissionArchiveUsers,
 				identitygrpc.PermissionUpdateUserStatus,
 				identitygrpc.PermissionUpdateUserServiceRoles,

@@ -17,7 +17,7 @@ MODULE_PATH="${1:?missing module path}"
 TARGET="${2:-all}"
 
 PRIMITIVES_DIR="$(go list -m -f '{{.Dir}}' github.com/primandproper/primitives-go/v2)"
-PLATFORM_DIR="$(go list -m -f '{{.Dir}}' github.com/primandproper/platform-go/v14)"
+PLATFORM_DIR="$(go list -m -f '{{.Dir}}' github.com/primandproper/platform-go/v15)"
 
 FILTERING_PATH="${PRIMITIVES_DIR}/filtering/proto"
 IDENTITY_PATH="${PLATFORM_DIR}/identity/proto"
@@ -67,10 +67,10 @@ generate_golang() {
     --go_opt=module="${MODULE_PATH}" --go-grpc_opt=module="${MODULE_PATH}" \
     --go_opt="M${FILTERING_PROTO}=github.com/primandproper/primitives-go/v2/filtering/filteringpb" \
     --go-grpc_opt="M${FILTERING_PROTO}=github.com/primandproper/primitives-go/v2/filtering/filteringpb" \
-    --go_opt="M${IDENTITY_PROTO}=github.com/primandproper/platform-go/v14/identity/identitypb" \
-    --go-grpc_opt="M${IDENTITY_PROTO}=github.com/primandproper/platform-go/v14/identity/identitypb" \
-    --go_opt="M${SIGNIN_PROTO}=github.com/primandproper/platform-go/v14/authentication/signin/signinpb" \
-    --go-grpc_opt="M${SIGNIN_PROTO}=github.com/primandproper/platform-go/v14/authentication/signin/signinpb" \
+    --go_opt="M${IDENTITY_PROTO}=github.com/primandproper/platform-go/v15/identity/identitypb" \
+    --go-grpc_opt="M${IDENTITY_PROTO}=github.com/primandproper/platform-go/v15/identity/identitypb" \
+    --go_opt="M${SIGNIN_PROTO}=github.com/primandproper/platform-go/v15/authentication/signin/signinpb" \
+    --go-grpc_opt="M${SIGNIN_PROTO}=github.com/primandproper/platform-go/v15/authentication/signin/signinpb" \
     "${INCLUDES[@]}" \
     "${FIJO_PROTOS[@]}"
 

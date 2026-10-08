@@ -5,7 +5,7 @@ import (
 	"net/url"
 	"time"
 
-	sessionscfg "github.com/primandproper/platform-go/v14/sessions/config"
+	sessionscfg "github.com/primandproper/platform-go/v15/sessions/config"
 	platformerrors "github.com/primandproper/primitives-go/v2/errors"
 
 	validation "github.com/go-ozzo/ozzo-validation/v4"

@@ -7,7 +7,7 @@ import (
 	"github.com/primandproper/fijo/internal/domain/schedule"
 	"github.com/primandproper/fijo/internal/grpc/fijopb"
 
-	"github.com/primandproper/platform-go/v14/audit"
+	"github.com/primandproper/platform-go/v15/audit"
 	"github.com/primandproper/primitives-go/v2/database"
 	platformerrors "github.com/primandproper/primitives-go/v2/errors"
 	"github.com/primandproper/primitives-go/v2/filtering"
@@ -572,8 +572,7 @@ func (s *Server) ListHistory(ctx context.Context, request *fijopb.ListHistoryReq
 		filter.MaxResponseSize = new(uint16(min(limit, maxHistoryLimit)))
 	}
 
-	entries, err := s.history.List(ctx, s.client.Reader(), &audit.Query{
-		Scope:        &scope,
+	entries, err := s.history.List(ctx, s.client.Reader(), scope, &audit.Query{
 		ResourceType: request.GetResourceType(),
 		ResourceID:   request.GetResourceId(),
 	}, filter)

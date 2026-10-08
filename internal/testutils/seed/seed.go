@@ -17,10 +17,11 @@ import (
 	"context"
 	"testing"
 
+	"github.com/primandproper/fijo/internal/authz/roles"
 	"github.com/primandproper/fijo/internal/bootstrap"
 
-	"github.com/primandproper/platform-go/v14/authentication/signin"
-	"github.com/primandproper/platform-go/v14/identity"
+	"github.com/primandproper/platform-go/v15/authentication/signin"
+	"github.com/primandproper/platform-go/v15/identity"
 	"github.com/primandproper/primitives-go/v2/authentication/argon2"
 	"github.com/primandproper/primitives-go/v2/authentication/tokens"
 	"github.com/primandproper/primitives-go/v2/database"
@@ -39,7 +40,7 @@ func New(tb testing.TB, client database.Client) *bootstrap.Seeder {
 	directory, err := identity.NewService(client, store)
 	must.NoError(tb, err)
 
-	registrar, err := signin.NewService(client, store, argon2.NewArgon2Authenticator(), tokens.NewNoopTokenIssuer(),
+	registrar, err := signin.NewService(client, store, argon2.NewArgon2Authenticator(), tokens.NewNoopTokenIssuer(), []string{roles.Owner},
 		signin.WithRegistrar(directory),
 	)
 	must.NoError(tb, err)

@@ -84,6 +84,10 @@ const (
 	// `Config.Config.Audit.Retention.BatchSize`.
 	AuditBatchSizeEnvVarKey = "FIJO_AUDIT_BATCH_SIZE"
 
+	// AuditCredentialRedactionDisabledEnvVarKey is the environment variable name to set to
+	// override `Config.Config.Audit.CredentialRedactionDisabled`.
+	AuditCredentialRedactionDisabledEnvVarKey = "FIJO_AUDIT_CREDENTIAL_REDACTION_DISABLED"
+
 	// AuditDialectEnvVarKey is the environment variable name to set to override
 	// `Config.Config.Audit.Dialect`.
 	AuditDialectEnvVarKey = "FIJO_AUDIT_DIALECT"
@@ -307,6 +311,76 @@ const (
 	// DatabaseWriteConnectionUsernameEnvVarKey is the environment variable name to set to override
 	// `Config.Config.Database.WriteConnection.Username`.
 	DatabaseWriteConnectionUsernameEnvVarKey = "FIJO_DATABASE_WRITE_CONNECTION_USERNAME"
+
+	// DataPrivacyArtifactsEncryptionCurrentKeyIDEnvVarKey is the environment variable name to set
+	// to override `Config.Config.DataPrivacy.Artifacts.Encryption.CurrentKeyID`.
+	DataPrivacyArtifactsEncryptionCurrentKeyIDEnvVarKey = "FIJO_DATA_PRIVACY_ARTIFACTS_ENCRYPTION_CURRENT_KEY_ID"
+
+	// DataPrivacyArtifactsEncryptionProviderEnvVarKey is the environment variable name to set to
+	// override `Config.Config.DataPrivacy.Artifacts.Encryption.Provider`.
+	DataPrivacyArtifactsEncryptionProviderEnvVarKey = "FIJO_DATA_PRIVACY_ARTIFACTS_ENCRYPTION_PROVIDER"
+
+	// DataPrivacyArtifactsStorageBackblazeB2ApplicationKeyEnvVarKey is the environment variable
+	// name to set to override
+	// `Config.Config.DataPrivacy.Artifacts.Storage.BackblazeB2Config.ApplicationKey`.
+	DataPrivacyArtifactsStorageBackblazeB2ApplicationKeyEnvVarKey = "FIJO_DATA_PRIVACY_ARTIFACTS_STORAGE_BACKBLAZE_B2_APPLICATION_KEY"
+
+	// DataPrivacyArtifactsStorageBackblazeB2ApplicationKeyIDEnvVarKey is the environment variable
+	// name to set to override
+	// `Config.Config.DataPrivacy.Artifacts.Storage.BackblazeB2Config.ApplicationKeyID`.
+	DataPrivacyArtifactsStorageBackblazeB2ApplicationKeyIDEnvVarKey = "FIJO_DATA_PRIVACY_ARTIFACTS_STORAGE_BACKBLAZE_B2_APPLICATION_KEY_ID"
+
+	// DataPrivacyArtifactsStorageBackblazeB2RegionEnvVarKey is the environment variable name to
+	// set to override `Config.Config.DataPrivacy.Artifacts.Storage.BackblazeB2Config.Region`.
+	DataPrivacyArtifactsStorageBackblazeB2RegionEnvVarKey = "FIJO_DATA_PRIVACY_ARTIFACTS_STORAGE_BACKBLAZE_B2_REGION"
+
+	// DataPrivacyArtifactsStorageBucketNameEnvVarKey is the environment variable name to set to
+	// override `Config.Config.DataPrivacy.Artifacts.Storage.BucketName`.
+	DataPrivacyArtifactsStorageBucketNameEnvVarKey = "FIJO_DATA_PRIVACY_ARTIFACTS_STORAGE_BUCKET_NAME"
+
+	// DataPrivacyArtifactsStorageBucketPrefixEnvVarKey is the environment variable name to set to
+	// override `Config.Config.DataPrivacy.Artifacts.Storage.BucketPrefix`.
+	DataPrivacyArtifactsStorageBucketPrefixEnvVarKey = "FIJO_DATA_PRIVACY_ARTIFACTS_STORAGE_BUCKET_PREFIX"
+
+	// DataPrivacyArtifactsStorageCircuitBreakingErrorRateEnvVarKey is the environment variable
+	// name to set to override
+	// `Config.Config.DataPrivacy.Artifacts.Storage.CircuitBreaker.ErrorRate`.
+	DataPrivacyArtifactsStorageCircuitBreakingErrorRateEnvVarKey = "FIJO_DATA_PRIVACY_ARTIFACTS_STORAGE_CIRCUIT_BREAKING_ERROR_RATE"
+
+	// DataPrivacyArtifactsStorageCircuitBreakingMinimumSampleThresholdEnvVarKey is the environment
+	// variable name to set to override
+	// `Config.Config.DataPrivacy.Artifacts.Storage.CircuitBreaker.MinimumSampleThreshold`.
+	DataPrivacyArtifactsStorageCircuitBreakingMinimumSampleThresholdEnvVarKey = "FIJO_DATA_PRIVACY_ARTIFACTS_STORAGE_CIRCUIT_BREAKING_MINIMUM_SAMPLE_THRESHOLD"
+
+	// DataPrivacyArtifactsStorageCircuitBreakingNameEnvVarKey is the environment variable name to
+	// set to override `Config.Config.DataPrivacy.Artifacts.Storage.CircuitBreaker.Name`.
+	DataPrivacyArtifactsStorageCircuitBreakingNameEnvVarKey = "FIJO_DATA_PRIVACY_ARTIFACTS_STORAGE_CIRCUIT_BREAKING_NAME"
+
+	// DataPrivacyArtifactsStorageFilesystemDirectoryModeEnvVarKey is the environment variable name
+	// to set to override
+	// `Config.Config.DataPrivacy.Artifacts.Storage.FilesystemConfig.DirectoryMode`.
+	DataPrivacyArtifactsStorageFilesystemDirectoryModeEnvVarKey = "FIJO_DATA_PRIVACY_ARTIFACTS_STORAGE_FILESYSTEM_DIRECTORY_MODE"
+
+	// DataPrivacyArtifactsStorageFilesystemRootDirectoryEnvVarKey is the environment variable name
+	// to set to override
+	// `Config.Config.DataPrivacy.Artifacts.Storage.FilesystemConfig.RootDirectory`.
+	DataPrivacyArtifactsStorageFilesystemRootDirectoryEnvVarKey = "FIJO_DATA_PRIVACY_ARTIFACTS_STORAGE_FILESYSTEM_ROOT_DIRECTORY"
+
+	// DataPrivacyArtifactsStorageProviderEnvVarKey is the environment variable name to set to
+	// override `Config.Config.DataPrivacy.Artifacts.Storage.Provider`.
+	DataPrivacyArtifactsStorageProviderEnvVarKey = "FIJO_DATA_PRIVACY_ARTIFACTS_STORAGE_PROVIDER"
+
+	// DataPrivacyArtifactsStorageR2AccessKeyIDEnvVarKey is the environment variable name to set to
+	// override `Config.Config.DataPrivacy.Artifacts.Storage.R2Config.AccessKeyID`.
+	DataPrivacyArtifactsStorageR2AccessKeyIDEnvVarKey = "FIJO_DATA_PRIVACY_ARTIFACTS_STORAGE_R2_ACCESS_KEY_ID"
+
+	// DataPrivacyArtifactsStorageR2AccountIDEnvVarKey is the environment variable name to set to
+	// override `Config.Config.DataPrivacy.Artifacts.Storage.R2Config.AccountID`.
+	DataPrivacyArtifactsStorageR2AccountIDEnvVarKey = "FIJO_DATA_PRIVACY_ARTIFACTS_STORAGE_R2_ACCOUNT_ID"
+
+	// DataPrivacyArtifactsStorageR2SecretAccessKeyEnvVarKey is the environment variable name to
+	// set to override `Config.Config.DataPrivacy.Artifacts.Storage.R2Config.SecretAccessKey`.
+	DataPrivacyArtifactsStorageR2SecretAccessKeyEnvVarKey = "FIJO_DATA_PRIVACY_ARTIFACTS_STORAGE_R2_SECRET_ACCESS_KEY"
 
 	// DataPrivacyAuditErasureDisabledEnvVarKey is the environment variable name to set to override
 	// `Config.Config.DataPrivacy.AuditErasure.Disabled`.
@@ -696,6 +770,10 @@ const (
 	// IdentityMaxInvitationTTLEnvVarKey is the environment variable name to set to override
 	// `Config.Config.Identity.MaxInvitationTTL`.
 	IdentityMaxInvitationTTLEnvVarKey = "FIJO_IDENTITY_MAX_INVITATION_TTL"
+
+	// IdentityReturnInvitationTokenEnvVarKey is the environment variable name to set to override
+	// `Config.Config.Identity.ReturnInvitationToken`.
+	IdentityReturnInvitationTokenEnvVarKey = "FIJO_IDENTITY_RETURN_INVITATION_TOKEN"
 
 	// IdentityTablePrefixEnvVarKey is the environment variable name to set to override
 	// `Config.Config.Identity.TablePrefix`.
@@ -1122,13 +1200,13 @@ const (
 	// `Config.Config.Metering.Flusher.ReapBatchSize`.
 	MeteringFlusherReapBatchSizeEnvVarKey = "FIJO_METERING_FLUSHER_REAP_BATCH_SIZE"
 
+	// MeteringRecorderAllowUnknownMetersEnvVarKey is the environment variable name to set to
+	// override `Config.Config.Metering.Recorder.AllowUnknownMeters`.
+	MeteringRecorderAllowUnknownMetersEnvVarKey = "FIJO_METERING_RECORDER_ALLOW_UNKNOWN_METERS"
+
 	// MeteringRecorderBatchSizeEnvVarKey is the environment variable name to set to override
 	// `Config.Config.Metering.Recorder.BatchSize`.
 	MeteringRecorderBatchSizeEnvVarKey = "FIJO_METERING_RECORDER_BATCH_SIZE"
-
-	// MeteringRecorderRejectUnknownMetersEnvVarKey is the environment variable name to set to
-	// override `Config.Config.Metering.Recorder.RejectUnknownMeters`.
-	MeteringRecorderRejectUnknownMetersEnvVarKey = "FIJO_METERING_RECORDER_REJECT_UNKNOWN_METERS"
 
 	// MeteringTablePrefixEnvVarKey is the environment variable name to set to override
 	// `Config.Config.Metering.TablePrefix`.
@@ -1168,6 +1246,10 @@ const (
 	// NotificationsTablePrefixEnvVarKey is the environment variable name to set to override
 	// `Config.Config.Notifications.TablePrefix`.
 	NotificationsTablePrefixEnvVarKey = "FIJO_NOTIFICATIONS_TABLE_PREFIX"
+
+	// Oauth2ClientsTablePrefixEnvVarKey is the environment variable name to set to override
+	// `Config.Config.OAuth2Clients.TablePrefix`.
+	Oauth2ClientsTablePrefixEnvVarKey = "FIJO_OAUTH2_CLIENTS_TABLE_PREFIX"
 
 	// Oauth2ServerAccessTokenTTLEnvVarKey is the environment variable name to set to override
 	// `Config.Config.OAuth2Server.Config.AccessTokenTTL`.
@@ -1221,6 +1303,30 @@ const (
 	// Oauth2ServerSweepIntervalEnvVarKey is the environment variable name to set to override
 	// `Config.Config.OAuth2Server.Config.SweepInterval`.
 	Oauth2ServerSweepIntervalEnvVarKey = "FIJO_OAUTH2_SERVER_SWEEP_INTERVAL"
+
+	// Oauth2ServerSweepJobDisabledEnvVarKey is the environment variable name to set to override
+	// `Config.Config.OAuth2Server.SweepJob.Disabled`.
+	Oauth2ServerSweepJobDisabledEnvVarKey = "FIJO_OAUTH2_SERVER_SWEEP_JOB_DISABLED"
+
+	// Oauth2ServerSweepJobIntervalEnvVarKey is the environment variable name to set to override
+	// `Config.Config.OAuth2Server.SweepJob.Interval`.
+	Oauth2ServerSweepJobIntervalEnvVarKey = "FIJO_OAUTH2_SERVER_SWEEP_JOB_INTERVAL"
+
+	// Oauth2ServerSweepJobLeaseTTLEnvVarKey is the environment variable name to set to override
+	// `Config.Config.OAuth2Server.SweepJob.LeaseTTL`.
+	Oauth2ServerSweepJobLeaseTTLEnvVarKey = "FIJO_OAUTH2_SERVER_SWEEP_JOB_LEASE_TTL"
+
+	// Oauth2ServerSweepJobRunOnStartEnvVarKey is the environment variable name to set to override
+	// `Config.Config.OAuth2Server.SweepJob.RunOnStart`.
+	Oauth2ServerSweepJobRunOnStartEnvVarKey = "FIJO_OAUTH2_SERVER_SWEEP_JOB_RUN_ON_START"
+
+	// Oauth2ServerSweepJobScheduleEnvVarKey is the environment variable name to set to override
+	// `Config.Config.OAuth2Server.SweepJob.Schedule`.
+	Oauth2ServerSweepJobScheduleEnvVarKey = "FIJO_OAUTH2_SERVER_SWEEP_JOB_SCHEDULE"
+
+	// Oauth2ServerSweepJobTimeoutEnvVarKey is the environment variable name to set to override
+	// `Config.Config.OAuth2Server.SweepJob.Timeout`.
+	Oauth2ServerSweepJobTimeoutEnvVarKey = "FIJO_OAUTH2_SERVER_SWEEP_JOB_TIMEOUT"
 
 	// ObservabilityLoggingLevelEnvVarKey is the environment variable name to set to override
 	// `Config.Config.Observability.Logging.Level`.
@@ -1394,6 +1500,30 @@ const (
 	// `Config.Config.Operations.Operations.ReapBatchSize`.
 	OperationsReapBatchSizeEnvVarKey = "FIJO_OPERATIONS_REAP_BATCH_SIZE"
 
+	// OperationsReapDisabledEnvVarKey is the environment variable name to set to override
+	// `Config.Config.Operations.Reap.Disabled`.
+	OperationsReapDisabledEnvVarKey = "FIJO_OPERATIONS_REAP_DISABLED"
+
+	// OperationsReapIntervalEnvVarKey is the environment variable name to set to override
+	// `Config.Config.Operations.Reap.Interval`.
+	OperationsReapIntervalEnvVarKey = "FIJO_OPERATIONS_REAP_INTERVAL"
+
+	// OperationsReapLeaseTTLEnvVarKey is the environment variable name to set to override
+	// `Config.Config.Operations.Reap.LeaseTTL`.
+	OperationsReapLeaseTTLEnvVarKey = "FIJO_OPERATIONS_REAP_LEASE_TTL"
+
+	// OperationsReapRunOnStartEnvVarKey is the environment variable name to set to override
+	// `Config.Config.Operations.Reap.RunOnStart`.
+	OperationsReapRunOnStartEnvVarKey = "FIJO_OPERATIONS_REAP_RUN_ON_START"
+
+	// OperationsReapScheduleEnvVarKey is the environment variable name to set to override
+	// `Config.Config.Operations.Reap.Schedule`.
+	OperationsReapScheduleEnvVarKey = "FIJO_OPERATIONS_REAP_SCHEDULE"
+
+	// OperationsReapTimeoutEnvVarKey is the environment variable name to set to override
+	// `Config.Config.Operations.Reap.Timeout`.
+	OperationsReapTimeoutEnvVarKey = "FIJO_OPERATIONS_REAP_TIMEOUT"
+
 	// OperationsRecoverAfterEnvVarKey is the environment variable name to set to override
 	// `Config.Config.Operations.Operations.RecoverAfter`.
 	OperationsRecoverAfterEnvVarKey = "FIJO_OPERATIONS_RECOVER_AFTER"
@@ -1401,6 +1531,30 @@ const (
 	// OperationsRecoverBatchSizeEnvVarKey is the environment variable name to set to override
 	// `Config.Config.Operations.Operations.RecoverBatchSize`.
 	OperationsRecoverBatchSizeEnvVarKey = "FIJO_OPERATIONS_RECOVER_BATCH_SIZE"
+
+	// OperationsRecoverDisabledEnvVarKey is the environment variable name to set to override
+	// `Config.Config.Operations.Recover.Disabled`.
+	OperationsRecoverDisabledEnvVarKey = "FIJO_OPERATIONS_RECOVER_DISABLED"
+
+	// OperationsRecoverIntervalEnvVarKey is the environment variable name to set to override
+	// `Config.Config.Operations.Recover.Interval`.
+	OperationsRecoverIntervalEnvVarKey = "FIJO_OPERATIONS_RECOVER_INTERVAL"
+
+	// OperationsRecoverLeaseTTLEnvVarKey is the environment variable name to set to override
+	// `Config.Config.Operations.Recover.LeaseTTL`.
+	OperationsRecoverLeaseTTLEnvVarKey = "FIJO_OPERATIONS_RECOVER_LEASE_TTL"
+
+	// OperationsRecoverRunOnStartEnvVarKey is the environment variable name to set to override
+	// `Config.Config.Operations.Recover.RunOnStart`.
+	OperationsRecoverRunOnStartEnvVarKey = "FIJO_OPERATIONS_RECOVER_RUN_ON_START"
+
+	// OperationsRecoverScheduleEnvVarKey is the environment variable name to set to override
+	// `Config.Config.Operations.Recover.Schedule`.
+	OperationsRecoverScheduleEnvVarKey = "FIJO_OPERATIONS_RECOVER_SCHEDULE"
+
+	// OperationsRecoverTimeoutEnvVarKey is the environment variable name to set to override
+	// `Config.Config.Operations.Recover.Timeout`.
+	OperationsRecoverTimeoutEnvVarKey = "FIJO_OPERATIONS_RECOVER_TIMEOUT"
 
 	// OperationsRetentionEnvVarKey is the environment variable name to set to override
 	// `Config.Config.Operations.Operations.Retention`.
@@ -1550,6 +1704,50 @@ const (
 	// `Config.Config.Outbox.Relay.TablePrefix`.
 	OutboxTablePrefixEnvVarKey = "FIJO_OUTBOX_TABLE_PREFIX"
 
+	// PasskeysTablePrefixEnvVarKey is the environment variable name to set to override
+	// `Config.Config.Passkeys.TablePrefix`.
+	PasskeysTablePrefixEnvVarKey = "FIJO_PASSKEYS_TABLE_PREFIX"
+
+	// PasswordResetRequestFloorEnvVarKey is the environment variable name to set to override
+	// `Config.Config.PasswordReset.RequestFloor`.
+	PasswordResetRequestFloorEnvVarKey = "FIJO_PASSWORD_RESET_REQUEST_FLOOR"
+
+	// PasswordResetSweepIntervalEnvVarKey is the environment variable name to set to override
+	// `Config.Config.PasswordReset.SweepInterval`.
+	PasswordResetSweepIntervalEnvVarKey = "FIJO_PASSWORD_RESET_SWEEP_INTERVAL"
+
+	// PasswordResetSweepJobDisabledEnvVarKey is the environment variable name to set to override
+	// `Config.Config.PasswordReset.SweepJob.Disabled`.
+	PasswordResetSweepJobDisabledEnvVarKey = "FIJO_PASSWORD_RESET_SWEEP_JOB_DISABLED"
+
+	// PasswordResetSweepJobIntervalEnvVarKey is the environment variable name to set to override
+	// `Config.Config.PasswordReset.SweepJob.Interval`.
+	PasswordResetSweepJobIntervalEnvVarKey = "FIJO_PASSWORD_RESET_SWEEP_JOB_INTERVAL"
+
+	// PasswordResetSweepJobLeaseTTLEnvVarKey is the environment variable name to set to override
+	// `Config.Config.PasswordReset.SweepJob.LeaseTTL`.
+	PasswordResetSweepJobLeaseTTLEnvVarKey = "FIJO_PASSWORD_RESET_SWEEP_JOB_LEASE_TTL"
+
+	// PasswordResetSweepJobRunOnStartEnvVarKey is the environment variable name to set to override
+	// `Config.Config.PasswordReset.SweepJob.RunOnStart`.
+	PasswordResetSweepJobRunOnStartEnvVarKey = "FIJO_PASSWORD_RESET_SWEEP_JOB_RUN_ON_START"
+
+	// PasswordResetSweepJobScheduleEnvVarKey is the environment variable name to set to override
+	// `Config.Config.PasswordReset.SweepJob.Schedule`.
+	PasswordResetSweepJobScheduleEnvVarKey = "FIJO_PASSWORD_RESET_SWEEP_JOB_SCHEDULE"
+
+	// PasswordResetSweepJobTimeoutEnvVarKey is the environment variable name to set to override
+	// `Config.Config.PasswordReset.SweepJob.Timeout`.
+	PasswordResetSweepJobTimeoutEnvVarKey = "FIJO_PASSWORD_RESET_SWEEP_JOB_TIMEOUT"
+
+	// PasswordResetTablePrefixEnvVarKey is the environment variable name to set to override
+	// `Config.Config.PasswordReset.TablePrefix`.
+	PasswordResetTablePrefixEnvVarKey = "FIJO_PASSWORD_RESET_TABLE_PREFIX"
+
+	// PasswordResetTokenLifetimeEnvVarKey is the environment variable name to set to override
+	// `Config.Config.PasswordReset.TokenLifetime`.
+	PasswordResetTokenLifetimeEnvVarKey = "FIJO_PASSWORD_RESET_TOKEN_LIFETIME"
+
 	// RateLimitingBurstSizeEnvVarKey is the environment variable name to set to override
 	// `Config.Config.RateLimiting.BurstSize`.
 	RateLimitingBurstSizeEnvVarKey = "FIJO_RATE_LIMITING_BURST_SIZE"
@@ -1577,6 +1775,10 @@ const (
 	// RateLimitingRequestsPerSecEnvVarKey is the environment variable name to set to override
 	// `Config.Config.RateLimiting.RequestsPerSec`.
 	RateLimitingRequestsPerSecEnvVarKey = "FIJO_RATE_LIMITING_REQUESTS_PER_SEC"
+
+	// RecordingFileByEnvVarKey is the environment variable name to set to override
+	// `Config.Config.Recording.FileBy`.
+	RecordingFileByEnvVarKey = "FIJO_RECORDING_FILE_BY"
 
 	// RetentionSweeperBacklogCeilingEnvVarKey is the environment variable name to set to override
 	// `Config.Config.Retention.Sweeper.BacklogCeiling`.
@@ -1689,6 +1891,54 @@ const (
 	// SagaEventTopicEnvVarKey is the environment variable name to set to override
 	// `Config.Config.Saga.EventTopic`.
 	SagaEventTopicEnvVarKey = "FIJO_SAGA_EVENT_TOPIC"
+
+	// SagaRetentionCompensatedEnvVarKey is the environment variable name to set to override
+	// `Config.Config.Saga.Retention.Compensated`.
+	SagaRetentionCompensatedEnvVarKey = "FIJO_SAGA_RETENTION_COMPENSATED"
+
+	// SagaRetentionCompletedEnvVarKey is the environment variable name to set to override
+	// `Config.Config.Saga.Retention.Completed`.
+	SagaRetentionCompletedEnvVarKey = "FIJO_SAGA_RETENTION_COMPLETED"
+
+	// SagaRetentionJobDisabledEnvVarKey is the environment variable name to set to override
+	// `Config.Config.Saga.Retention.Job.Disabled`.
+	SagaRetentionJobDisabledEnvVarKey = "FIJO_SAGA_RETENTION_JOB_DISABLED"
+
+	// SagaRetentionJobIntervalEnvVarKey is the environment variable name to set to override
+	// `Config.Config.Saga.Retention.Job.Interval`.
+	SagaRetentionJobIntervalEnvVarKey = "FIJO_SAGA_RETENTION_JOB_INTERVAL"
+
+	// SagaRetentionJobLeaseTTLEnvVarKey is the environment variable name to set to override
+	// `Config.Config.Saga.Retention.Job.LeaseTTL`.
+	SagaRetentionJobLeaseTTLEnvVarKey = "FIJO_SAGA_RETENTION_JOB_LEASE_TTL"
+
+	// SagaRetentionJobRunOnStartEnvVarKey is the environment variable name to set to override
+	// `Config.Config.Saga.Retention.Job.RunOnStart`.
+	SagaRetentionJobRunOnStartEnvVarKey = "FIJO_SAGA_RETENTION_JOB_RUN_ON_START"
+
+	// SagaRetentionJobScheduleEnvVarKey is the environment variable name to set to override
+	// `Config.Config.Saga.Retention.Job.Schedule`.
+	SagaRetentionJobScheduleEnvVarKey = "FIJO_SAGA_RETENTION_JOB_SCHEDULE"
+
+	// SagaRetentionJobTimeoutEnvVarKey is the environment variable name to set to override
+	// `Config.Config.Saga.Retention.Job.Timeout`.
+	SagaRetentionJobTimeoutEnvVarKey = "FIJO_SAGA_RETENTION_JOB_TIMEOUT"
+
+	// SagaRetentionSweeperBacklogCeilingEnvVarKey is the environment variable name to set to
+	// override `Config.Config.Saga.Retention.Sweeper.BacklogCeiling`.
+	SagaRetentionSweeperBacklogCeilingEnvVarKey = "FIJO_SAGA_RETENTION_SWEEPER_BACKLOG_CEILING"
+
+	// SagaRetentionSweeperBatchPauseEnvVarKey is the environment variable name to set to override
+	// `Config.Config.Saga.Retention.Sweeper.BatchPause`.
+	SagaRetentionSweeperBatchPauseEnvVarKey = "FIJO_SAGA_RETENTION_SWEEPER_BATCH_PAUSE"
+
+	// SagaRetentionSweeperBatchSizeEnvVarKey is the environment variable name to set to override
+	// `Config.Config.Saga.Retention.Sweeper.BatchSize`.
+	SagaRetentionSweeperBatchSizeEnvVarKey = "FIJO_SAGA_RETENTION_SWEEPER_BATCH_SIZE"
+
+	// SagaRetentionSweeperMaxBatchesEnvVarKey is the environment variable name to set to override
+	// `Config.Config.Saga.Retention.Sweeper.MaxBatches`.
+	SagaRetentionSweeperMaxBatchesEnvVarKey = "FIJO_SAGA_RETENTION_SWEEPER_MAX_BATCHES"
 
 	// SagaTablePrefixEnvVarKey is the environment variable name to set to override
 	// `Config.Config.Saga.TablePrefix`.
@@ -1845,6 +2095,118 @@ const (
 	// ShutdownTimeoutEnvVarKey is the environment variable name to set to override
 	// `Config.Config.ShutdownTimeout`. It defaults to `30s`.
 	ShutdownTimeoutEnvVarKey = "FIJO_SHUTDOWN_TIMEOUT"
+
+	// SignInAdminServiceRolesEnvVarKey is the environment variable name to set to override
+	// `Config.Config.SignIn.AdminServiceRoles`.
+	SignInAdminServiceRolesEnvVarKey = "FIJO_SIGN_IN_ADMIN_SERVICE_ROLES"
+
+	// SignInAdminTokenTTLEnvVarKey is the environment variable name to set to override
+	// `Config.Config.SignIn.AdminTokenTTL`.
+	SignInAdminTokenTTLEnvVarKey = "FIJO_SIGN_IN_ADMIN_TOKEN_TTL"
+
+	// SignInDefaultOwnerRolesEnvVarKey is the environment variable name to set to override
+	// `Config.Config.SignIn.DefaultOwnerRoles`.
+	SignInDefaultOwnerRolesEnvVarKey = "FIJO_SIGN_IN_DEFAULT_OWNER_ROLES"
+
+	// SignInHandleReminderFloorEnvVarKey is the environment variable name to set to override
+	// `Config.Config.SignIn.HandleReminderFloor`.
+	SignInHandleReminderFloorEnvVarKey = "FIJO_SIGN_IN_HANDLE_REMINDER_FLOOR"
+
+	// SignInImpersonationTokenTTLEnvVarKey is the environment variable name to set to override
+	// `Config.Config.SignIn.ImpersonationTokenTTL`.
+	SignInImpersonationTokenTTLEnvVarKey = "FIJO_SIGN_IN_IMPERSONATION_TOKEN_TTL"
+
+	// SignInMagicLinksRequestFloorEnvVarKey is the environment variable name to set to override
+	// `Config.Config.SignIn.MagicLinks.RequestFloor`.
+	SignInMagicLinksRequestFloorEnvVarKey = "FIJO_SIGN_IN_MAGIC_LINKS_REQUEST_FLOOR"
+
+	// SignInMagicLinksSweepIntervalEnvVarKey is the environment variable name to set to override
+	// `Config.Config.SignIn.MagicLinks.SweepInterval`.
+	SignInMagicLinksSweepIntervalEnvVarKey = "FIJO_SIGN_IN_MAGIC_LINKS_SWEEP_INTERVAL"
+
+	// SignInMagicLinksTablePrefixEnvVarKey is the environment variable name to set to override
+	// `Config.Config.SignIn.MagicLinks.TablePrefix`.
+	SignInMagicLinksTablePrefixEnvVarKey = "FIJO_SIGN_IN_MAGIC_LINKS_TABLE_PREFIX"
+
+	// SignInMagicLinksTTLEnvVarKey is the environment variable name to set to override
+	// `Config.Config.SignIn.MagicLinks.TTL`.
+	SignInMagicLinksTTLEnvVarKey = "FIJO_SIGN_IN_MAGIC_LINKS_TTL"
+
+	// SignInRecoveryCodesCountEnvVarKey is the environment variable name to set to override
+	// `Config.Config.SignIn.RecoveryCodes.Count`.
+	SignInRecoveryCodesCountEnvVarKey = "FIJO_SIGN_IN_RECOVERY_CODES_COUNT"
+
+	// SignInRecoveryCodesTablePrefixEnvVarKey is the environment variable name to set to override
+	// `Config.Config.SignIn.RecoveryCodes.TablePrefix`.
+	SignInRecoveryCodesTablePrefixEnvVarKey = "FIJO_SIGN_IN_RECOVERY_CODES_TABLE_PREFIX"
+
+	// SignInRefreshTokensAdminTTLEnvVarKey is the environment variable name to set to override
+	// `Config.Config.SignIn.RefreshTokens.AdminTTL`.
+	SignInRefreshTokensAdminTTLEnvVarKey = "FIJO_SIGN_IN_REFRESH_TOKENS_ADMIN_TTL"
+
+	// SignInRefreshTokensRefuseSupersededTokensEnvVarKey is the environment variable name to set
+	// to override `Config.Config.SignIn.RefreshTokens.RefuseSupersededTokens`.
+	SignInRefreshTokensRefuseSupersededTokensEnvVarKey = "FIJO_SIGN_IN_REFRESH_TOKENS_REFUSE_SUPERSEDED_TOKENS"
+
+	// SignInRefreshTokensSweepIntervalEnvVarKey is the environment variable name to set to
+	// override `Config.Config.SignIn.RefreshTokens.SweepInterval`.
+	SignInRefreshTokensSweepIntervalEnvVarKey = "FIJO_SIGN_IN_REFRESH_TOKENS_SWEEP_INTERVAL"
+
+	// SignInRefreshTokensSweepJobDisabledEnvVarKey is the environment variable name to set to
+	// override `Config.Config.SignIn.RefreshTokens.SweepJob.Disabled`.
+	SignInRefreshTokensSweepJobDisabledEnvVarKey = "FIJO_SIGN_IN_REFRESH_TOKENS_SWEEP_JOB_DISABLED"
+
+	// SignInRefreshTokensSweepJobIntervalEnvVarKey is the environment variable name to set to
+	// override `Config.Config.SignIn.RefreshTokens.SweepJob.Interval`.
+	SignInRefreshTokensSweepJobIntervalEnvVarKey = "FIJO_SIGN_IN_REFRESH_TOKENS_SWEEP_JOB_INTERVAL"
+
+	// SignInRefreshTokensSweepJobLeaseTTLEnvVarKey is the environment variable name to set to
+	// override `Config.Config.SignIn.RefreshTokens.SweepJob.LeaseTTL`.
+	SignInRefreshTokensSweepJobLeaseTTLEnvVarKey = "FIJO_SIGN_IN_REFRESH_TOKENS_SWEEP_JOB_LEASE_TTL"
+
+	// SignInRefreshTokensSweepJobRunOnStartEnvVarKey is the environment variable name to set to
+	// override `Config.Config.SignIn.RefreshTokens.SweepJob.RunOnStart`.
+	SignInRefreshTokensSweepJobRunOnStartEnvVarKey = "FIJO_SIGN_IN_REFRESH_TOKENS_SWEEP_JOB_RUN_ON_START"
+
+	// SignInRefreshTokensSweepJobScheduleEnvVarKey is the environment variable name to set to
+	// override `Config.Config.SignIn.RefreshTokens.SweepJob.Schedule`.
+	SignInRefreshTokensSweepJobScheduleEnvVarKey = "FIJO_SIGN_IN_REFRESH_TOKENS_SWEEP_JOB_SCHEDULE"
+
+	// SignInRefreshTokensSweepJobTimeoutEnvVarKey is the environment variable name to set to
+	// override `Config.Config.SignIn.RefreshTokens.SweepJob.Timeout`.
+	SignInRefreshTokensSweepJobTimeoutEnvVarKey = "FIJO_SIGN_IN_REFRESH_TOKENS_SWEEP_JOB_TIMEOUT"
+
+	// SignInRefreshTokensTablePrefixEnvVarKey is the environment variable name to set to override
+	// `Config.Config.SignIn.RefreshTokens.TablePrefix`.
+	SignInRefreshTokensTablePrefixEnvVarKey = "FIJO_SIGN_IN_REFRESH_TOKENS_TABLE_PREFIX"
+
+	// SignInRefreshTokensTTLEnvVarKey is the environment variable name to set to override
+	// `Config.Config.SignIn.RefreshTokens.TTL`.
+	SignInRefreshTokensTTLEnvVarKey = "FIJO_SIGN_IN_REFRESH_TOKENS_TTL"
+
+	// SignInRegistrationClosedEnvVarKey is the environment variable name to set to override
+	// `Config.Config.SignIn.Registration.Closed`.
+	SignInRegistrationClosedEnvVarKey = "FIJO_SIGN_IN_REGISTRATION_CLOSED"
+
+	// SignInRegistrationDisabledEnvVarKey is the environment variable name to set to override
+	// `Config.Config.SignIn.Registration.Disabled`.
+	SignInRegistrationDisabledEnvVarKey = "FIJO_SIGN_IN_REGISTRATION_DISABLED"
+
+	// SignInRegistrationVerificationLinkTTLEnvVarKey is the environment variable name to set to
+	// override `Config.Config.SignIn.Registration.VerificationLinkTTL`.
+	SignInRegistrationVerificationLinkTTLEnvVarKey = "FIJO_SIGN_IN_REGISTRATION_VERIFICATION_LINK_TTL"
+
+	// SignInSecondFactorEnvVarKey is the environment variable name to set to override
+	// `Config.Config.SignIn.SecondFactor`.
+	SignInSecondFactorEnvVarKey = "FIJO_SIGN_IN_SECOND_FACTOR"
+
+	// SignInTokenTTLEnvVarKey is the environment variable name to set to override
+	// `Config.Config.SignIn.TokenTTL`.
+	SignInTokenTTLEnvVarKey = "FIJO_SIGN_IN_TOKEN_TTL"
+
+	// SignInTotpIssuerEnvVarKey is the environment variable name to set to override
+	// `Config.Config.SignIn.TOTPIssuer`.
+	SignInTotpIssuerEnvVarKey = "FIJO_SIGN_IN_TOTP_ISSUER"
 
 	// TokensAudienceEnvVarKey is the environment variable name to set to override
 	// `Config.Config.Tokens.Audience`.
@@ -2024,6 +2386,10 @@ const (
 	// WebhooksCircuitBreakingNameEnvVarKey is the environment variable name to set to override
 	// `Config.Config.Webhooks.CircuitBreaker.Name`.
 	WebhooksCircuitBreakingNameEnvVarKey = "FIJO_WEBHOOKS_CIRCUIT_BREAKING_NAME"
+
+	// WebhooksEmitterTopicEnvVarKey is the environment variable name to set to override
+	// `Config.Config.Webhooks.EmitterTopic`.
+	WebhooksEmitterTopicEnvVarKey = "FIJO_WEBHOOKS_EMITTER_TOPIC"
 
 	// WebhooksHTTPClientEnableTracingEnvVarKey is the environment variable name to set to override
 	// `Config.Config.Webhooks.HTTPClient.EnableTracing`.

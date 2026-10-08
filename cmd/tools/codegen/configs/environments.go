@@ -6,12 +6,12 @@ import (
 
 	"github.com/primandproper/fijo/internal/config"
 
-	auditcfg "github.com/primandproper/platform-go/v14/audit/config"
-	webauthnsessionscfg "github.com/primandproper/platform-go/v14/authentication/webauthnsessions/config"
-	identitycfg "github.com/primandproper/platform-go/v14/identity/config"
-	"github.com/primandproper/platform-go/v14/rbac"
-	rbaccfg "github.com/primandproper/platform-go/v14/rbac/config"
-	"github.com/primandproper/platform-go/v14/service"
+	auditcfg "github.com/primandproper/platform-go/v15/audit/config"
+	webauthnsessionscfg "github.com/primandproper/platform-go/v15/authentication/webauthnsessions/config"
+	identitycfg "github.com/primandproper/platform-go/v15/identity/config"
+	"github.com/primandproper/platform-go/v15/rbac"
+	rbaccfg "github.com/primandproper/platform-go/v15/rbac/config"
+	"github.com/primandproper/platform-go/v15/service"
 	tokenscfg "github.com/primandproper/primitives-go/v2/authentication/tokens/config"
 	"github.com/primandproper/primitives-go/v2/authentication/webauthn"
 	databasecfg "github.com/primandproper/primitives-go/v2/database/config"

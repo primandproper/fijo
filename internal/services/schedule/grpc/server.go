@@ -22,7 +22,7 @@ import (
 	"github.com/primandproper/fijo/internal/domain/schedule"
 	"github.com/primandproper/fijo/internal/grpc/fijopb"
 
-	"github.com/primandproper/platform-go/v14/audit"
+	"github.com/primandproper/platform-go/v15/audit"
 	authzgrpc "github.com/primandproper/primitives-go/v2/authorization/grpc"
 	"github.com/primandproper/primitives-go/v2/database"
 	platformerrors "github.com/primandproper/primitives-go/v2/errors"
@@ -61,7 +61,7 @@ var (
 // has not configured audit still serves the grid, and ListHistory is the only
 // thing that stops working.
 type History interface {
-	List(ctx context.Context, q database.SQLQueryExecutor, query *audit.Query, filter *filtering.QueryFilter) (*filtering.QueryFilteredResult[audit.Entry], error)
+	List(ctx context.Context, q database.SQLQueryExecutor, scope tenancy.Scope, query *audit.Query, filter *filtering.QueryFilter) (*filtering.QueryFilteredResult[audit.Entry], error)
 }
 
 // Server implements fijopb.ScheduleServiceServer.

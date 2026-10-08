@@ -11,9 +11,9 @@ import (
 	ownersgrpc "github.com/primandproper/fijo/internal/services/owners/grpc"
 	schedulegrpc "github.com/primandproper/fijo/internal/services/schedule/grpc"
 
-	auditgrpc "github.com/primandproper/platform-go/v14/audit/grpc"
-	signingrpc "github.com/primandproper/platform-go/v14/authentication/signin/grpc"
-	identitygrpc "github.com/primandproper/platform-go/v14/identity/grpc"
+	auditgrpc "github.com/primandproper/platform-go/v15/audit/grpc"
+	signingrpc "github.com/primandproper/platform-go/v15/authentication/signin/grpc"
+	identitygrpc "github.com/primandproper/platform-go/v15/identity/grpc"
 	authzgrpc "github.com/primandproper/primitives-go/v2/authorization/grpc"
 	grpcerrors "github.com/primandproper/primitives-go/v2/errors/grpc"
 	"github.com/primandproper/primitives-go/v2/observability"

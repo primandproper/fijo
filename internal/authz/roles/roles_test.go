@@ -3,8 +3,8 @@ package roles
 import (
 	"testing"
 
-	auditgrpc "github.com/primandproper/platform-go/v14/audit/grpc"
-	identitygrpc "github.com/primandproper/platform-go/v14/identity/grpc"
+	auditgrpc "github.com/primandproper/platform-go/v15/audit/grpc"
+	identitygrpc "github.com/primandproper/platform-go/v15/identity/grpc"
 	"github.com/primandproper/primitives-go/v2/authorization"
 	"github.com/primandproper/primitives-go/v2/authorization/static"
 

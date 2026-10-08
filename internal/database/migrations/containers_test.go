@@ -6,7 +6,7 @@ import (
 
 	"github.com/primandproper/fijo/internal/authz/roles"
 
-	"github.com/primandproper/platform-go/v14/rbac"
+	"github.com/primandproper/platform-go/v15/rbac"
 	"github.com/primandproper/primitives-go/v2/database/dialect"
 	"github.com/primandproper/primitives-go/v2/testutils/containers/pgtest"
 

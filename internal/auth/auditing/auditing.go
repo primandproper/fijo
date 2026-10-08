@@ -21,12 +21,14 @@ package auditing
 
 import (
 	"context"
+	"maps"
+	"slices"
 	"strings"
 	"time"
 
-	"github.com/primandproper/platform-go/v14/audit"
-	"github.com/primandproper/platform-go/v14/authentication/signin"
-	"github.com/primandproper/platform-go/v14/identity"
+	"github.com/primandproper/platform-go/v15/audit"
+	"github.com/primandproper/platform-go/v15/authentication/signin"
+	"github.com/primandproper/platform-go/v15/identity"
 	"github.com/primandproper/primitives-go/v2/database"
 	platformerrors "github.com/primandproper/primitives-go/v2/errors"
 	"github.com/primandproper/primitives-go/v2/identifiers"
@@ -307,15 +309,15 @@ func (h *Hooks) AfterArchiveAccount(ctx context.Context, tx database.Tx, _ tenan
 }
 
 // AfterUpdateUserAccountStatus records a suspension or its lifting.
-func (h *Hooks) AfterUpdateUserAccountStatus(ctx context.Context, tx database.Tx, _ tenancy.Scope, u *identity.User, previous identity.AccountStatus) error {
-	if u == nil {
+func (h *Hooks) AfterUpdateUserAccountStatus(ctx context.Context, tx database.Tx, _ tenancy.Scope, before, after *identity.User) error {
+	if before == nil || after == nil {
 		return nil
 	}
 
-	return h.record(ctx, tx, "", entry(ResourceUser, u.ID, audit.EventUpdated, u.ID, map[string]string{
+	return h.record(ctx, tx, "", entry(ResourceUser, after.ID, audit.EventUpdated, after.ID, map[string]string{
 		KeyFields:         "account_status",
-		KeyStatus:         u.AccountStatus.String(),
-		"previous_status": previous.String(),
+		KeyStatus:         after.AccountStatus.String(),
+		"previous_status": before.AccountStatus.String(),
 	}))
 }
 
@@ -341,14 +343,25 @@ func (h *Hooks) AfterUpdateProfile(ctx context.Context, tx database.Tx, _ tenanc
 	return h.record(ctx, tx, "", entry(ResourceUser, u.ID, audit.EventUpdated, u.ID, map[string]string{KeyFields: joined(fields)}))
 }
 
-// AfterUpdateAccount records a studio edit by the fields it touched. The
-// studio's time zone is one of them.
-func (h *Hooks) AfterUpdateAccount(ctx context.Context, tx database.Tx, _ tenancy.Scope, a *identity.Account, fields []string) error {
-	if a == nil || len(fields) == 0 {
+// AfterUpdateAccount records a studio edit by the fields it touched, read off
+// the two rows. The studio's time zone is one of them; the timestamp every save
+// stamps is not.
+func (h *Hooks) AfterUpdateAccount(ctx context.Context, tx database.Tx, _ tenancy.Scope, before, after *identity.Account) error {
+	if before == nil || after == nil {
 		return nil
 	}
 
-	return h.record(ctx, tx, a.ID, entry(ResourceAccount, a.ID, audit.EventUpdated, a.OwnerUserID, map[string]string{KeyFields: joined(fields)}))
+	changes, err := audit.Diff(before, after)
+	if err != nil {
+		return platformerrors.Wrap(err, "diffing the updated studio")
+	}
+
+	fields := slices.DeleteFunc(slices.Sorted(maps.Keys(changes)), func(field string) bool { return field == "lastUpdatedAt" })
+	if len(fields) == 0 {
+		return nil
+	}
+
+	return h.record(ctx, tx, after.ID, entry(ResourceAccount, after.ID, audit.EventUpdated, after.OwnerUserID, map[string]string{KeyFields: joined(fields)}))
 }
 
 // AfterSetMembershipRoles records a member's roles changing.

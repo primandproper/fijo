@@ -38,7 +38,7 @@ the "Settled facts" section; the rest is derived from it.
   first paying studio runs on verified recipient numbers. See "Messaging
   vendors" below.
 - Google Calendar: read-only push with a sync button, after v1.
-- platform-go v14 is frozen. Platform changes are additive or filed as issues.
+- platform-go v15 is frozen. Platform changes are additive or filed as issues.
 
 ## Tenancy and roles
 
@@ -127,7 +127,7 @@ Three Fijo-owned domains, each a Store plus Postgres SQL plus mock, DDB-style.
 
 "v1" is phases 0–4 below; "money" is phase 5; "later" is phase 6.
 
-### primitives-go (v2.6.0)
+### primitives-go (v2.15.0)
 
 | Package | Used for | When |
 |---|---|---|
@@ -143,7 +143,7 @@ Three Fijo-owned domains, each a Store plus Postgres SQL plus mock, DDB-style.
 | `sms` | interface, config, noop, mock, twilio | v1, phase 3 |
 | `messagequeue`, `jobs` | not needed while timers + outbox + in-process workers suffice | later |
 
-### platform-go (v14.0.0)
+### platform-go (v15.1.0)
 
 | Package | Used for | When |
 |---|---|---|
@@ -168,7 +168,7 @@ Three Fijo-owned domains, each a Store plus Postgres SQL plus mock, DDB-style.
 | Gap | Tier | Shape | Action |
 |---|---|---|---|
 | ~~SMS sending (primitives-go#20)~~ | primitives-go | `sms` like `email`: `Sender` (`SendSMS` returning a `Receipt` carrying the provider message ID), `OutboundSMS`, config, noop, mock, twilio, and `ErrRecipientOptedOut` | **closed**: built in #25, released in v2.6.0, pinned here |
-| Phone verification codes (platform-go#870) | platform-go | store like `signin/magiclinks`: digest at rest, single use, expiry, sweeper | build additive in platform-go v14.x |
+| Phone verification codes (platform-go#870) | platform-go | store like `signin/magiclinks`: digest at rest, single use, expiry, sweeper | build additive in platform-go v15.x |
 | ~~Twilio inbound verifier (primitives-go#21)~~ | primitives-go | `webhooks/inbound/twilio`, X-Twilio-Signature over the URL and sorted form params rather than the body | **closed**: built in #23, released in v2.6.0, pinned here |
 | Recurrence / series materialization (platform-go#871, candidate) | platform-go | Fijo-local in `schedule`, extraction candidate | file issue, build locally, mark |
 | Third-party OAuth grant store (platform-go#872) | platform-go | per-tenant grant with refresh token, encrypted | file issue; Stripe (money) and calendar phases. Not needed for Twilio: the ISV model keeps one account and stores registration state, not per-studio credentials |
@@ -384,15 +384,19 @@ studio needs a studio before it can begin. The shape follows DDB's
 username, the password hashed at boot rather than baked into a migration, and
 the promotion a second write after the registration.
 
-**Every studio after the first goes through the front door.** Once an operator
-exists, identity's `Register` RPC is an ordinary authorized call, and the
+**Every studio after the first goes through the front door.** v15 removed
+identity's `Register` RPC (platform-go#1068): registration on the wire is now
+sign-in's `Register`, anonymous and open unless the deployment closes it, with
+the deployment's `RegistrationPolicy` deciding whom it admits. Fijo does not
+mount sign-in's server yet, so the door this paragraph describes is to be
+rebuilt as that RPC plus a policy admitting only `service_admin`. The
 studio CRUD an operator needs is identity's account surface, which `serve`
 already mounts and `service_admin` already holds the permissions for
 (`CreateAccounts`, `ListAllAccounts`, `ArchiveAccounts`,
 `TransferAccountOwnership`, and `UpdateAccounts` by inheriting `owner`). What
 does not exist is a client for it: `grpcurl` until an admin page in the owner
 app is worth the day it costs. Note that `CreateAccount` mints the account for
-the *calling* principal, so the provisioning call is `Register`, not
+the *calling* principal, so the provisioning call is sign-in's `Register`, not
 `CreateAccount`.
 
 The public registration door Fijo does build is the **invitation-answering**

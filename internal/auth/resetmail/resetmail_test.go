@@ -7,8 +7,8 @@ import (
 
 	"github.com/primandproper/fijo/internal/config"
 
-	"github.com/primandproper/platform-go/v14/authentication/passwordreset"
-	"github.com/primandproper/platform-go/v14/identity"
+	"github.com/primandproper/platform-go/v15/authentication/passwordreset"
+	"github.com/primandproper/platform-go/v15/identity"
 	"github.com/primandproper/primitives-go/v2/email"
 	emailmock "github.com/primandproper/primitives-go/v2/email/mock"
 

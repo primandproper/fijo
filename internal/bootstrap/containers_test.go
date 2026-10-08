@@ -9,7 +9,7 @@ import (
 	"github.com/primandproper/fijo/internal/testutils/pgclient"
 	"github.com/primandproper/fijo/internal/testutils/seed"
 
-	"github.com/primandproper/platform-go/v14/identity"
+	"github.com/primandproper/platform-go/v15/identity"
 	"github.com/primandproper/primitives-go/v2/tenancy"
 	"github.com/primandproper/primitives-go/v2/testutils/containers/pgtest"
 

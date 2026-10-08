@@ -10,7 +10,7 @@ import (
 	"github.com/primandproper/fijo/internal/testutils/pgclient"
 	"github.com/primandproper/fijo/internal/testutils/seed"
 
-	"github.com/primandproper/platform-go/v14/audit"
+	"github.com/primandproper/platform-go/v15/audit"
 	"github.com/primandproper/primitives-go/v2/database"
 	"github.com/primandproper/primitives-go/v2/database/dialect"
 	"github.com/primandproper/primitives-go/v2/tenancy"
@@ -246,8 +246,7 @@ func TestCommandsAgainstPostgres(t *testing.T) {
 			reader, readerErr := audit.NewReader(dialect.Postgres)
 			must.NoError(t, readerErr)
 
-			entries, listErr := reader.List(ctx, client.Reader(), &audit.Query{
-				Scope:        &scope,
+			entries, listErr := reader.List(ctx, client.Reader(), scope, &audit.Query{
 				ResourceType: schedule.ResourceOccurrence,
 				ResourceID:   lesson.ID,
 			}, nil)

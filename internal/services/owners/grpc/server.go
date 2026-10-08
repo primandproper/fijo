@@ -14,8 +14,8 @@ import (
 	"github.com/primandproper/fijo/internal/domain/owners"
 	"github.com/primandproper/fijo/internal/grpc/fijopb"
 
-	"github.com/primandproper/platform-go/v14/identity"
-	identitygrpc "github.com/primandproper/platform-go/v14/identity/grpc"
+	"github.com/primandproper/platform-go/v15/identity"
+	identitygrpc "github.com/primandproper/platform-go/v15/identity/grpc"
 	authzgrpc "github.com/primandproper/primitives-go/v2/authorization/grpc"
 	"github.com/primandproper/primitives-go/v2/database"
 	platformerrors "github.com/primandproper/primitives-go/v2/errors"

@@ -3,11 +3,12 @@ package auditing
 import (
 	"context"
 	"testing"
+	"time"
 
-	"github.com/primandproper/platform-go/v14/audit"
-	auditmock "github.com/primandproper/platform-go/v14/audit/mock"
-	"github.com/primandproper/platform-go/v14/authentication/signin"
-	"github.com/primandproper/platform-go/v14/identity"
+	"github.com/primandproper/platform-go/v15/audit"
+	auditmock "github.com/primandproper/platform-go/v15/audit/mock"
+	"github.com/primandproper/platform-go/v15/authentication/signin"
+	"github.com/primandproper/platform-go/v15/identity"
 	"github.com/primandproper/primitives-go/v2/database"
 	"github.com/primandproper/primitives-go/v2/tenancy"
 
@@ -115,6 +116,33 @@ func TestHooks(t *testing.T) {
 		}
 
 		test.Eq(t, fieldHashedPassword, (*got)[0].entries[0].Metadata[KeyFields])
+	})
+
+	t.Run("a studio edit names the fields that moved and not the save's timestamp", func(t *testing.T) {
+		t.Parallel()
+
+		h, got := newHooks(t)
+
+		before := &identity.Account{ID: "a1", OwnerUserID: "u1", Name: "Old"}
+		after := &identity.Account{ID: "a1", OwnerUserID: "u1", Name: "New", LastUpdatedAt: new(time.Now())}
+
+		must.NoError(t, h.AfterUpdateAccount(t.Context(), nil, tenancy.Global(), before, after))
+
+		must.SliceLen(t, 1, *got)
+		test.Eq(t, tenancy.Of("a1"), (*got)[0].scope)
+		test.Eq(t, "name", (*got)[0].entries[0].Metadata[KeyFields])
+	})
+
+	t.Run("a save that moved nothing but its timestamp records nothing", func(t *testing.T) {
+		t.Parallel()
+
+		h, got := newHooks(t)
+
+		before := &identity.Account{ID: "a1", OwnerUserID: "u1", Name: "Same"}
+		after := &identity.Account{ID: "a1", OwnerUserID: "u1", Name: "Same", LastUpdatedAt: new(time.Now())}
+
+		must.NoError(t, h.AfterUpdateAccount(t.Context(), nil, tenancy.Global(), before, after))
+		test.SliceLen(t, 0, *got)
 	})
 
 	t.Run("nil payloads record nothing", func(t *testing.T) {

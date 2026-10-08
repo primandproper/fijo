@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Project Overview
 
 `github.com/primandproper/fijo` — scheduling for one- and two-person recurring-appointment
-businesses, built on `github.com/primandproper/platform-go/v14` (the domain tier: identity,
+businesses, built on `github.com/primandproper/platform-go/v15` (the domain tier: identity,
 sign-in, audit, sessions, rbac, ...) over `github.com/primandproper/primitives-go/v2` (the
 infrastructure tier). Go 1.27. Read `docs/DESIGN.md` first: it holds the settled facts, the domain
 model, what Fijo composes from each tier, and the build order. Phase 0 (scaffold and owner sign-in)
@@ -16,7 +16,7 @@ stack, read how DDB does it before inventing anything. The two sibling repositor
 `CLAUDE.md` files (`../primitives-go`, `../platform-go`) are binding conventions here too — the
 tier rule, store shapes (`Tx` for writes, executor for reads), options seams, error mapping.
 
-**platform-go v14 is frozen.** Anything Fijo needs from the platform is an additive change there or
+**platform-go v15 is frozen.** Anything Fijo needs from the platform is an additive change there or
 a filed issue, never a local fork and never platform code written in this repository. The open
 issues Fijo depends on are listed in the design doc.
 
@@ -47,8 +47,9 @@ directory has no door for either, and what authorizes these is the database cred
 - `internal/bootstrap/` — the two acts an empty database has no authenticated door for:
   provisioning a studio with its owner, and granting `service_admin`. Deliberately not reachable
   over the wire. Its three callers are `cmd/tools/devseed`, `cmd/tools/bootstrap` and container
-  tests, which reach it through `internal/testutils/seed`. Every studio after the first goes
-  through identity's own `Register` RPC, which an operator is authorized to call.
+  tests, which reach it through `internal/testutils/seed`. v15 removed identity's
+  `Register` RPC; registration on the wire is now sign-in's anonymous `Register`, which Fijo does
+  not mount yet (no `signIn` config block), so there is no front door for a second studio today.
 - `internal/auth/` — the sign-in layer: `principal` (the caller every handler reads; `Scope()` is
   the global directory, `StudioScope()` is Fijo's tenant), `session` (the server-side record behind
   every access token, one per mint), `interceptor` (bearer token → caller in four revocable reads),

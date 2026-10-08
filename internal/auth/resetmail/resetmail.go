@@ -15,7 +15,7 @@ import (
 
 	"github.com/primandproper/fijo/internal/config"
 
-	"github.com/primandproper/platform-go/v14/authentication/passwordreset"
+	"github.com/primandproper/platform-go/v15/authentication/passwordreset"
 	"github.com/primandproper/primitives-go/v2/email"
 	platformerrors "github.com/primandproper/primitives-go/v2/errors"
 	"github.com/primandproper/primitives-go/v2/observability"

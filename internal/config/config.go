@@ -40,7 +40,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/primandproper/platform-go/v14/service"
+	"github.com/primandproper/platform-go/v15/service"
 	primitivesconfig "github.com/primandproper/primitives-go/v2/config"
 	platformerrors "github.com/primandproper/primitives-go/v2/errors"
 	"github.com/primandproper/primitives-go/v2/observability"
