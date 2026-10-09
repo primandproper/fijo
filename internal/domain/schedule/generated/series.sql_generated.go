@@ -13,6 +13,37 @@ import (
 	"github.com/lib/pq"
 )
 
+const addSeriesAttendee = `-- name: AddSeriesAttendee :execrows
+INSERT INTO schedule_series_attendees (
+	series_id,
+	attendee_id
+)
+SELECT $1, roster_attendees.id
+FROM roster_attendees
+WHERE roster_attendees.id = $2
+	AND roster_attendees.studio_id = $3
+	AND roster_attendees.archived_at IS NULL
+ON CONFLICT (series_id, attendee_id) DO NOTHING
+`
+
+type AddSeriesAttendeeParams struct {
+	SeriesID   string
+	AttendeeID string
+	StudioID   string
+}
+
+// AddSeriesAttendee puts one of the studio's live attendees on a slot. It is an
+// INSERT ... SELECT so the attendee is read under the slot's studio: the join
+// table has no studio of its own, and an identifier from another studio, or
+// one archived, writes nothing and the store refuses it.
+func (q *Queries) AddSeriesAttendee(ctx context.Context, db DBTX, arg *AddSeriesAttendeeParams) (int64, error) {
+	result, err := db.ExecContext(ctx, addSeriesAttendee, arg.SeriesID, arg.AttendeeID, arg.StudioID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const addSeriesStaff = `-- name: AddSeriesStaff :exec
 INSERT INTO schedule_series_staff (
 	series_id,
@@ -53,6 +84,16 @@ func (q *Queries) ArchiveSeries(ctx context.Context, db DBTX, arg *ArchiveSeries
 		return 0, err
 	}
 	return result.RowsAffected()
+}
+
+const clearSeriesAttendees = `-- name: ClearSeriesAttendees :exec
+DELETE FROM schedule_series_attendees
+WHERE schedule_series_attendees.series_id = $1
+`
+
+func (q *Queries) ClearSeriesAttendees(ctx context.Context, db DBTX, seriesID string) error {
+	_, err := db.ExecContext(ctx, clearSeriesAttendees, seriesID)
+	return err
 }
 
 const clearSeriesStaff = `-- name: ClearSeriesStaff :exec
@@ -203,6 +244,41 @@ func (q *Queries) GetSeries(ctx context.Context, db DBTX, arg *GetSeriesParams) 
 	return &i, err
 }
 
+const listAttendeesForSeries = `-- name: ListAttendeesForSeries :many
+SELECT schedule_series_attendees.series_id, schedule_series_attendees.attendee_id
+FROM schedule_series_attendees
+WHERE schedule_series_attendees.series_id = ANY($1::text[])
+ORDER BY schedule_series_attendees.series_id, schedule_series_attendees.created_at, schedule_series_attendees.attendee_id
+`
+
+type ListAttendeesForSeriesRow struct {
+	SeriesID   string
+	AttendeeID string
+}
+
+func (q *Queries) ListAttendeesForSeries(ctx context.Context, db DBTX, seriesIds []string) ([]*ListAttendeesForSeriesRow, error) {
+	rows, err := db.QueryContext(ctx, listAttendeesForSeries, pq.Array(seriesIds))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []*ListAttendeesForSeriesRow{}
+	for rows.Next() {
+		var i ListAttendeesForSeriesRow
+		if err := rows.Scan(&i.SeriesID, &i.AttendeeID); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listLiveSeries = `-- name: ListLiveSeries :many
 SELECT id, studio_id, offering_id, weekday, start_minute, interval_weeks, starts_on, ends_on, price_override, created_at, last_updated_at, archived_at
 FROM schedule_series
@@ -243,6 +319,53 @@ func (q *Queries) ListLiveSeries(ctx context.Context, db DBTX, arg *ListLiveSeri
 			&i.LastUpdatedAt,
 			&i.ArchivedAt,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listLiveSeriesForAttendees = `-- name: ListLiveSeriesForAttendees :many
+SELECT DISTINCT schedule_series_attendees.attendee_id, schedule_series.id
+FROM schedule_series_attendees
+	JOIN schedule_series ON schedule_series.id = schedule_series_attendees.series_id
+WHERE schedule_series.studio_id = $1
+	AND schedule_series.archived_at IS NULL
+	AND (schedule_series.ends_on IS NULL OR schedule_series.ends_on >= $2::date)
+	AND schedule_series_attendees.attendee_id = ANY($3::text[])
+ORDER BY schedule_series_attendees.attendee_id, schedule_series.id
+`
+
+type ListLiveSeriesForAttendeesParams struct {
+	StudioID    string
+	Today       time.Time
+	AttendeeIds []string
+}
+
+type ListLiveSeriesForAttendeesRow struct {
+	AttendeeID string
+	ID         string
+}
+
+// ListLiveSeriesForAttendees is what the roster asks before archiving somebody:
+// the slots naming them that have not ended. A slot ending today still counts.
+func (q *Queries) ListLiveSeriesForAttendees(ctx context.Context, db DBTX, arg *ListLiveSeriesForAttendeesParams) ([]*ListLiveSeriesForAttendeesRow, error) {
+	rows, err := db.QueryContext(ctx, listLiveSeriesForAttendees, arg.StudioID, arg.Today, pq.Array(arg.AttendeeIds))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []*ListLiveSeriesForAttendeesRow{}
+	for rows.Next() {
+		var i ListLiveSeriesForAttendeesRow
+		if err := rows.Scan(&i.AttendeeID, &i.ID); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)

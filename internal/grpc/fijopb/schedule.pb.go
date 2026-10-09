@@ -384,6 +384,8 @@ type Series struct {
 	PriceOverride *int64   `protobuf:"varint,8,opt,name=price_override,json=priceOverride,proto3,oneof" json:"price_override,omitempty"`
 	StaffUserIds  []string `protobuf:"bytes,9,rep,name=staff_user_ids,json=staffUserIds,proto3" json:"staff_user_ids,omitempty"`
 	Archived      bool     `protobuf:"varint,10,opt,name=archived,proto3" json:"archived,omitempty"`
+	// Who the slot is for: roster attendees, at least one.
+	AttendeeIds   []string `protobuf:"bytes,11,rep,name=attendee_ids,json=attendeeIds,proto3" json:"attendee_ids,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -488,6 +490,13 @@ func (x *Series) GetArchived() bool {
 	return false
 }
 
+func (x *Series) GetAttendeeIds() []string {
+	if x != nil {
+		return x.AttendeeIds
+	}
+	return nil
+}
+
 type Occurrence struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	Id    string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -506,8 +515,10 @@ type Occurrence struct {
 	// The cancelled occurrence this make-up answers.
 	ReplacesOccurrenceId string   `protobuf:"bytes,11,opt,name=replaces_occurrence_id,json=replacesOccurrenceId,proto3" json:"replaces_occurrence_id,omitempty"`
 	StaffUserIds         []string `protobuf:"bytes,12,rep,name=staff_user_ids,json=staffUserIds,proto3" json:"staff_user_ids,omitempty"`
-	unknownFields        protoimpl.UnknownFields
-	sizeCache            protoimpl.SizeCache
+	// Who this appointment is for, as the series named them when it was written.
+	AttendeeIds   []string `protobuf:"bytes,13,rep,name=attendee_ids,json=attendeeIds,proto3" json:"attendee_ids,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Occurrence) Reset() {
@@ -620,6 +631,13 @@ func (x *Occurrence) GetReplacesOccurrenceId() string {
 func (x *Occurrence) GetStaffUserIds() []string {
 	if x != nil {
 		return x.StaffUserIds
+	}
+	return nil
+}
+
+func (x *Occurrence) GetAttendeeIds() []string {
+	if x != nil {
+		return x.AttendeeIds
 	}
 	return nil
 }
@@ -2585,7 +2603,7 @@ const file_fijo_v1_schedule_proto_rawDesc = "" +
 	"\x12expires_after_days\x18\b \x01(\x05R\x10expiresAfterDays\x12\x1c\n" +
 	"\tshareable\x18\t \x01(\bR\tshareable\x12\x1a\n" +
 	"\barchived\x18\n" +
-	" \x01(\bR\barchived\"\xd4\x02\n" +
+	" \x01(\bR\barchived\"\xf7\x02\n" +
 	"\x06Series\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1f\n" +
 	"\voffering_id\x18\x02 \x01(\tR\n" +
@@ -2598,8 +2616,9 @@ const file_fijo_v1_schedule_proto_rawDesc = "" +
 	"\x0eprice_override\x18\b \x01(\x03H\x00R\rpriceOverride\x88\x01\x01\x12$\n" +
 	"\x0estaff_user_ids\x18\t \x03(\tR\fstaffUserIds\x12\x1a\n" +
 	"\barchived\x18\n" +
-	" \x01(\bR\barchivedB\x11\n" +
-	"\x0f_price_override\"\xb1\x04\n" +
+	" \x01(\bR\barchived\x12!\n" +
+	"\fattendee_ids\x18\v \x03(\tR\vattendeeIdsB\x11\n" +
+	"\x0f_price_override\"\xd4\x04\n" +
 	"\n" +
 	"Occurrence\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1b\n" +
@@ -2615,7 +2634,8 @@ const file_fijo_v1_schedule_proto_rawDesc = "" +
 	"\x16moved_to_occurrence_id\x18\n" +
 	" \x01(\tR\x13movedToOccurrenceId\x124\n" +
 	"\x16replaces_occurrence_id\x18\v \x01(\tR\x14replacesOccurrenceId\x12$\n" +
-	"\x0estaff_user_ids\x18\f \x03(\tR\fstaffUserIdsB\x1a\n" +
+	"\x0estaff_user_ids\x18\f \x03(\tR\fstaffUserIds\x12!\n" +
+	"\fattendee_ids\x18\r \x03(\tR\vattendeeIdsB\x1a\n" +
 	"\x18_cancelled_inside_notice\"g\n" +
 	"\aClosure\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1b\n" +

@@ -654,6 +654,7 @@ func seriesToProto(series *schedule.Series) *fijopb.Series {
 		IntervalWeeks: int32(series.IntervalWeeks),
 		StartsOn:      series.StartsOn.String(),
 		StaffUserIds:  series.Staff,
+		AttendeeIds:   series.Attendees,
 		Archived:      series.ArchivedAt != nil,
 	}
 
@@ -686,6 +687,7 @@ func seriesFromProto(in *fijopb.Series) (*schedule.Series, error) {
 		IntervalWeeks: int(in.GetIntervalWeeks()),
 		StartsOn:      startsOn,
 		Staff:         in.GetStaffUserIds(),
+		Attendees:     in.GetAttendeeIds(),
 	}
 
 	if raw := in.GetEndsOn(); raw != "" {
@@ -723,6 +725,7 @@ func occurrenceToProto(occurrence *schedule.Occurrence) *fijopb.Occurrence {
 		MovedToOccurrenceId:   occurrence.MovedTo,
 		ReplacesOccurrenceId:  occurrence.Replaces,
 		StaffUserIds:          occurrence.Staff,
+		AttendeeIds:           occurrence.Attendees,
 	}
 }
 

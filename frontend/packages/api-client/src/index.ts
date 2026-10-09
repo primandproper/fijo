@@ -14,3 +14,11 @@ export {
   type HistoryEntry,
   type ScheduleSettings,
 } from './generated/fijo/v1/schedule.js';
+export {
+  Language,
+  Relationship,
+  type Household,
+  type Contact,
+  type Attendee,
+  type NewContact,
+} from './generated/fijo/v1/roster.js';

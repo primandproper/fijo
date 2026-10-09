@@ -15,8 +15,8 @@
 // platform-go's tier; it lives here as an extraction candidate rather than
 // being generalized from a single consumer. See platform-go#871.
 //
-// Attendees are not here yet. A series has an attendee set and so does an
-// occurrence, but attendees are roster nouns and the roster is phase 2.
+// A series is somebody's standing lesson, so it names at least one attendee
+// from the roster, and every occurrence it produces carries the same set.
 package schedule
 
 import (
@@ -219,6 +219,7 @@ type Series struct {
 	StudioID      string       `json:"studioID"`
 	ID            string       `json:"id"`
 	Staff         []string     `json:"staff"`
+	Attendees     []string     `json:"attendees"`
 	StartsOn      Date         `json:"startsOn"`
 	EndsOn        Date         `json:"endsOn"`
 	StartTime     ClockTime    `json:"startTime"`
@@ -247,6 +248,8 @@ func (s *Series) Validate() error {
 		return platformerrors.Wrap(ErrInvalidSeries, "ends before it starts")
 	case s.PriceOverride != nil && *s.PriceOverride < 0:
 		return platformerrors.Wrap(ErrInvalidSeries, "price override may not be negative")
+	case len(dedupe(s.Attendees)) == 0:
+		return platformerrors.Wrap(ErrInvalidSeries, "a standing slot is somebody's: name at least one attendee")
 	}
 
 	return nil
@@ -348,6 +351,10 @@ type Occurrence struct {
 	// Staff is who is teaching this one, copied from the series when it was
 	// materialized and editable per occurrence thereafter.
 	Staff []string `json:"staff"`
+
+	// Attendees is who this one is for, copied from the series when it was
+	// materialized and from the original when it was moved or made up.
+	Attendees []string `json:"attendees"`
 }
 
 // Closure is a date range the studio is shut. The range is inclusive at both
@@ -492,6 +499,14 @@ type Store interface {
 
 	// SetOccurrenceStaff replaces who is teaching this one.
 	SetOccurrenceStaff(ctx context.Context, tx database.Tx, scope tenancy.Scope, id string, staff []string) (*Occurrence, error)
+
+	// SetOccurrenceAttendees replaces who this one is for.
+	SetOccurrenceAttendees(ctx context.Context, tx database.Tx, scope tenancy.Scope, id string, attendees []string) (*Occurrence, error)
+
+	// LiveSeriesForAttendees maps each of the named attendees who has one to
+	// the standing slots naming them that have not ended by today. It is what
+	// the roster asks before archiving somebody.
+	LiveSeriesForAttendees(ctx context.Context, q database.SQLQueryExecutor, scope tenancy.Scope, attendeeIDs []string, today Date) (map[string][]string, error)
 
 	// CreateClosure shuts the studio for a range.
 	CreateClosure(ctx context.Context, tx database.Tx, scope tenancy.Scope, closure *Closure) (*Closure, error)

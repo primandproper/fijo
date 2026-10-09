@@ -99,3 +99,41 @@ SELECT schedule_series_staff.series_id, schedule_series_staff.staff_user_id
 FROM schedule_series_staff
 WHERE schedule_series_staff.series_id = ANY(sqlc.arg(series_ids)::text[])
 ORDER BY schedule_series_staff.series_id, schedule_series_staff.staff_user_id;
+
+-- AddSeriesAttendee puts one of the studio's live attendees on a slot. It is an
+-- INSERT ... SELECT so the attendee is read under the slot's studio: the join
+-- table has no studio of its own, and an identifier from another studio, or
+-- one archived, writes nothing and the store refuses it.
+-- name: AddSeriesAttendee :execrows
+INSERT INTO schedule_series_attendees (
+	series_id,
+	attendee_id
+)
+SELECT sqlc.arg(series_id), roster_attendees.id
+FROM roster_attendees
+WHERE roster_attendees.id = sqlc.arg(attendee_id)
+	AND roster_attendees.studio_id = sqlc.arg(studio_id)
+	AND roster_attendees.archived_at IS NULL
+ON CONFLICT (series_id, attendee_id) DO NOTHING;
+
+-- name: ClearSeriesAttendees :exec
+DELETE FROM schedule_series_attendees
+WHERE schedule_series_attendees.series_id = sqlc.arg(series_id);
+
+-- name: ListAttendeesForSeries :many
+SELECT schedule_series_attendees.series_id, schedule_series_attendees.attendee_id
+FROM schedule_series_attendees
+WHERE schedule_series_attendees.series_id = ANY(sqlc.arg(series_ids)::text[])
+ORDER BY schedule_series_attendees.series_id, schedule_series_attendees.created_at, schedule_series_attendees.attendee_id;
+
+-- ListLiveSeriesForAttendees is what the roster asks before archiving somebody:
+-- the slots naming them that have not ended. A slot ending today still counts.
+-- name: ListLiveSeriesForAttendees :many
+SELECT DISTINCT schedule_series_attendees.attendee_id, schedule_series.id
+FROM schedule_series_attendees
+	JOIN schedule_series ON schedule_series.id = schedule_series_attendees.series_id
+WHERE schedule_series.studio_id = sqlc.arg(studio_id)
+	AND schedule_series.archived_at IS NULL
+	AND (schedule_series.ends_on IS NULL OR schedule_series.ends_on >= sqlc.arg(today)::date)
+	AND schedule_series_attendees.attendee_id = ANY(sqlc.arg(attendee_ids)::text[])
+ORDER BY schedule_series_attendees.attendee_id, schedule_series.id;

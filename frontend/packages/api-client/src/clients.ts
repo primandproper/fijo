@@ -1,8 +1,9 @@
 /**
  * gRPC clients for the Fijo API, promisified, with per-call auth in metadata rather than per-client
- * credentials — the shape DDB's consumer app uses. Three services: platform's sign-in (password
+ * credentials — the shape DDB's consumer app uses. The services: platform's sign-in (password
  * login and the refresh exchange), Fijo's owner auth (passkeys, reset, sign-out), Fijo's owners
- * (who am I, my time zone) and Fijo's schedule (the grid and the commands that change it).
+ * (who am I, my time zone), Fijo's schedule (the grid and the commands that change it) and Fijo's
+ * roster (the studio's clients).
  */
 import * as grpc from '@grpc/grpc-js';
 import type { Metadata } from '@grpc/grpc-js';
@@ -64,6 +65,16 @@ import {
   type UpdateOfferingResponse,
   type UpdateSeriesResponse,
 } from './generated/fijo/v1/schedule.js';
+import {
+  RosterServiceClient,
+  type ArchiveHouseholdResponse,
+  type Attendee,
+  type Contact,
+  type Household,
+  type HouseholdResponse,
+  type ListHouseholdsResponse,
+  type NewContact,
+} from './generated/fijo/v1/roster.js';
 
 export interface ClientConfig {
   serverUrl: string;
@@ -102,11 +113,19 @@ export function createClients(config: ClientConfig) {
   const ownerAuthClient = new OwnerAuthServiceClient(config.serverUrl, credentials);
   const ownersClient = new OwnersServiceClient(config.serverUrl, credentials);
   const scheduleClient = new ScheduleServiceClient(config.serverUrl, credentials);
+  const rosterClient = new RosterServiceClient(config.serverUrl, credentials);
 
   // Every schedule call is the caller's own studio, so each is the request and a bearer token.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sched = <Req, Res>(method: (...args: any[]) => grpc.ClientUnaryCall) => {
     const call = promisify<Req, Res>(method.bind(scheduleClient) as Unary<Req, Res>);
+    return (token: string, req: Req): Promise<Res> => call(req, bearer(token));
+  };
+
+  // The roster's calls have the same shape.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const rost = <Req, Res>(method: (...args: any[]) => grpc.ClientUnaryCall) => {
+    const call = promisify<Req, Res>(method.bind(rosterClient) as Unary<Req, Res>);
     return (token: string, req: Req): Promise<Res> => call(req, bearer(token));
   };
 
@@ -221,6 +240,21 @@ export function createClients(config: ClientConfig) {
       listHistory: sched<{ resourceType: string; resourceId: string; limit: number }, ListHistoryResponse>(
         scheduleClient.listHistory,
       ),
+    },
+    roster: {
+      listHouseholds: rost<{ includeArchived: boolean }, ListHouseholdsResponse>(rosterClient.listHouseholds),
+      getHousehold: rost<{ id: string }, HouseholdResponse>(rosterClient.getHousehold),
+      createHousehold: rost<{ household: Household; contacts: NewContact[]; attendees: Attendee[] }, HouseholdResponse>(
+        rosterClient.createHousehold,
+      ),
+      updateHousehold: rost<{ household: Household }, HouseholdResponse>(rosterClient.updateHousehold),
+      archiveHousehold: rost<{ id: string }, ArchiveHouseholdResponse>(rosterClient.archiveHousehold),
+      createContact: rost<{ contact: Contact; attends: boolean }, HouseholdResponse>(rosterClient.createContact),
+      updateContact: rost<{ contact: Contact }, HouseholdResponse>(rosterClient.updateContact),
+      archiveContact: rost<{ id: string }, HouseholdResponse>(rosterClient.archiveContact),
+      createAttendee: rost<{ attendee: Attendee }, HouseholdResponse>(rosterClient.createAttendee),
+      updateAttendee: rost<{ attendee: Attendee }, HouseholdResponse>(rosterClient.updateAttendee),
+      archiveAttendee: rost<{ id: string }, HouseholdResponse>(rosterClient.archiveAttendee),
     },
   };
 }

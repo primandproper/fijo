@@ -13,6 +13,33 @@ import (
 	"github.com/lib/pq"
 )
 
+const addOccurrenceAttendee = `-- name: AddOccurrenceAttendee :execrows
+INSERT INTO schedule_occurrence_attendees (
+	occurrence_id,
+	attendee_id
+)
+SELECT $1, roster_attendees.id
+FROM roster_attendees
+WHERE roster_attendees.id = $2
+	AND roster_attendees.studio_id = $3
+ON CONFLICT (occurrence_id, attendee_id) DO NOTHING
+`
+
+type AddOccurrenceAttendeeParams struct {
+	OccurrenceID string
+	AttendeeID   string
+	StudioID     string
+}
+
+// AddOccurrenceAttendee is AddSeriesAttendee for one appointment.
+func (q *Queries) AddOccurrenceAttendee(ctx context.Context, db DBTX, arg *AddOccurrenceAttendeeParams) (int64, error) {
+	result, err := db.ExecContext(ctx, addOccurrenceAttendee, arg.OccurrenceID, arg.AttendeeID, arg.StudioID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const addOccurrenceStaff = `-- name: AddOccurrenceStaff :exec
 INSERT INTO schedule_occurrence_staff (
 	occurrence_id,
@@ -85,6 +112,16 @@ func (q *Queries) CancelOccurrence(ctx context.Context, db DBTX, arg *CancelOccu
 		&i.ArchivedAt,
 	)
 	return &i, err
+}
+
+const clearOccurrenceAttendees = `-- name: ClearOccurrenceAttendees :exec
+DELETE FROM schedule_occurrence_attendees
+WHERE schedule_occurrence_attendees.occurrence_id = $1
+`
+
+func (q *Queries) ClearOccurrenceAttendees(ctx context.Context, db DBTX, occurrenceID string) error {
+	_, err := db.ExecContext(ctx, clearOccurrenceAttendees, occurrenceID)
+	return err
 }
 
 const clearOccurrenceStaff = `-- name: ClearOccurrenceStaff :exec
@@ -199,6 +236,41 @@ func (q *Queries) GetOccurrence(ctx context.Context, db DBTX, arg *GetOccurrence
 		&i.ArchivedAt,
 	)
 	return &i, err
+}
+
+const listAttendeesForOccurrences = `-- name: ListAttendeesForOccurrences :many
+SELECT schedule_occurrence_attendees.occurrence_id, schedule_occurrence_attendees.attendee_id
+FROM schedule_occurrence_attendees
+WHERE schedule_occurrence_attendees.occurrence_id = ANY($1::text[])
+ORDER BY schedule_occurrence_attendees.occurrence_id, schedule_occurrence_attendees.created_at, schedule_occurrence_attendees.attendee_id
+`
+
+type ListAttendeesForOccurrencesRow struct {
+	OccurrenceID string
+	AttendeeID   string
+}
+
+func (q *Queries) ListAttendeesForOccurrences(ctx context.Context, db DBTX, occurrenceIds []string) ([]*ListAttendeesForOccurrencesRow, error) {
+	rows, err := db.QueryContext(ctx, listAttendeesForOccurrences, pq.Array(occurrenceIds))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []*ListAttendeesForOccurrencesRow{}
+	for rows.Next() {
+		var i ListAttendeesForOccurrencesRow
+		if err := rows.Scan(&i.OccurrenceID, &i.AttendeeID); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listOccurrencesForSeries = `-- name: ListOccurrencesForSeries :many

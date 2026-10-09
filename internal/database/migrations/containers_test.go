@@ -33,6 +33,8 @@ func TestMigrateAgainstPostgres(t *testing.T) {
 			"identity_users", "identity_accounts", "authz_roles", "audit_log_entries",
 			"sessions", "webauthn_sessions", "webauthn_credentials",
 			"password_reset_tokens", "signin_refresh_tokens", "user_preferences",
+			"roster_households", "roster_contacts", "roster_attendees",
+			"schedule_series_attendees", "schedule_occurrence_attendees",
 		} {
 			var exists bool
 			must.NoError(t, pg.DB.QueryRowContext(ctx,

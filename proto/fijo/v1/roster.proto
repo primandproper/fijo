@@ -1,0 +1,120 @@
+// The roster: who a studio teaches. A household is the client account; its
+// contacts have phones and get the texts; its attendees take the lessons. An
+// adult student is both, an attendee whose contact_id names their own contact.
+//
+// Nobody here is a user. Every call is the caller's own studio, read off the
+// principal; no studio is ever on the wire.
+
+syntax = "proto3";
+
+package fijo.v1;
+
+option go_package = "github.com/primandproper/fijo/internal/grpc/fijopb;fijopb";
+
+service RosterService {
+  rpc ListHouseholds(ListHouseholdsRequest) returns (ListHouseholdsResponse);
+  rpc GetHousehold(GetHouseholdRequest) returns (HouseholdResponse);
+
+  // CreateHousehold writes a household and the people it starts with on one
+  // transaction, so a new client is never half-entered.
+  rpc CreateHousehold(CreateHouseholdRequest) returns (HouseholdResponse);
+  rpc UpdateHousehold(UpdateHouseholdRequest) returns (HouseholdResponse);
+
+  // Archiving refuses a household or attendee that still has a standing slot:
+  // end the slot first.
+  rpc ArchiveHousehold(ArchiveHouseholdRequest) returns (ArchiveHouseholdResponse);
+
+  rpc CreateContact(CreateContactRequest) returns (HouseholdResponse);
+  rpc UpdateContact(UpdateContactRequest) returns (HouseholdResponse);
+  rpc ArchiveContact(ArchiveContactRequest) returns (HouseholdResponse);
+
+  rpc CreateAttendee(CreateAttendeeRequest) returns (HouseholdResponse);
+  rpc UpdateAttendee(UpdateAttendeeRequest) returns (HouseholdResponse);
+  rpc ArchiveAttendee(ArchiveAttendeeRequest) returns (HouseholdResponse);
+}
+
+enum Language {
+  LANGUAGE_UNSPECIFIED = 0;
+  LANGUAGE_EN = 1;
+  LANGUAGE_ES = 2;
+}
+
+enum Relationship {
+  RELATIONSHIP_UNSPECIFIED = 0;
+  // A parent, or anybody else who speaks for the attendees.
+  RELATIONSHIP_GUARDIAN = 1;
+  // An adult who takes the lessons, and is also an attendee.
+  RELATIONSHIP_SELF = 2;
+}
+
+message Contact {
+  string id = 1;
+  string household_id = 2;
+  string name = 3;
+  // E.164 as stored. A write accepts what a person typed and normalizes it; a
+  // number with no country code is read as North American.
+  string phone = 4;
+  Language language = 5;
+  Relationship relationship = 6;
+  bool opted_out = 7;
+  bool verified = 8;
+}
+
+message Attendee {
+  string id = 1;
+  string household_id = 2;
+  string name = 3;
+  Language language = 4;
+  // Set for an adult who carries their own phone.
+  string contact_id = 5;
+}
+
+message Household {
+  string id = 1;
+  string name = 2;
+  // What a contact or attendee added to the household starts with.
+  Language language = 3;
+  string notes = 4;
+  bool archived = 5;
+  repeated Contact contacts = 6;
+  repeated Attendee attendees = 7;
+}
+
+message ListHouseholdsRequest { bool include_archived = 1; }
+message ListHouseholdsResponse { repeated Household households = 1; }
+
+message GetHouseholdRequest { string id = 1; }
+
+message HouseholdResponse { Household household = 1; }
+
+// NewContact is a contact a household starts with. attends makes them an
+// attendee too, linked to themselves: an adult student entered once.
+message NewContact {
+  Contact contact = 1;
+  bool attends = 2;
+}
+
+message CreateHouseholdRequest {
+  // Only the name, language and notes are read.
+  Household household = 1;
+  repeated NewContact contacts = 2;
+  // Attendees with no phone of their own: children, usually.
+  repeated Attendee attendees = 3;
+}
+
+// Only the name, language and notes are read.
+message UpdateHouseholdRequest { Household household = 1; }
+
+message ArchiveHouseholdRequest { string id = 1; }
+message ArchiveHouseholdResponse {}
+
+message CreateContactRequest {
+  Contact contact = 1;
+  bool attends = 2;
+}
+message UpdateContactRequest { Contact contact = 1; }
+message ArchiveContactRequest { string id = 1; }
+
+message CreateAttendeeRequest { Attendee attendee = 1; }
+message UpdateAttendeeRequest { Attendee attendee = 1; }
+message ArchiveAttendeeRequest { string id = 1; }

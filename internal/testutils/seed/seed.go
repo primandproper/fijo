@@ -19,12 +19,14 @@ import (
 
 	"github.com/primandproper/fijo/internal/authz/roles"
 	"github.com/primandproper/fijo/internal/bootstrap"
+	"github.com/primandproper/fijo/internal/domain/roster"
 
 	"github.com/primandproper/platform-go/v15/authentication/signin"
 	"github.com/primandproper/platform-go/v15/identity"
 	"github.com/primandproper/primitives-go/v2/authentication/argon2"
 	"github.com/primandproper/primitives-go/v2/authentication/tokens"
 	"github.com/primandproper/primitives-go/v2/database"
+	"github.com/primandproper/primitives-go/v2/tenancy"
 
 	"github.com/shoenig/test/must"
 )
@@ -60,4 +62,33 @@ func Studio(tb testing.TB, ctx context.Context, seeder *bootstrap.Seeder, studio
 	must.NoError(tb, err)
 
 	return registered
+}
+
+// Attendee puts a household with one attendee on a studio's roster and returns
+// the attendee's identifier, for a test that needs somebody to put on a
+// standing slot.
+func Attendee(tb testing.TB, ctx context.Context, client database.Client, scope tenancy.Scope, name string) string {
+	tb.Helper()
+
+	store, err := roster.NewSQLStore()
+	must.NoError(tb, err)
+
+	var attendee *roster.Attendee
+
+	must.NoError(tb, client.WithTransaction(ctx, func(tx database.Tx) error {
+		household, createErr := store.CreateHousehold(ctx, tx, scope, &roster.Household{Name: name, Language: roster.English})
+		if createErr != nil {
+			return createErr
+		}
+
+		attendee, createErr = store.CreateAttendee(ctx, tx, scope, &roster.Attendee{
+			HouseholdID: household.ID,
+			Name:        name,
+			Language:    roster.English,
+		})
+
+		return createErr
+	}))
+
+	return attendee.ID
 }

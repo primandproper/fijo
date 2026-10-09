@@ -10,6 +10,10 @@
   let editing = $state('');
   let ending = $state('');
 
+  function who(ids: string[]): string {
+    return ids.map((id) => data.studentNames[id] ?? 'Somebody no longer on the roster').join(' & ') || 'Nobody';
+  }
+
   function closeOnSuccess() {
     return async ({ result, update }: { result: { type: string }; update: () => Promise<void> }) => {
       if (result.type === 'success') {
@@ -22,10 +26,10 @@
 </script>
 
 <div class="wide">
-  <h1>Standing slots</h1>
+  <h1>Standing lessons</h1>
   <p class="muted">
-    A standing slot is a lesson that repeats: Tuesdays at four, every week. Times are in the studio's zone,
-    {data.studioZone}. Changing a slot changes every lesson from now on that nobody has touched yet.
+    A standing lesson is somebody's lesson that repeats: Sofía, Tuesdays at four, every week. Times are in the studio's
+    zone, {data.studioZone}. Changing one changes every lesson from now on that nobody has touched yet.
   </p>
 
   {#if form?.error}
@@ -34,6 +38,10 @@
 
   {#if data.offerings.length === 0}
     <div class="alert info">Add <a href={resolve('/offerings')}>something you teach</a> first.</div>
+  {:else if data.students.length === 0}
+    <div class="alert info">
+      Add <a href={resolve('/clients')}>a client</a> first: every standing lesson is somebody's.
+    </div>
   {:else}
     {#if data.series.length > 0}
       <section class="card list">
@@ -41,9 +49,11 @@
           <div class="item" class:ended={series.ended}>
             <div class="summary">
               <div>
-                <strong>{WEEKDAYS[series.weekday]}s at {displayClock(series.startMinute)}</strong>
-                {#if series.intervalWeeks === 2}<span class="muted">, every other week</span>{/if}
-                <div>{data.offeringNames[series.offeringId] ?? 'Unknown lesson'}</div>
+                <strong>{who(series.attendeeIds)}</strong>
+                <div>
+                  {WEEKDAYS[series.weekday]}s at {displayClock(series.startMinute)}{#if series.intervalWeeks === 2},
+                    every other week{/if} · {data.offeringNames[series.offeringId] ?? 'Unknown lesson'}
+                </div>
                 <div class="muted">
                   from {displayDate(series.startsOn)}
                   {#if series.endsOn}until {displayDate(series.endsOn)}{/if}
@@ -79,7 +89,13 @@
 
             {#if editing === series.id}
               <form method="POST" action="?/update" use:enhance={closeOnSuccess}>
-                <SeriesFields values={series} prefix={series.id} offerings={data.offerings} today={data.today} />
+                <SeriesFields
+                  values={series}
+                  prefix={series.id}
+                  offerings={data.offerings}
+                  today={data.today}
+                  students={data.students}
+                />
                 <button type="submit">Save</button>
               </form>
             {/if}
@@ -92,7 +108,7 @@
                 <input id="{series.id}-last" name="endsOn" type="date" value={data.today} required />
                 <label for="{series.id}-why">Reason (optional)</label>
                 <input id="{series.id}-why" name="reason" />
-                <button type="submit" class="danger">End this slot</button>
+                <button type="submit" class="danger">End this standing lesson</button>
               </form>
             {/if}
           </div>
@@ -101,8 +117,8 @@
     {/if}
 
     <section class="card">
-      <h2>Add a standing slot</h2>
-      <!-- Kept filled after an add: slots usually come in runs, and a reset would clear the date. -->
+      <h2>Add a standing lesson</h2>
+      <!-- Kept filled after an add: lessons usually come in runs, and a reset would clear the date. -->
       <form
         method="POST"
         action="?/create"
@@ -110,7 +126,7 @@
           ({ update }) =>
             update({ reset: false })}
       >
-        <SeriesFields prefix="new" offerings={data.offerings} today={data.today} />
+        <SeriesFields prefix="new" offerings={data.offerings} today={data.today} students={data.students} />
         <button type="submit">Add</button>
       </form>
     </section>

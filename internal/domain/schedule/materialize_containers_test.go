@@ -31,6 +31,7 @@ func TestMaterializerAgainstPostgres(t *testing.T) {
 		})
 
 		scope := tenancy.Of(studio.Account.ID)
+		sofia := seed.Attendee(t, ctx, client, scope, "Sofia")
 
 		store, err := schedule.NewSQLStore()
 		must.NoError(t, err)
@@ -75,6 +76,7 @@ func TestMaterializerAgainstPostgres(t *testing.T) {
 				IntervalWeeks: 1,
 				StartsOn:      schedule.Date{Year: 2026, Month: time.March, Day: 1},
 				Staff:         []string{studio.User.ID},
+				Attendees:     []string{sofia},
 			})
 
 			return createErr
@@ -121,6 +123,7 @@ func TestMaterializerAgainstPostgres(t *testing.T) {
 				Password: "a good long password", Name: "Closed Studio", TimeZone: "US/Central",
 			})
 			closedScope := tenancy.Of(closed.Account.ID)
+			theirs := seed.Attendee(t, ctx, client, closedScope, "Somebody Else")
 
 			must.NoError(t, client.WithTransaction(ctx, func(tx database.Tx) error {
 				their, createErr := store.CreateOffering(ctx, tx, closedScope, &schedule.Offering{
@@ -151,6 +154,7 @@ func TestMaterializerAgainstPostgres(t *testing.T) {
 					StartTime:     schedule.ClockTime{Hour: 10},
 					IntervalWeeks: 1,
 					StartsOn:      schedule.Date{Year: 2026, Month: time.March, Day: 1},
+					Attendees:     []string{theirs},
 				})
 
 				return createErr

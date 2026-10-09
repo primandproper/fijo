@@ -37,6 +37,8 @@ func TestSQLStoreAgainstPostgres(t *testing.T) {
 		scope := tenancy.Of(casa.Account.ID)
 		otherScope := tenancy.Of(other.Account.ID)
 		teacher := casa.User.ID
+		sofia := seed.Attendee(t, ctx, client, scope, "Sofia")
+		theirs := seed.Attendee(t, ctx, client, otherScope, "Somebody Else")
 
 		store, err := schedule.NewSQLStore()
 		must.NoError(t, err)
@@ -151,6 +153,7 @@ func TestSQLStoreAgainstPostgres(t *testing.T) {
 					IntervalWeeks: 1,
 					StartsOn:      schedule.Date{Year: 2026, Month: time.March, Day: 3},
 					Staff:         []string{teacher, teacher},
+					Attendees:     []string{sofia, sofia},
 				})
 
 				return createErr
@@ -158,6 +161,7 @@ func TestSQLStoreAgainstPostgres(t *testing.T) {
 
 			must.NotNil(t, series)
 			test.Eq(t, []string{teacher}, series.Staff)
+			test.Eq(t, []string{sofia}, series.Attendees)
 
 			read, getErr := store.GetSeries(ctx, client.Reader(), scope, series.ID)
 			must.NoError(t, getErr)
@@ -166,6 +170,7 @@ func TestSQLStoreAgainstPostgres(t *testing.T) {
 			test.Eq(t, schedule.Date{Year: 2026, Month: time.March, Day: 3}, read.StartsOn)
 			test.True(t, read.EndsOn.IsZero())
 			test.Eq(t, []string{teacher}, read.Staff)
+			test.Eq(t, []string{sofia}, read.Attendees)
 
 			live, liveErr := store.ListLiveSeries(ctx, client.Reader(),
 				schedule.Date{Year: 2026, Month: time.March, Day: 1},
@@ -180,6 +185,33 @@ func TestSQLStoreAgainstPostgres(t *testing.T) {
 				schedule.Date{Year: 2026, Month: time.January, Day: 31})
 			must.NoError(t, liveErr)
 			test.SliceEmpty(t, live)
+		})
+
+		t.Run("a standing slot is somebody's", func(t *testing.T) {
+			write(t, func(tx database.Tx) error {
+				_, createErr := store.CreateSeries(ctx, tx, scope, &schedule.Series{
+					OfferingID: offering.ID, Weekday: time.Monday,
+					StartTime: schedule.ClockTime{Hour: 9}, IntervalWeeks: 1,
+					StartsOn: schedule.Date{Year: 2026, Month: time.March, Day: 2},
+				})
+				test.ErrorIs(t, createErr, schedule.ErrInvalidSeries)
+
+				return nil
+			})
+		})
+
+		t.Run("an attendee from another studio is refused", func(t *testing.T) {
+			refusal := client.WithTransaction(ctx, func(tx database.Tx) error {
+				_, createErr := store.CreateSeries(ctx, tx, scope, &schedule.Series{
+					OfferingID: offering.ID, Weekday: time.Monday,
+					StartTime: schedule.ClockTime{Hour: 9}, IntervalWeeks: 1,
+					StartsOn:  schedule.Date{Year: 2026, Month: time.March, Day: 2},
+					Attendees: []string{theirs},
+				})
+
+				return createErr
+			})
+			test.ErrorIs(t, refusal, schedule.ErrInvalidSeries)
 		})
 
 		t.Run("a fortnightly interval is the only other one", func(t *testing.T) {
@@ -214,6 +246,7 @@ func TestSQLStoreAgainstPostgres(t *testing.T) {
 					StartsAt:   startsAt,
 					EndsAt:     startsAt.Add(30 * time.Minute),
 					Staff:      []string{teacher},
+					Attendees:  []string{sofia},
 				})
 				if materialize != nil {
 					return materialize
@@ -241,6 +274,11 @@ func TestSQLStoreAgainstPostgres(t *testing.T) {
 			must.NotNil(t, occurrence)
 			test.Eq(t, schedule.StateScheduled, occurrence.State)
 			test.True(t, occurrence.StartsAt.Equal(startsAt))
+			test.Eq(t, []string{sofia}, occurrence.Attendees)
+
+			read, readErr := store.GetOccurrence(ctx, client.Reader(), scope, occurrence.ID)
+			must.NoError(t, readErr)
+			test.Eq(t, []string{sofia}, read.Attendees)
 		})
 
 		t.Run("the week view reads what is in the window", func(t *testing.T) {

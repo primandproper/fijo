@@ -9,7 +9,14 @@ import (
 )
 
 type Querier interface {
+	// AddOccurrenceAttendee is AddSeriesAttendee for one appointment.
+	AddOccurrenceAttendee(ctx context.Context, db DBTX, arg *AddOccurrenceAttendeeParams) (int64, error)
 	AddOccurrenceStaff(ctx context.Context, db DBTX, arg *AddOccurrenceStaffParams) error
+	// AddSeriesAttendee puts one of the studio's live attendees on a slot. It is an
+	// INSERT ... SELECT so the attendee is read under the slot's studio: the join
+	// table has no studio of its own, and an identifier from another studio, or
+	// one archived, writes nothing and the store refuses it.
+	AddSeriesAttendee(ctx context.Context, db DBTX, arg *AddSeriesAttendeeParams) (int64, error)
 	AddSeriesStaff(ctx context.Context, db DBTX, arg *AddSeriesStaffParams) error
 	ArchiveClosure(ctx context.Context, db DBTX, arg *ArchiveClosureParams) (int64, error)
 	ArchiveOffering(ctx context.Context, db DBTX, arg *ArchiveOfferingParams) (int64, error)
@@ -17,7 +24,9 @@ type Querier interface {
 	// CancelOccurrence records whose decision it was and whether it fell inside the
 	// studio's notice window, which is computed by the caller and then kept.
 	CancelOccurrence(ctx context.Context, db DBTX, arg *CancelOccurrenceParams) (*ScheduleOccurrences, error)
+	ClearOccurrenceAttendees(ctx context.Context, db DBTX, occurrenceID string) error
 	ClearOccurrenceStaff(ctx context.Context, db DBTX, occurrenceID string) error
+	ClearSeriesAttendees(ctx context.Context, db DBTX, seriesID string) error
 	ClearSeriesStaff(ctx context.Context, db DBTX, seriesID string) error
 	CreateClosure(ctx context.Context, db DBTX, arg *CreateClosureParams) (*ScheduleClosures, error)
 	// CreateOccurrence writes an appointment that no series produced: a one-off, or
@@ -32,6 +41,8 @@ type Querier interface {
 	GetOffering(ctx context.Context, db DBTX, arg *GetOfferingParams) (*ScheduleOfferings, error)
 	GetSeries(ctx context.Context, db DBTX, arg *GetSeriesParams) (*ScheduleSeries, error)
 	GetStudioSettings(ctx context.Context, db DBTX, studioID string) (*ScheduleStudioSettings, error)
+	ListAttendeesForOccurrences(ctx context.Context, db DBTX, occurrenceIds []string) ([]*ListAttendeesForOccurrencesRow, error)
+	ListAttendeesForSeries(ctx context.Context, db DBTX, seriesIds []string) ([]*ListAttendeesForSeriesRow, error)
 	ListClosures(ctx context.Context, db DBTX, studioID string) ([]*ScheduleClosures, error)
 	// ListClosuresForStudios is the materializer's question, asked once for the
 	// studios whose series it is about to walk.
@@ -40,6 +51,9 @@ type Querier interface {
 	// produce an occurrence on or before the horizon. It crosses studios, because
 	// the worker sweeps a deployment rather than a tenant.
 	ListLiveSeries(ctx context.Context, db DBTX, arg *ListLiveSeriesParams) ([]*ScheduleSeries, error)
+	// ListLiveSeriesForAttendees is what the roster asks before archiving somebody:
+	// the slots naming them that have not ended. A slot ending today still counts.
+	ListLiveSeriesForAttendees(ctx context.Context, db DBTX, arg *ListLiveSeriesForAttendeesParams) ([]*ListLiveSeriesForAttendeesRow, error)
 	ListOccurrencesForSeries(ctx context.Context, db DBTX, arg *ListOccurrencesForSeriesParams) ([]*ScheduleOccurrences, error)
 	// ListOccurrencesInWindow is the week view: everything the studio has between
 	// two instants, whatever state it is in, because a cancelled lesson is

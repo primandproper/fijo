@@ -31,6 +31,7 @@ func TestSyncSeriesAgainstPostgres(t *testing.T) {
 		})
 
 		scope := tenancy.Of(studio.Account.ID)
+		sofia := seed.Attendee(t, ctx, client, scope, "Sofia")
 
 		store, err := schedule.NewSQLStore()
 		must.NoError(t, err)
@@ -68,6 +69,7 @@ func TestSyncSeriesAgainstPostgres(t *testing.T) {
 				StartTime:     schedule.ClockTime{Hour: 16},
 				IntervalWeeks: 1,
 				StartsOn:      schedule.Date{Year: 2026, Month: time.March, Day: 1},
+				Attendees:     []string{sofia},
 			})
 
 			return createErr
@@ -146,5 +148,37 @@ func TestSyncSeriesAgainstPostgres(t *testing.T) {
 		written, retracted = sync(t)
 		test.Eq(t, int64(0), written, test.Sprint("a synced series is free to sync again"))
 		test.Eq(t, int64(0), retracted)
+
+		// Her brother joins the slot: every lesson still standing becomes
+		// theirs, under the same identifiers, and the cancelled one does not.
+		mateo := seed.Attendee(t, ctx, client, scope, "Mateo")
+
+		must.NoError(t, client.WithTransaction(ctx, func(tx database.Tx) error {
+			series.Attendees = []string{sofia, mateo}
+
+			var updateErr error
+
+			series, updateErr = store.UpdateSeries(ctx, tx, scope, series)
+
+			return updateErr
+		}))
+
+		written, retracted = sync(t)
+		test.Eq(t, int64(0), written)
+		test.Eq(t, int64(0), retracted, test.Sprint("a change of who is not a change of when"))
+
+		after, err := store.ListOccurrencesInWindow(ctx, client.Reader(), scope, from, from.AddDate(0, 0, 28))
+		must.NoError(t, err)
+		must.Len(t, 5, after)
+
+		for _, occurrence := range after {
+			if occurrence.ID == cancelled.ID {
+				test.Eq(t, []string{sofia}, occurrence.Attendees)
+
+				continue
+			}
+
+			test.SliceContainsAll(t, []string{sofia, mateo}, occurrence.Attendees)
+		}
 	})
 }

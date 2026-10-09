@@ -437,12 +437,13 @@ func (s *SQLStore) CreateSeries(ctx context.Context, tx database.Tx, scope tenan
 
 	op.Set(keySeries, row.ID)
 
-	if err = s.replaceSeriesStaff(ctx, tx, row.ID, staged.Staff); err != nil {
+	if err = s.replaceSeriesPeople(ctx, tx, studio, row.ID, &staged); err != nil {
 		return nil, op.Error(err, "creating a series")
 	}
 
 	built := seriesFromRow(row)
 	built.Staff = dedupe(staged.Staff)
+	built.Attendees = dedupe(staged.Attendees)
 
 	return built, nil
 }
@@ -468,16 +469,12 @@ func (s *SQLStore) GetSeries(ctx context.Context, q database.SQLQueryExecutor, s
 		return nil, op.Error(notFound(err), "reading a series")
 	}
 
-	series := seriesFromRow(row)
-
-	staff, err := s.staffForSeries(ctx, q, []string{row.ID})
+	series, err := s.attachSeriesPeople(ctx, q, []*generated.ScheduleSeries{row})
 	if err != nil {
 		return nil, op.Error(err, "reading a series")
 	}
 
-	series.Staff = staff[row.ID]
-
-	return series, nil
+	return series[0], nil
 }
 
 // ListSeries implements Store.
@@ -497,7 +494,7 @@ func (s *SQLStore) ListSeries(ctx context.Context, q database.SQLQueryExecutor, 
 		return nil, op.Error(err, "listing series")
 	}
 
-	series, err := s.attachSeriesStaff(ctx, q, rows)
+	series, err := s.attachSeriesPeople(ctx, q, rows)
 	if err != nil {
 		return nil, op.Error(err, "listing series")
 	}
@@ -526,7 +523,7 @@ func (s *SQLStore) ListLiveSeries(ctx context.Context, q database.SQLQueryExecut
 		return nil, op.Error(err, "listing live series")
 	}
 
-	series, err := s.attachSeriesStaff(ctx, q, rows)
+	series, err := s.attachSeriesPeople(ctx, q, rows)
 	if err != nil {
 		return nil, op.Error(err, "listing live series")
 	}
@@ -578,12 +575,13 @@ func (s *SQLStore) UpdateSeries(ctx context.Context, tx database.Tx, scope tenan
 		return nil, op.Error(notFound(err), "updating a series")
 	}
 
-	if err = s.replaceSeriesStaff(ctx, tx, row.ID, staged.Staff); err != nil {
+	if err = s.replaceSeriesPeople(ctx, tx, studio, row.ID, &staged); err != nil {
 		return nil, op.Error(err, "updating a series")
 	}
 
 	built := seriesFromRow(row)
 	built.Staff = dedupe(staged.Staff)
+	built.Attendees = dedupe(staged.Attendees)
 
 	return built, nil
 }
@@ -616,16 +614,12 @@ func (s *SQLStore) EndSeries(ctx context.Context, tx database.Tx, scope tenancy.
 		return nil, op.Error(notFound(err), "ending a series")
 	}
 
-	series := seriesFromRow(row)
-
-	staff, err := s.staffForSeries(ctx, tx, []string{row.ID})
+	series, err := s.attachSeriesPeople(ctx, tx, []*generated.ScheduleSeries{row})
 	if err != nil {
 		return nil, op.Error(err, "ending a series")
 	}
 
-	series.Staff = staff[row.ID]
-
-	return series, nil
+	return series[0], nil
 }
 
 // ArchiveSeries implements Store.
@@ -707,12 +701,13 @@ func (s *SQLStore) MaterializeOccurrence(ctx context.Context, tx database.Tx, sc
 
 	op.Set(keyOccurrence, row.ID)
 
-	if err = s.replaceOccurrenceStaff(ctx, tx, row.ID, occurrence.Staff); err != nil {
+	if err = s.replaceOccurrencePeople(ctx, tx, studio, row.ID, occurrence.Staff, occurrence.Attendees); err != nil {
 		return nil, false, op.Error(err, "materializing an occurrence")
 	}
 
 	built := occurrenceFromRow(row)
 	built.Staff = dedupe(occurrence.Staff)
+	built.Attendees = dedupe(occurrence.Attendees)
 
 	return built, true, nil
 }
@@ -759,12 +754,13 @@ func (s *SQLStore) CreateOccurrence(ctx context.Context, tx database.Tx, scope t
 
 	op.Set(keyOccurrence, row.ID)
 
-	if err = s.replaceOccurrenceStaff(ctx, tx, row.ID, occurrence.Staff); err != nil {
+	if err = s.replaceOccurrencePeople(ctx, tx, studio, row.ID, occurrence.Staff, occurrence.Attendees); err != nil {
 		return nil, op.Error(err, "creating an occurrence")
 	}
 
 	built := occurrenceFromRow(row)
 	built.Staff = dedupe(occurrence.Staff)
+	built.Attendees = dedupe(occurrence.Attendees)
 
 	return built, nil
 }
@@ -790,16 +786,12 @@ func (s *SQLStore) GetOccurrence(ctx context.Context, q database.SQLQueryExecuto
 		return nil, op.Error(notFound(err), "reading an occurrence")
 	}
 
-	occurrence := occurrenceFromRow(row)
-
-	staff, err := s.staffForOccurrences(ctx, q, []string{row.ID})
+	occurrences, err := s.attachOccurrencePeople(ctx, q, []*generated.ScheduleOccurrences{row})
 	if err != nil {
 		return nil, op.Error(err, "reading an occurrence")
 	}
 
-	occurrence.Staff = staff[row.ID]
-
-	return occurrence, nil
+	return occurrences[0], nil
 }
 
 // ListOccurrencesInWindow implements Store.
@@ -827,7 +819,7 @@ func (s *SQLStore) ListOccurrencesInWindow(ctx context.Context, q database.SQLQu
 		return nil, op.Error(err, "listing occurrences")
 	}
 
-	occurrences, err := s.attachOccurrenceStaff(ctx, q, rows)
+	occurrences, err := s.attachOccurrencePeople(ctx, q, rows)
 	if err != nil {
 		return nil, op.Error(err, "listing occurrences")
 	}
@@ -859,7 +851,7 @@ func (s *SQLStore) ListOccurrencesForSeries(ctx context.Context, q database.SQLQ
 		return nil, op.Error(err, "listing a series' occurrences")
 	}
 
-	occurrences, err := s.attachOccurrenceStaff(ctx, q, rows)
+	occurrences, err := s.attachOccurrencePeople(ctx, q, rows)
 	if err != nil {
 		return nil, op.Error(err, "listing a series' occurrences")
 	}
@@ -892,7 +884,7 @@ func (s *SQLStore) ListScheduledForSeriesFrom(ctx context.Context, q database.SQ
 		return nil, op.Error(err, "listing standing occurrences for a series")
 	}
 
-	occurrences, err := s.attachOccurrenceStaff(ctx, q, rows)
+	occurrences, err := s.attachOccurrencePeople(ctx, q, rows)
 	if err != nil {
 		return nil, op.Error(err, "listing standing occurrences for a series")
 	}
@@ -925,7 +917,7 @@ func (s *SQLStore) ListScheduledInWindow(ctx context.Context, q database.SQLQuer
 		return nil, op.Error(err, "listing standing occurrences")
 	}
 
-	occurrences, err := s.attachOccurrenceStaff(ctx, q, rows)
+	occurrences, err := s.attachOccurrencePeople(ctx, q, rows)
 	if err != nil {
 		return nil, op.Error(err, "listing standing occurrences")
 	}
@@ -966,7 +958,7 @@ func (s *SQLStore) SetOccurrenceState(ctx context.Context, tx database.Tx, scope
 		return nil, op.Error(s.refused(ctx, tx, studio, id, err), "setting an occurrence's state")
 	}
 
-	return s.withStaff(ctx, tx, row)
+	return s.withPeople(ctx, tx, row)
 }
 
 // CancelOccurrence implements Store.
@@ -999,7 +991,7 @@ func (s *SQLStore) CancelOccurrence(ctx context.Context, tx database.Tx, scope t
 		return nil, op.Error(s.refused(ctx, tx, studio, id, err), "cancelling an occurrence")
 	}
 
-	return s.withStaff(ctx, tx, row)
+	return s.withPeople(ctx, tx, row)
 }
 
 // MarkOccurrenceMoved implements Store.
@@ -1033,7 +1025,7 @@ func (s *SQLStore) MarkOccurrenceMoved(ctx context.Context, tx database.Tx, scop
 		return nil, op.Error(s.refused(ctx, tx, studio, id, err), "moving an occurrence")
 	}
 
-	return s.withStaff(ctx, tx, row)
+	return s.withPeople(ctx, tx, row)
 }
 
 // SetOccurrenceStaff implements Store.
@@ -1063,10 +1055,73 @@ func (s *SQLStore) SetOccurrenceStaff(ctx context.Context, tx database.Tx, scope
 		return nil, op.Error(err, "reassigning an occurrence")
 	}
 
-	occurrence := occurrenceFromRow(row)
-	occurrence.Staff = dedupe(staff)
+	return s.withPeople(ctx, tx, row)
+}
 
-	return occurrence, nil
+// SetOccurrenceAttendees implements Store.
+func (s *SQLStore) SetOccurrenceAttendees(ctx context.Context, tx database.Tx, scope tenancy.Scope, id string, attendees []string) (_ *Occurrence, err error) {
+	ctx, op, done := s.observe(ctx)
+	defer done(&err)
+
+	studio, err := writable(tx, scope)
+	if err != nil {
+		return nil, op.Error(err, "setting who an occurrence is for")
+	}
+
+	op.Set(keyStudio, studio).Set(keyOccurrence, id)
+
+	if id == "" {
+		return nil, op.Error(ErrEmptyID, "setting who an occurrence is for")
+	}
+
+	row, err := s.querier.GetOccurrence(ctx, tx, &generated.GetOccurrenceParams{ID: id, StudioID: studio})
+	if err != nil {
+		return nil, op.Error(notFound(err), "setting who an occurrence is for")
+	}
+
+	if err = s.replaceOccurrenceAttendees(ctx, tx, studio, row.ID, attendees); err != nil {
+		return nil, op.Error(err, "setting who an occurrence is for")
+	}
+
+	return s.withPeople(ctx, tx, row)
+}
+
+// LiveSeriesForAttendees implements Store.
+func (s *SQLStore) LiveSeriesForAttendees(ctx context.Context, q database.SQLQueryExecutor, scope tenancy.Scope, attendeeIDs []string, today Date) (_ map[string][]string, err error) {
+	ctx, op, done := s.observe(ctx)
+	defer done(&err)
+
+	studio, err := readable(q, scope)
+	if err != nil {
+		return nil, op.Error(err, "listing attendees' standing slots")
+	}
+
+	op.Set(keyStudio, studio)
+
+	ids := dedupe(attendeeIDs)
+	if len(ids) == 0 {
+		return map[string][]string{}, nil
+	}
+
+	if today.IsZero() {
+		return nil, op.Error(platformerrors.Wrap(platformerrors.ErrUnrecognizedInputValue, "no date to measure from"), "listing attendees' standing slots")
+	}
+
+	rows, err := s.querier.ListLiveSeriesForAttendees(ctx, q, &generated.ListLiveSeriesForAttendeesParams{
+		StudioID:    studio,
+		Today:       today.Time(),
+		AttendeeIds: ids,
+	})
+	if err != nil {
+		return nil, op.Error(err, "listing attendees' standing slots")
+	}
+
+	byAttendee := make(map[string][]string, len(rows))
+	for _, row := range rows {
+		byAttendee[row.AttendeeID] = append(byAttendee[row.AttendeeID], row.ID)
+	}
+
+	return byAttendee, nil
 }
 
 // CreateClosure implements Store.
@@ -1235,18 +1290,15 @@ func (s *SQLStore) refused(ctx context.Context, tx database.Tx, studio, id strin
 	return ErrStateTransitionRefused
 }
 
-// withStaff reads an occurrence's staff back onto the row a command returned.
-func (s *SQLStore) withStaff(ctx context.Context, tx database.Tx, row *generated.ScheduleOccurrences) (*Occurrence, error) {
-	occurrence := occurrenceFromRow(row)
-
-	staff, err := s.staffForOccurrences(ctx, tx, []string{row.ID})
+// withPeople reads an occurrence's staff and attendees back onto the row a
+// command returned.
+func (s *SQLStore) withPeople(ctx context.Context, tx database.Tx, row *generated.ScheduleOccurrences) (*Occurrence, error) {
+	occurrences, err := s.attachOccurrencePeople(ctx, tx, []*generated.ScheduleOccurrences{row})
 	if err != nil {
 		return nil, err
 	}
 
-	occurrence.Staff = staff[row.ID]
-
-	return occurrence, nil
+	return occurrences[0], nil
 }
 
 func (s *SQLStore) replaceSeriesStaff(ctx context.Context, tx database.Tx, seriesID string, staff []string) error {
@@ -1257,6 +1309,66 @@ func (s *SQLStore) replaceSeriesStaff(ctx context.Context, tx database.Tx, serie
 	for _, member := range dedupe(staff) {
 		if err := s.querier.AddSeriesStaff(ctx, tx, &generated.AddSeriesStaffParams{SeriesID: seriesID, StaffUserID: member}); err != nil {
 			return err
+		}
+	}
+
+	return nil
+}
+
+// replaceSeriesPeople rewrites who teaches a slot and who it is for.
+func (s *SQLStore) replaceSeriesPeople(ctx context.Context, tx database.Tx, studio, seriesID string, series *Series) error {
+	if err := s.replaceSeriesStaff(ctx, tx, seriesID, series.Staff); err != nil {
+		return err
+	}
+
+	if err := s.querier.ClearSeriesAttendees(ctx, tx, seriesID); err != nil {
+		return err
+	}
+
+	for _, attendee := range dedupe(series.Attendees) {
+		added, err := s.querier.AddSeriesAttendee(ctx, tx, &generated.AddSeriesAttendeeParams{
+			SeriesID:   seriesID,
+			AttendeeID: attendee,
+			StudioID:   studio,
+		})
+		if err != nil {
+			return err
+		}
+
+		if added == 0 {
+			return platformerrors.Wrapf(ErrInvalidSeries, "attendee %q is not on the studio's roster", attendee)
+		}
+	}
+
+	return nil
+}
+
+// replaceOccurrencePeople rewrites who teaches an appointment and who it is for.
+func (s *SQLStore) replaceOccurrencePeople(ctx context.Context, tx database.Tx, studio, occurrenceID string, staff, attendees []string) error {
+	if err := s.replaceOccurrenceStaff(ctx, tx, occurrenceID, staff); err != nil {
+		return err
+	}
+
+	return s.replaceOccurrenceAttendees(ctx, tx, studio, occurrenceID, attendees)
+}
+
+func (s *SQLStore) replaceOccurrenceAttendees(ctx context.Context, tx database.Tx, studio, occurrenceID string, attendees []string) error {
+	if err := s.querier.ClearOccurrenceAttendees(ctx, tx, occurrenceID); err != nil {
+		return err
+	}
+
+	for _, attendee := range dedupe(attendees) {
+		added, err := s.querier.AddOccurrenceAttendee(ctx, tx, &generated.AddOccurrenceAttendeeParams{
+			OccurrenceID: occurrenceID,
+			AttendeeID:   attendee,
+			StudioID:     studio,
+		})
+		if err != nil {
+			return err
+		}
+
+		if added == 0 {
+			return platformerrors.Wrapf(ErrInvalidOccurrence, "attendee %q is not on the studio's roster", attendee)
 		}
 	}
 
@@ -1315,9 +1427,47 @@ func (s *SQLStore) staffForOccurrences(ctx context.Context, q database.SQLQueryE
 	return byID, nil
 }
 
-// attachSeriesStaff reads every listed series' staff in one query rather than
-// one per row.
-func (s *SQLStore) attachSeriesStaff(ctx context.Context, q database.SQLQueryExecutor, rows []*generated.ScheduleSeries) ([]*Series, error) {
+func (s *SQLStore) attendeesForSeries(ctx context.Context, q database.SQLQueryExecutor, ids []string) (map[string][]string, error) {
+	byID := make(map[string][]string, len(ids))
+
+	if len(ids) == 0 {
+		return byID, nil
+	}
+
+	rows, err := s.querier.ListAttendeesForSeries(ctx, q, ids)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, row := range rows {
+		byID[row.SeriesID] = append(byID[row.SeriesID], row.AttendeeID)
+	}
+
+	return byID, nil
+}
+
+func (s *SQLStore) attendeesForOccurrences(ctx context.Context, q database.SQLQueryExecutor, ids []string) (map[string][]string, error) {
+	byID := make(map[string][]string, len(ids))
+
+	if len(ids) == 0 {
+		return byID, nil
+	}
+
+	rows, err := s.querier.ListAttendeesForOccurrences(ctx, q, ids)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, row := range rows {
+		byID[row.OccurrenceID] = append(byID[row.OccurrenceID], row.AttendeeID)
+	}
+
+	return byID, nil
+}
+
+// attachSeriesPeople reads every listed series' staff and attendees in two
+// queries rather than two per row.
+func (s *SQLStore) attachSeriesPeople(ctx context.Context, q database.SQLQueryExecutor, rows []*generated.ScheduleSeries) ([]*Series, error) {
 	series := make([]*Series, 0, len(rows))
 	ids := make([]string, 0, len(rows))
 
@@ -1331,15 +1481,21 @@ func (s *SQLStore) attachSeriesStaff(ctx context.Context, q database.SQLQueryExe
 		return nil, err
 	}
 
+	attendees, err := s.attendeesForSeries(ctx, q, ids)
+	if err != nil {
+		return nil, err
+	}
+
 	for _, one := range series {
-		one.Staff = staff[one.ID]
+		one.Staff = orEmpty(staff[one.ID])
+		one.Attendees = orEmpty(attendees[one.ID])
 	}
 
 	return series, nil
 }
 
-// attachOccurrenceStaff is attachSeriesStaff for occurrences.
-func (s *SQLStore) attachOccurrenceStaff(ctx context.Context, q database.SQLQueryExecutor, rows []*generated.ScheduleOccurrences) ([]*Occurrence, error) {
+// attachOccurrencePeople is attachSeriesPeople for occurrences.
+func (s *SQLStore) attachOccurrencePeople(ctx context.Context, q database.SQLQueryExecutor, rows []*generated.ScheduleOccurrences) ([]*Occurrence, error) {
 	occurrences := make([]*Occurrence, 0, len(rows))
 	ids := make([]string, 0, len(rows))
 
@@ -1353,8 +1509,14 @@ func (s *SQLStore) attachOccurrenceStaff(ctx context.Context, q database.SQLQuer
 		return nil, err
 	}
 
+	attendees, err := s.attendeesForOccurrences(ctx, q, ids)
+	if err != nil {
+		return nil, err
+	}
+
 	for _, one := range occurrences {
-		one.Staff = staff[one.ID]
+		one.Staff = orEmpty(staff[one.ID])
+		one.Attendees = orEmpty(attendees[one.ID])
 	}
 
 	return occurrences, nil
@@ -1421,6 +1583,7 @@ func seriesFromRow(row *generated.ScheduleSeries) *Series {
 		IntervalWeeks: int(row.IntervalWeeks),
 		StartsOn:      DateOf(row.StartsOn),
 		Staff:         []string{},
+		Attendees:     []string{},
 	}
 
 	if row.EndsOn.Valid {
@@ -1455,6 +1618,7 @@ func occurrenceFromRow(row *generated.ScheduleOccurrences) *Occurrence {
 		MovedTo:       row.MovedToOccurrenceID.String,
 		Replaces:      row.ReplacesOccurrenceID.String,
 		Staff:         []string{},
+		Attendees:     []string{},
 	}
 
 	if row.CancelledBy.Valid {
@@ -1507,6 +1671,16 @@ func nullDate(value Date) sql.NullTime {
 	}
 
 	return sql.NullTime{Time: value.Time(), Valid: true}
+}
+
+// orEmpty is a nil set read as an empty one, so a row with nobody on it says so
+// as [] rather than null.
+func orEmpty(values []string) []string {
+	if values == nil {
+		return []string{}
+	}
+
+	return values
 }
 
 // dedupe returns the non-empty members in the order they were given, once each.

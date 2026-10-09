@@ -33,6 +33,7 @@ func TestCommandsAgainstPostgres(t *testing.T) {
 		})
 
 		scope := tenancy.Of(studio.Account.ID)
+		sofia := seed.Attendee(t, ctx, client, scope, "Sofia")
 		actor := studio.User.ID
 
 		store, err := schedule.NewSQLStore()
@@ -88,6 +89,7 @@ func TestCommandsAgainstPostgres(t *testing.T) {
 				IntervalWeeks: 1,
 				StartsOn:      schedule.Date{Year: 2026, Month: time.March, Day: 10},
 				Staff:         []string{actor},
+				Attendees:     []string{sofia},
 			})
 
 			return createErr
@@ -163,6 +165,7 @@ func TestCommandsAgainstPostgres(t *testing.T) {
 
 			test.True(t, moved.StartsAt.Equal(startsAt))
 			test.Eq(t, 30*time.Minute, moved.EndsAt.Sub(moved.StartsAt))
+			test.Eq(t, []string{sofia}, moved.Attendees, test.Sprint("a moved lesson is still Sofia's"))
 
 			left, getErr := store.GetOccurrence(ctx, client.Reader(), scope, original.ID)
 			must.NoError(t, getErr)

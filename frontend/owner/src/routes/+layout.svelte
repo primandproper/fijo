@@ -9,7 +9,8 @@
   const signedIn = $derived(!PUBLIC.some((p) => page.url.pathname.startsWith(p)));
   const links = [
     { href: '/week', label: 'Week' },
-    { href: '/series', label: 'Slots' },
+    { href: '/clients', label: 'Clients' },
+    { href: '/series', label: 'Lessons' },
     { href: '/offerings', label: 'Offerings' },
     { href: '/studio', label: 'Studio' },
     { href: '/account', label: 'Account' },

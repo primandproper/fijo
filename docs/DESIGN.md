@@ -282,9 +282,8 @@ layer that is called from somewhere without a principal cannot fail to notice.
 
 ### Open for phase 2
 
-- **The roster** brings attendees, which join series and occurrences through
-  tables this schema deliberately left room for, and the payer that the
-  balance ledger needs.
+- ~~**The roster** brings attendees.~~ Done (2026-10-09), see below. The
+  payer the balance ledger needs is still open.
 - ~~**Materializing on a series edit.**~~ Done (2026-09-23): creating or
   updating a series or an offering runs `Materializer.SyncSeries` on the same
   transaction, which retracts (archives) standing rows from now on that the
@@ -296,6 +295,52 @@ layer that is called from somewhere without a principal cannot fail to notice.
   the notice window, the horizon and closures. The account page moved to
   `/account`. Not yet in the UI: reassigning staff (one-person studios don't
   need it) and one-off appointments, which have no RPC.
+
+## Phase 2 as built, first half (2026-10-09)
+
+The roster is in the tree: households, contacts and attendees, and every
+standing slot is now somebody's.
+
+- **`internal/domain/roster`** holds the three tables (`00022_roster.sql`).
+  A household has a name, a language and notes. A contact has a name, an E.164
+  phone, a language and a relationship (`guardian` or `self`). An attendee has
+  a name, a language and an optional `contact_id`, which is how an adult
+  student is one person rather than two. Reminder offsets wait for phase 3,
+  which is the first thing that reads them. `opted_out` and `verified_at` exist
+  but nothing writes them yet.
+- **A phone is unique among a studio's live contacts**, because an inbound text
+  will be filed onto a household by the number it came from. The same number
+  in two studios is fine. `NormalizePhone` drops punctuation and reads a number
+  with no `+` as North American when it has ten digits, or eleven starting
+  with 1; anything else must give its country code.
+- **Every series names at least one attendee.** `Series.Validate` refuses an
+  empty set, and the store writes the join through an `INSERT ... SELECT` from
+  `roster_attendees` under the slot's studio, so an attendee from another
+  studio, or an archived one, is refused rather than written
+  (`00023_schedule_attendees.sql`). Occurrences carry their own attendee set,
+  copied from the series when materialized and from the original on a move or
+  a make-up. `SyncSeries` gives a standing row the series' current attendees in
+  place, keeping its identifier, so adding a sibling to a slot adds them to
+  every lesson still ahead.
+- **Nobody with a standing slot is archived.** The roster's statements cannot
+  see the schedule's tables, so `RosterService` asks
+  `schedule.Store.LiveSeriesForAttendees` before archiving an attendee or a
+  household, and refuses with `FailedPrecondition`.
+- **`fijo.v1.RosterService`** is CRUD over the three nouns, every method public
+  to the enforcer and scoped by the principal like the schedule's.
+  `CreateHousehold` takes the household's first contacts and attendees and
+  writes them on one transaction; a contact with `attends` is also written as
+  their own attendee.
+- **The owner app** has `/clients` (search, and "add a client" in one form) and
+  `/clients/[id]` (the household's people, each student's standing lessons, and
+  adding a standing lesson from the student). `/series` is now "Lessons" and
+  leads with who each one is for, and the week view names the students.
+- **devseed** adds three sample households with four standing lessons and
+  materializes the grid.
+
+Not done yet in phase 2: the payer on a series, editing attendees on a single
+occurrence (the store has `SetOccurrenceAttendees`; there is no RPC), the
+invite link, and roster audit entries (roster writes record nothing today).
 
 ## Repo skeleton (derived from fijo)
 

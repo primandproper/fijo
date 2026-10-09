@@ -70,10 +70,10 @@
     {#if !data.hasOfferings || !data.hasSeries}
       <div class="alert info">
         {#if !data.hasOfferings}
-          Nothing is on the grid yet. Start by adding <a href={resolve('/offerings')}>what you teach</a>, then the
-          <a href={resolve('/series')}>standing slots</a> you teach it in.
+          Nothing is on the grid yet. Start by adding <a href={resolve('/offerings')}>what you teach</a>, then your
+          <a href={resolve('/clients')}>clients</a> and their standing lessons.
         {:else}
-          Add a <a href={resolve('/series')}>standing slot</a> to put lessons on the grid.
+          Add a <a href={resolve('/clients')}>client</a> and their standing lesson to put lessons on the grid.
         {/if}
       </div>
     {/if}
@@ -116,7 +116,7 @@
                 style:width={`calc(${100 / of}% - 4px)`}
               >
                 <span class="time">{displayClock(o.startMinute)}</span>
-                <span class="what">{o.offering}</span>
+                <span class="what">{o.whoLabel || o.offering}</span>
                 {#if o.state !== 'scheduled'}<span class="state">{STATE_LABELS[o.state]}</span>{/if}
               </a>
             {/each}
@@ -129,7 +129,7 @@
   {#if sel}
     <aside class="card detail">
       <div class="detail-head">
-        <h2>{sel.offering}</h2>
+        <h2>{sel.whoLabel || sel.offering}</h2>
         <a
           class="close"
           href={resolve('/week/[[week]]/[[occurrence]]', { week: data.week })}
@@ -138,8 +138,20 @@
         >
       </div>
       <p>
+        {sel.offering}<br />
         {displayDate(sel.date)}, {displayClock(sel.startMinute)}–{displayClock(sel.endMinute)}
       </p>
+      {#if sel.who.some((w) => w.householdId)}
+        <p class="who">
+          {#each sel.who as w (w.id)}
+            {#if w.householdId}
+              <a href={resolve('/clients/[id]', { id: w.householdId })}>{w.name}</a>
+            {:else}
+              <span>{w.name}</span>
+            {/if}
+          {/each}
+        </p>
+      {/if}
       <p>
         <span class="badge {sel.state}">{STATE_LABELS[sel.state]}</span>
         {#if sel.state === 'cancelled' && sel.cancelledBy}
@@ -435,6 +447,11 @@
     font-size: 1.5rem;
     line-height: 1;
     color: var(--color-muted);
+  }
+  .who {
+    display: flex;
+    gap: var(--space-sm);
+    flex-wrap: wrap;
   }
   .badge {
     display: inline-block;

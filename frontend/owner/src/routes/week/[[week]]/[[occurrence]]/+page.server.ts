@@ -3,6 +3,7 @@ import { Canceller, type Occurrence } from '@fijo/api-client';
 import type { Actions, PageServerLoad } from './$types';
 import { api } from '$lib/grpc/clients';
 import { messageOf } from '$lib/errors';
+import { loadStudents, type Student } from '$lib/server/roster';
 import { studioContext } from '$lib/server/studio';
 import { cancellerName, COMMAND_LABELS, stateName } from '$lib/schedule';
 import { addDays, displayDate, instantOf, isDate, minuteOf, mondayOf, wallClock } from '$lib/time';
@@ -18,16 +19,18 @@ export const load: PageServerLoad = async ({ locals, params }) => {
   const from = instantOf(week, 0, zone);
   const until = instantOf(addDays(week, 7), 0, zone);
 
-  const [occurrences, offerings, series, closures] = await Promise.all([
+  const [occurrences, offerings, series, closures, roster] = await Promise.all([
     api.schedule.listOccurrences(token, { from, until }),
     api.schedule.listOfferings(token, { includeArchived: true }),
     api.schedule.listSeries(token, { includeArchived: false }),
     api.schedule.listClosures(token, {}),
+    loadStudents(token),
   ]);
 
   const names = new Map(offerings.offerings.map((o) => [o.id, o.nameEn]));
+  const students = new Map(roster.students.map((s) => [s.id, s]));
 
-  const shaped = occurrences.occurrences.map((o) => shape(o, zone, names));
+  const shaped = occurrences.occurrences.map((o) => shape(o, zone, names, students));
 
   const days = Array.from({ length: 7 }, (_, i) => {
     const date = addDays(week, i);
@@ -80,12 +83,18 @@ export const load: PageServerLoad = async ({ locals, params }) => {
   };
 };
 
-function shape(o: Occurrence, zone: string, names: Map<string, string>) {
+function shape(o: Occurrence, zone: string, names: Map<string, string>, students: Map<string, Student>) {
   const start = wallClock(o.startsAt ?? new Date(0), zone);
   const end = wallClock(o.endsAt ?? new Date(0), zone);
+  const who = o.attendeeIds.map((id) => {
+    const student = students.get(id);
+    return { id, name: student?.name ?? 'Former student', householdId: student?.householdId ?? '' };
+  });
   return {
     id: o.id,
     offering: names.get(o.offeringId) ?? 'Lesson',
+    who,
+    whoLabel: who.map((w) => w.name).join(' & '),
     date: start.date,
     startMinute: start.minute,
     endMinute: end.date === start.date ? end.minute : 24 * 60,

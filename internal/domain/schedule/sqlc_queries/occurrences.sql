@@ -175,3 +175,25 @@ WHERE schedule_occurrences.id = sqlc.arg(id)
 	AND schedule_occurrences.series_id IS NOT NULL
 	AND schedule_occurrences.archived_at IS NULL
 	AND schedule_occurrences.state = 'scheduled';
+
+-- AddOccurrenceAttendee is AddSeriesAttendee for one appointment.
+-- name: AddOccurrenceAttendee :execrows
+INSERT INTO schedule_occurrence_attendees (
+	occurrence_id,
+	attendee_id
+)
+SELECT sqlc.arg(occurrence_id), roster_attendees.id
+FROM roster_attendees
+WHERE roster_attendees.id = sqlc.arg(attendee_id)
+	AND roster_attendees.studio_id = sqlc.arg(studio_id)
+ON CONFLICT (occurrence_id, attendee_id) DO NOTHING;
+
+-- name: ClearOccurrenceAttendees :exec
+DELETE FROM schedule_occurrence_attendees
+WHERE schedule_occurrence_attendees.occurrence_id = sqlc.arg(occurrence_id);
+
+-- name: ListAttendeesForOccurrences :many
+SELECT schedule_occurrence_attendees.occurrence_id, schedule_occurrence_attendees.attendee_id
+FROM schedule_occurrence_attendees
+WHERE schedule_occurrence_attendees.occurrence_id = ANY(sqlc.arg(occurrence_ids)::text[])
+ORDER BY schedule_occurrence_attendees.occurrence_id, schedule_occurrence_attendees.created_at, schedule_occurrence_attendees.attendee_id;

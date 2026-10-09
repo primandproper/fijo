@@ -269,9 +269,11 @@ func (m *Materializer) materializeStudio(ctx context.Context, studio string, ser
 // It is what a series edit runs so the owner sees the grid change without
 // waiting for the worker. A standing row from now on that the rule no longer
 // produces — another day, another time, another offering, another length — is
-// retracted, and what the rule now produces is written. Anything an owner has
-// already acted on (cancelled, completed, moved) is left exactly as it is, and
-// nothing before now is touched.
+// retracted, and what the rule now produces is written. A standing row the
+// rule still produces keeps its identifier and takes the series' attendees,
+// so adding a sibling to a slot adds them to every lesson still ahead.
+// Anything an owner has already acted on (cancelled, completed, moved) is left
+// exactly as it is, and nothing before now is touched.
 func (m *Materializer) SyncSeries(ctx context.Context, tx database.Tx, scope tenancy.Scope, seriesID string) (written, retracted int64, err error) {
 	ctx, op := m.o11y.Begin(ctx)
 	defer op.End()
@@ -316,6 +318,12 @@ func (m *Materializer) SyncSeries(ctx context.Context, tx database.Tx, scope ten
 	for _, occurrence := range standing {
 		want, ok := wanted[occurrence.StartsAt.Unix()]
 		if ok && want.offering == occurrence.OfferingID && want.endsAt.Equal(occurrence.EndsAt) {
+			if series != nil && !sameSet(occurrence.Attendees, series.Attendees) {
+				if _, err = m.store.SetOccurrenceAttendees(ctx, tx, scope, occurrence.ID, series.Attendees); err != nil {
+					return 0, 0, op.Error(err, "syncing a series")
+				}
+			}
+
 			continue
 		}
 
@@ -466,9 +474,32 @@ func build(series []*Series, offerings []*Offering, closures []*Closure, zone *t
 				StartsAt:   startsAt,
 				EndsAt:     startsAt.Add(duration),
 				Staff:      one.Staff,
+				Attendees:  one.Attendees,
 			})
 		}
 	}
 
 	return pending, nil
+}
+
+// sameSet reports whether two lists name the same members, ignoring order and
+// repeats.
+func sameSet(a, b []string) bool {
+	left, right := dedupe(a), dedupe(b)
+	if len(left) != len(right) {
+		return false
+	}
+
+	members := make(map[string]struct{}, len(left))
+	for _, value := range left {
+		members[value] = struct{}{}
+	}
+
+	for _, value := range right {
+		if _, ok := members[value]; !ok {
+			return false
+		}
+	}
+
+	return true
 }

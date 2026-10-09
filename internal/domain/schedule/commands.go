@@ -245,6 +245,7 @@ func (c *Commands) Move(ctx context.Context, scope tenancy.Scope, actor, id stri
 			EndsAt:     startsAt.Add(original.EndsAt.Sub(original.StartsAt)),
 			Reason:     reason,
 			Staff:      original.Staff,
+			Attendees:  original.Attendees,
 		})
 		if createErr != nil {
 			return createErr
@@ -298,6 +299,7 @@ func (c *Commands) ScheduleMakeUp(ctx context.Context, scope tenancy.Scope, acto
 			Reason:     reason,
 			Replaces:   cancelled.ID,
 			Staff:      cancelled.Staff,
+			Attendees:  cancelled.Attendees,
 		})
 		if createErr != nil {
 			return createErr

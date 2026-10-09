@@ -27,9 +27,11 @@ import (
 	"github.com/primandproper/fijo/internal/config"
 	"github.com/primandproper/fijo/internal/database/migrations"
 	"github.com/primandproper/fijo/internal/domain/owners"
+	"github.com/primandproper/fijo/internal/domain/roster"
 	"github.com/primandproper/fijo/internal/domain/schedule"
 	ownerauthgrpc "github.com/primandproper/fijo/internal/services/ownerauth/grpc"
 	ownersgrpc "github.com/primandproper/fijo/internal/services/owners/grpc"
+	rostergrpc "github.com/primandproper/fijo/internal/services/roster/grpc"
 	schedulegrpc "github.com/primandproper/fijo/internal/services/schedule/grpc"
 	"github.com/primandproper/fijo/internal/workers/materialize"
 
@@ -84,6 +86,7 @@ func BuildInjector(ctx context.Context, cfg *config.Config) (*do.RootScope, erro
 	registerServers(i)
 	materialize.Register(i)
 	registerScheduleServer(i)
+	registerRosterServer(i)
 	registerInterceptors(i)
 
 	service.RegisterTransports(i, &service.Transports{
@@ -93,6 +96,7 @@ func BuildInjector(ctx context.Context, cfg *config.Config) (*do.RootScope, erro
 			func(srv *grpc.Server) { do.MustInvoke[*ownerauthgrpc.Server](i).RegisterOn(srv) },
 			func(srv *grpc.Server) { do.MustInvoke[*ownersgrpc.Server](i).RegisterOn(srv) },
 			func(srv *grpc.Server) { do.MustInvoke[*schedulegrpc.Server](i).RegisterOn(srv) },
+			func(srv *grpc.Server) { do.MustInvoke[*rostergrpc.Server](i).RegisterOn(srv) },
 		},
 	})
 
@@ -115,6 +119,14 @@ func NewServer(ctx context.Context, cfg *config.Config) (*service.Service, error
 
 	if _, err = do.Invoke[*ownersgrpc.Server](i); err != nil {
 		return nil, platformerrors.Wrap(err, "building the owners server")
+	}
+
+	if _, err = do.Invoke[*schedulegrpc.Server](i); err != nil {
+		return nil, platformerrors.Wrap(err, "building the schedule server")
+	}
+
+	if _, err = do.Invoke[*rostergrpc.Server](i); err != nil {
+		return nil, platformerrors.Wrap(err, "building the roster server")
 	}
 
 	return service.New(i)
@@ -439,8 +451,7 @@ func registerAuth(i do.Injector, cfg *config.Config) {
 	})
 }
 
-// registerDomains registers Fijo's stores. One today; the roster, the schedule
-// and messaging join here.
+// registerDomains registers Fijo's stores. Messaging joins here.
 func registerDomains(i do.Injector) {
 	do.Provide(i, func(i do.Injector) (owners.Store, error) {
 		pillars, err := observability.InvokePillars(i)
@@ -454,6 +465,15 @@ func registerDomains(i do.Injector) {
 		}
 
 		return store, nil
+	})
+
+	do.Provide(i, func(i do.Injector) (roster.Store, error) {
+		pillars, err := observability.InvokePillars(i)
+		if err != nil {
+			return nil, err
+		}
+
+		return roster.NewSQLStore(roster.WithPillars(pillars))
 	})
 
 	do.Provide(i, func(i do.Injector) (schedule.Store, error) {
@@ -593,5 +613,38 @@ func registerScheduleServer(i do.Injector) {
 		opts = append(opts, schedulegrpc.WithMaterializer(grid))
 
 		return schedulegrpc.NewServer(store, commands, client, pillars, opts...)
+	})
+}
+
+// registerRosterServer registers the clients' gRPC surface. It reads the
+// schedule to refuse archiving anybody who still has a standing slot.
+func registerRosterServer(i do.Injector) {
+	do.Provide(i, func(i do.Injector) (*rostergrpc.Server, error) {
+		pillars, err := observability.InvokePillars(i)
+		if err != nil {
+			return nil, err
+		}
+
+		store, err := do.Invoke[roster.Store](i)
+		if err != nil {
+			return nil, err
+		}
+
+		lessons, err := do.Invoke[schedule.Store](i)
+		if err != nil {
+			return nil, err
+		}
+
+		zones, err := do.Invoke[schedule.Zones](i)
+		if err != nil {
+			return nil, err
+		}
+
+		client, err := do.Invoke[database.Client](i)
+		if err != nil {
+			return nil, err
+		}
+
+		return rostergrpc.NewServer(store, lessons, zones, client, pillars)
 	})
 }

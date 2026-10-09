@@ -210,6 +210,8 @@ export interface Series {
   priceOverride?: number | undefined;
   staffUserIds: string[];
   archived: boolean;
+  /** Who the slot is for: roster attendees, at least one. */
+  attendeeIds: string[];
 }
 
 export interface Occurrence {
@@ -229,6 +231,8 @@ export interface Occurrence {
   /** The cancelled occurrence this make-up answers. */
   replacesOccurrenceId: string;
   staffUserIds: string[];
+  /** Who this appointment is for, as the series named them when it was written. */
+  attendeeIds: string[];
 }
 
 export interface Closure {
@@ -760,6 +764,7 @@ function createBaseSeries(): Series {
     priceOverride: undefined,
     staffUserIds: [],
     archived: false,
+    attendeeIds: [],
   };
 }
 
@@ -794,6 +799,9 @@ export const Series: MessageFns<Series> = {
     }
     if (message.archived !== false) {
       writer.uint32(80).bool(message.archived);
+    }
+    for (const v of message.attendeeIds) {
+      writer.uint32(90).string(v!);
     }
     return writer;
   },
@@ -885,6 +893,14 @@ export const Series: MessageFns<Series> = {
           message.archived = reader.bool();
           continue;
         }
+        case 11: {
+          if (tag !== 90) {
+            break;
+          }
+
+          message.attendeeIds.push(reader.string());
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -934,6 +950,11 @@ export const Series: MessageFns<Series> = {
         ? object.staff_user_ids.map((e: any) => globalThis.String(e))
         : [],
       archived: isSet(object.archived) ? globalThis.Boolean(object.archived) : false,
+      attendeeIds: globalThis.Array.isArray(object?.attendeeIds)
+        ? object.attendeeIds.map((e: any) => globalThis.String(e))
+        : globalThis.Array.isArray(object?.attendee_ids)
+        ? object.attendee_ids.map((e: any) => globalThis.String(e))
+        : [],
     };
   },
 
@@ -969,6 +990,9 @@ export const Series: MessageFns<Series> = {
     if (message.archived !== false) {
       obj.archived = message.archived;
     }
+    if (message.attendeeIds?.length) {
+      obj.attendeeIds = message.attendeeIds;
+    }
     return obj;
   },
 
@@ -987,6 +1011,7 @@ export const Series: MessageFns<Series> = {
     message.priceOverride = object.priceOverride ?? undefined;
     message.staffUserIds = object.staffUserIds?.map((e) => e) || [];
     message.archived = object.archived ?? false;
+    message.attendeeIds = object.attendeeIds?.map((e) => e) || [];
     return message;
   },
 };
@@ -1005,6 +1030,7 @@ function createBaseOccurrence(): Occurrence {
     movedToOccurrenceId: "",
     replacesOccurrenceId: "",
     staffUserIds: [],
+    attendeeIds: [],
   };
 }
 
@@ -1045,6 +1071,9 @@ export const Occurrence: MessageFns<Occurrence> = {
     }
     for (const v of message.staffUserIds) {
       writer.uint32(98).string(v!);
+    }
+    for (const v of message.attendeeIds) {
+      writer.uint32(106).string(v!);
     }
     return writer;
   },
@@ -1152,6 +1181,14 @@ export const Occurrence: MessageFns<Occurrence> = {
           message.staffUserIds.push(reader.string());
           continue;
         }
+        case 13: {
+          if (tag !== 106) {
+            break;
+          }
+
+          message.attendeeIds.push(reader.string());
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -1211,6 +1248,11 @@ export const Occurrence: MessageFns<Occurrence> = {
         : globalThis.Array.isArray(object?.staff_user_ids)
         ? object.staff_user_ids.map((e: any) => globalThis.String(e))
         : [],
+      attendeeIds: globalThis.Array.isArray(object?.attendeeIds)
+        ? object.attendeeIds.map((e: any) => globalThis.String(e))
+        : globalThis.Array.isArray(object?.attendee_ids)
+        ? object.attendee_ids.map((e: any) => globalThis.String(e))
+        : [],
     };
   },
 
@@ -1252,6 +1294,9 @@ export const Occurrence: MessageFns<Occurrence> = {
     if (message.staffUserIds?.length) {
       obj.staffUserIds = message.staffUserIds;
     }
+    if (message.attendeeIds?.length) {
+      obj.attendeeIds = message.attendeeIds;
+    }
     return obj;
   },
 
@@ -1272,6 +1317,7 @@ export const Occurrence: MessageFns<Occurrence> = {
     message.movedToOccurrenceId = object.movedToOccurrenceId ?? "";
     message.replacesOccurrenceId = object.replacesOccurrenceId ?? "";
     message.staffUserIds = object.staffUserIds?.map((e) => e) || [];
+    message.attendeeIds = object.attendeeIds?.map((e) => e) || [];
     return message;
   },
 };

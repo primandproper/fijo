@@ -115,6 +115,8 @@ message Series {
   optional int64 price_override = 8;
   repeated string staff_user_ids = 9;
   bool archived = 10;
+  // Who the slot is for: roster attendees, at least one.
+  repeated string attendee_ids = 11;
 }
 
 message Occurrence {
@@ -134,6 +136,8 @@ message Occurrence {
   // The cancelled occurrence this make-up answers.
   string replaces_occurrence_id = 11;
   repeated string staff_user_ids = 12;
+  // Who this appointment is for, as the series named them when it was written.
+  repeated string attendee_ids = 13;
 }
 
 message Closure {
