@@ -88,6 +88,7 @@ func BuildInjector(ctx context.Context, cfg *config.Config) (*do.RootScope, erro
 
 	service.RegisterTransports(i, &service.Transports{
 		Extractor: principal.Extract,
+		TenantOf:  principal.Tenant,
 		Registrations: []grpcserver.RegistrationFunc{
 			func(srv *grpc.Server) { do.MustInvoke[*ownerauthgrpc.Server](i).RegisterOn(srv) },
 			func(srv *grpc.Server) { do.MustInvoke[*ownersgrpc.Server](i).RegisterOn(srv) },

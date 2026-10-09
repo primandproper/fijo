@@ -15,6 +15,7 @@ import (
 	"github.com/primandproper/platform-go/v15/callers"
 	"github.com/primandproper/platform-go/v15/identity"
 	"github.com/primandproper/primitives-go/v2/authorization"
+	platformerrors "github.com/primandproper/primitives-go/v2/errors"
 	"github.com/primandproper/primitives-go/v2/tenancy"
 )
 
@@ -53,6 +54,23 @@ func (c *Caller) StudioScope() tenancy.Scope {
 	}
 
 	return tenancy.Of(c.Principal.ActiveAccountID)
+}
+
+// ErrNotACaller is a principal Tenant was handed that this package did not
+// put on the context, so there is no studio to read off it.
+var ErrNotACaller = platformerrors.New("the principal is not a Fijo caller")
+
+// Tenant is the Transports.TenantOf every tenant-reading platform surface
+// (audit's reads, operations' owners) resolves its scope with: the studio, not
+// the directory Scope names. Audit entries are filed under the studio, so this
+// is what lets the mounted audit surface read them back.
+func Tenant(p callers.Principal) (tenancy.Scope, error) {
+	caller, ok := p.(*Caller)
+	if !ok || caller == nil || caller.Principal == nil {
+		return tenancy.Scope{}, ErrNotACaller
+	}
+
+	return caller.StudioScope(), nil
 }
 
 type contextKey struct{}

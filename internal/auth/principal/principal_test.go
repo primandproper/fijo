@@ -40,6 +40,17 @@ func TestCaller(t *testing.T) {
 		test.Eq(t, tenancy.Global(), operator.StudioScope())
 	})
 
+	t.Run("the tenant a platform surface reads is the studio", func(t *testing.T) {
+		t.Parallel()
+
+		scope, err := Tenant(caller)
+		must.NoError(t, err)
+		test.Eq(t, tenancy.Of("studio-1"), scope)
+
+		_, err = Tenant(nil)
+		test.ErrorIs(t, err, ErrNotACaller)
+	})
+
 	t.Run("round-trips through a context", func(t *testing.T) {
 		t.Parallel()
 
