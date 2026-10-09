@@ -27,10 +27,15 @@ export function byWeekTime(a: ShapedSeries, b: ShapedSeries): number {
   return a.weekday - b.weekday || a.startMinute - b.startMinute;
 }
 
-/** The slot a SeriesFields form describes, or what is wrong with it. */
-export async function seriesOf(form: FormData, token: string): Promise<Series | string> {
+/**
+ * The slot a SeriesFields form describes, or what is wrong with it. Who it is for comes from the
+ * form's attendees unless the caller already knows.
+ */
+export async function seriesOf(form: FormData, token: string, attendees?: string[]): Promise<Series | string> {
   const text = (name: string) => String(form.get(name) ?? '').trim();
-  const attendeeIds = [...new Set(form.getAll('attendees').map((v) => String(v).trim()))].filter(Boolean);
+  const attendeeIds = [...new Set((attendees ?? form.getAll('attendees').map(String)).map((v) => v.trim()))].filter(
+    Boolean,
+  );
   if (attendeeIds.length === 0) return 'Choose who the lesson is for.';
   const weekday = Number(text('weekday'));
   if (!Number.isInteger(weekday) || weekday < 0 || weekday > 6) return 'Choose a day of the week.';

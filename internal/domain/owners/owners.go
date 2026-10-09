@@ -82,6 +82,8 @@ type Store interface {
 	GetPreferences(ctx context.Context, q database.SQLQueryExecutor, scope tenancy.Scope, userID string) (*Preferences, error)
 
 	// SetTimeZone writes a user's zone, creating the row on first use, and
-	// returns the row as written. It refuses a zone LoadTimeZone would.
+	// returns the row as written. An empty zone clears the preference, so the
+	// user reads the grid in the studio's zone again; anything else LoadTimeZone
+	// refuses is refused.
 	SetTimeZone(ctx context.Context, tx database.Tx, scope tenancy.Scope, userID, timeZone string) (*Preferences, error)
 }

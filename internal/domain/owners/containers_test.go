@@ -89,6 +89,18 @@ func TestSQLStoreAgainstPostgres(t *testing.T) {
 			return setErr
 		}))
 
+		// Empty clears the preference: the grid goes back to the studio's zone.
+		must.NoError(t, client.WithTransaction(ctx, func(tx database.Tx) error {
+			cleared, setErr := store.SetTimeZone(ctx, tx, scope, user.ID, "")
+			if setErr != nil {
+				return setErr
+			}
+
+			test.Eq(t, "", cleared.TimeZone)
+
+			return nil
+		}))
+
 		// A row for a user the directory does not hold is refused by the key.
 		must.Error(t, client.WithTransaction(ctx, func(tx database.Tx) error {
 			_, setErr := store.SetTimeZone(ctx, tx, scope, "nobody", "UTC")

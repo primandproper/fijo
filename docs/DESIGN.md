@@ -168,7 +168,7 @@ Three Fijo-owned domains, each a Store plus Postgres SQL plus mock, DDB-style.
 | Gap | Tier | Shape | Action |
 |---|---|---|---|
 | ~~SMS sending (primitives-go#20)~~ | primitives-go | `sms` like `email`: `Sender` (`SendSMS` returning a `Receipt` carrying the provider message ID), `OutboundSMS`, config, noop, mock, twilio, and `ErrRecipientOptedOut` | **closed**: built in #25, released in v2.6.0, pinned here |
-| Phone verification codes (platform-go#870) | platform-go | store like `signin/magiclinks`: digest at rest, single use, expiry, sweeper | build additive in platform-go v15.x |
+| ~~Phone verification codes (platform-go#870)~~ | platform-go | store like `signin/magiclinks`: digest at rest, single use, expiry, sweeper | **closed**: `authentication/phonecodes`, in v15.1.0, which Fijo pins |
 | ~~Twilio inbound verifier (primitives-go#21)~~ | primitives-go | `webhooks/inbound/twilio`, X-Twilio-Signature over the URL and sorted form params rather than the body | **closed**: built in #23, released in v2.6.0, pinned here |
 | Recurrence / series materialization (platform-go#871, candidate) | platform-go | Fijo-local in `schedule`, extraction candidate | file issue, build locally, mark |
 | Third-party OAuth grant store (platform-go#872) | platform-go | per-tenant grant with refresh token, encrypted | file issue; Stripe (money) and calendar phases. Not needed for Twilio: the ISV model keeps one account and stores registration state, not per-studio credentials |
@@ -493,8 +493,16 @@ Consequences:
 - **This leans hosted.** A self-hosted deployment would have to be its own ISV
   or register directly, so the ISV model and the single-tenant story do not
   compose. That is consistent with the studio provisioning decision above.
-- **Toll-free is not the escape hatch** it used to be: as of early 2026
-  verification requires a business registration number matching a legal entity.
+- **Toll-free is not the escape hatch for studios** it used to be: since
+  February 17, 2026 verification requires a business registration number for
+  every business type except a sole proprietorship with no tax ID. That
+  exception is what makes a toll-free number verified as `SOLE_PROPRIETOR` the
+  cheapest way to text a handful of real people during development, without
+  an EIN or the ISV profile. It still needs an upgraded account and a public
+  privacy policy and terms (required since September 15, 2026).
+- **The Twilio trial cannot develop against.** It sends only Twilio's own
+  templates, to at most five verified numbers, for thirty days. Phase 3 is
+  built on the noop sender with a dev-only simulated phone instead.
 
 Open: whether Twilio will approve an ISV Reseller profile for a US sole
 proprietor with no EIN. To be confirmed with Twilio (and with Telnyx, whose

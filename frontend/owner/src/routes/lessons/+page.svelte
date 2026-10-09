@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { zoneName } from '$lib/zones';
   import { enhance } from '$app/forms';
   import { resolve } from '$app/paths';
   import SeriesFields from '$lib/components/SeriesFields.svelte';
@@ -29,7 +30,7 @@
   <h1>Standing lessons</h1>
   <p class="muted">
     A standing lesson is somebody's lesson that repeats: Sofía, Tuesdays at four, every week. Times are in the studio's
-    zone, {data.studioZone}. Changing one changes every lesson from now on that nobody has touched yet.
+    zone, {zoneName(data.studioZone)}. Changing one changes every lesson from now on that nobody has touched yet.
   </p>
 
   {#if form?.error}
@@ -118,6 +119,9 @@
 
     <section class="card">
       <h2>Add a standing lesson</h2>
+      <p class="muted">
+        For somebody new? <a href={resolve('/clients')}>Add them as a client</a> and set up their lesson in the same form.
+      </p>
       <!-- Kept filled after an add: lessons usually come in runs, and a reset would clear the date. -->
       <form
         method="POST"

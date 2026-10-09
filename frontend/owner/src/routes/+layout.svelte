@@ -10,7 +10,7 @@
   const links = [
     { href: '/week', label: 'Week' },
     { href: '/clients', label: 'Clients' },
-    { href: '/series', label: 'Lessons' },
+    { href: '/lessons', label: 'Lessons' },
     { href: '/offerings', label: 'Offerings' },
     { href: '/studio', label: 'Studio' },
     { href: '/account', label: 'Account' },

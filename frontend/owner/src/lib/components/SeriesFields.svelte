@@ -27,6 +27,7 @@
     today,
     students = [],
     student = '',
+    pickWho = true,
   }: {
     values?: Values | null;
     prefix: string;
@@ -36,6 +37,8 @@
     students?: Student[];
     /** A lesson added from a student's own page is theirs: no picker, just them. */
     student?: string;
+    /** False when the page around the fields says who the lesson is for itself. */
+    pickWho?: boolean;
   } = $props();
 
   const chosen = $derived(new Set(values?.attendeeIds ?? []));
@@ -48,7 +51,7 @@
 
 {#if student}
   <input type="hidden" name="attendees" value={student} />
-{:else}
+{:else if pickWho}
   <fieldset class="who">
     <legend>Who</legend>
     <p class="muted hint">Usually one student. Choose more than one for siblings or a group taught together.</p>

@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { untrack } from 'svelte';
+  import { zoneName } from '$lib/zones';
   import { enhance } from '$app/forms';
   import { resolve } from '$app/paths';
   import SeriesFields from '$lib/components/SeriesFields.svelte';
@@ -11,7 +13,12 @@
   const household = $derived(data.household);
 
   // One thing open at a time: 'household', 'contact:<id>', 'student:<id>', 'lesson:<id>', or a 'new-' form.
-  let open = $state('');
+  // A client whose first lesson did not save opens on the form to try it again.
+  let open = $state(
+    untrack(() =>
+      data.lessonProblem && data.household.attendees.length > 0 ? `lesson:${data.household.attendees[0].id}` : '',
+    ),
+  );
 
   function toggle(what: string) {
     open = open === what ? '' : what;
@@ -56,6 +63,10 @@
 
   {#if form?.error}
     <div class="alert error">{form.error}</div>
+  {:else if data.lessonProblem && data.lessons.length === 0}
+    <div class="alert error">
+      {household.name} is saved, but their standing lesson didn't save ({data.lessonProblem}). Try it again below.
+    </div>
   {/if}
 
   {#if open === 'household'}
@@ -151,7 +162,7 @@
                 today={data.today}
                 student={student.id}
               />
-              <p class="muted">Times are in the studio's zone, {data.studioZone}.</p>
+              <p class="muted">Times are in the studio's zone, {zoneName(data.studioZone)}.</p>
               <button type="submit">Add standing lesson</button>
             </form>
           {/if}
@@ -198,7 +209,7 @@
 
     {#if data.lessons.length > 0}
       <p class="muted footnote">
-        Change or end a standing lesson on <a href={resolve('/series')}>Lessons</a>.
+        Change or end a standing lesson on <a href={resolve('/lessons')}>Lessons</a>.
       </p>
     {/if}
   </section>

@@ -2,6 +2,7 @@ import { fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { api } from '$lib/grpc/clients';
 import { messageOf } from '$lib/errors';
+import { zoneGroups } from '$lib/zones';
 
 export const load: PageServerLoad = async ({ locals }) => {
   const token = locals.accessToken!;
@@ -12,6 +13,7 @@ export const load: PageServerLoad = async ({ locals }) => {
     studio: self.studio,
     roles: self.roles,
     timeZone: self.timeZone,
+    zoneGroups: zoneGroups(new Date(), self.timeZone),
     passkeys: passkeys.passkeys.map((p) => ({
       id: p.id,
       friendlyName: p.friendlyName || 'Passkey',
@@ -24,10 +26,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 export const actions: Actions = {
   setTimeZone: async ({ request, locals }) => {
     const form = await request.formData();
+    // Empty is "same as the studio".
     const timeZone = String(form.get('timeZone') ?? '').trim();
-    if (!timeZone) {
-      return fail(400, { error: 'Choose a time zone.' });
-    }
     try {
       await api.owners.setTimeZone(locals.accessToken!, timeZone);
     } catch (err) {

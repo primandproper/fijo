@@ -2,6 +2,7 @@
   import { invalidateAll } from '$app/navigation';
   import { browser } from '$app/environment';
   import { enrolPasskey } from '$lib/passkeys';
+  import { zoneName } from '$lib/zones';
 
   let { data, form } = $props();
 
@@ -27,7 +28,9 @@
   {#if data.studio}
     <section class="card">
       <h2>{data.studio.name}</h2>
-      <p class="muted">Studio time zone: {data.studio.timeZone || 'not set'}</p>
+      <p class="muted">
+        Studio time zone: {data.studio.timeZone ? zoneName(data.studio.timeZone) : 'not set'}
+      </p>
       <p class="muted">Your roles: {data.roles.join(', ') || 'none'}</p>
     </section>
   {:else}
@@ -38,7 +41,10 @@
 
   <section class="card">
     <h2>Your time zone</h2>
-    <p class="muted">The grid is drawn in your zone. Leave it empty to use the studio's.</p>
+    <p class="muted">
+      The week is drawn in your time zone. Most people want the studio's; pick another if you teach or travel somewhere
+      else.
+    </p>
     {#if form?.error}
       <div class="alert error">{form.error}</div>
     {/if}
@@ -46,8 +52,19 @@
       <div class="alert info">Saved.</div>
     {/if}
     <form method="POST" action="?/setTimeZone">
-      <label for="timeZone">IANA time zone</label>
-      <input id="timeZone" name="timeZone" value={data.timeZone} placeholder="America/Chicago" />
+      <label for="timeZone">Time zone</label>
+      <select id="timeZone" name="timeZone" value={data.timeZone}>
+        <option value="">
+          Same as the studio{data.studio?.timeZone ? ` (${zoneName(data.studio.timeZone)})` : ''}
+        </option>
+        {#each data.zoneGroups as group (group.label)}
+          <optgroup label={group.label}>
+            {#each group.options as option (option.value)}
+              <option value={option.value}>{option.label}</option>
+            {/each}
+          </optgroup>
+        {/each}
+      </select>
       <button type="submit">Save</button>
     </form>
   </section>

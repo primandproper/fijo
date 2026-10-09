@@ -128,8 +128,10 @@ func (s *SQLStore) SetTimeZone(ctx context.Context, tx database.Tx, scope tenanc
 		return nil, op.Error(err, "setting a time zone")
 	}
 
-	if _, err = LoadTimeZone(timeZone); err != nil {
-		return nil, op.Error(err, "setting a time zone")
+	if timeZone != "" {
+		if _, err = LoadTimeZone(timeZone); err != nil {
+			return nil, op.Error(err, "setting a time zone")
+		}
 	}
 
 	row, err := s.querier.UpsertUserTimeZone(ctx, tx, &generated.UpsertUserTimeZoneParams{

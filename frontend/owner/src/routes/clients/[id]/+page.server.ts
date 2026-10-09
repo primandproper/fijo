@@ -9,7 +9,7 @@ import { byWeekTime, seriesOf, shapeSeries } from '$lib/server/series';
 import { studioContext } from '$lib/server/studio';
 import { wallClock } from '$lib/time';
 
-export const load: PageServerLoad = async ({ locals, params }) => {
+export const load: PageServerLoad = async ({ locals, params, url }) => {
   const token = locals.accessToken!;
 
   let household;
@@ -36,6 +36,8 @@ export const load: PageServerLoad = async ({ locals, params }) => {
   return {
     studioZone: ctx.studioZone,
     today,
+    // Set when the client was added but the first lesson that came with them was not.
+    lessonProblem: url.searchParams.get('lesson') ?? '',
     household: shaped,
     offerings: offerings.offerings
       .filter((o) => !o.archived)

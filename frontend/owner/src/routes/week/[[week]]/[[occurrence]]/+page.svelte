@@ -2,26 +2,49 @@
   import { enhance } from '$app/forms';
   import { resolve } from '$app/paths';
   import { STATE_LABELS } from '$lib/schedule';
-  import { displayClock, displayDate } from '$lib/time';
+  import { displayClock, displayDate, wallClock } from '$lib/time';
+  import { zoneName } from '$lib/zones';
 
   let { data, form } = $props();
 
   const PX_PER_MINUTE = 1.1;
 
-  // The hours the grid shows: eight to eight, stretched to whatever the week holds.
-  const bounds = $derived.by(() => {
-    let first = 8 * 60;
-    let last = 20 * 60;
-    for (const day of data.days) {
-      for (const o of day.occurrences) {
-        first = Math.min(first, Math.floor(o.startMinute / 60) * 60);
-        last = Math.max(last, Math.ceil(o.endMinute / 60) * 60);
-      }
-    }
-    return { first, last };
+  // The whole day is on the grid, and the grid scrolls; the scroller opens on the working day.
+  const bounds = { first: 0, last: 24 * 60 };
+
+  // The time it is in the grid's zone, kept current. It is the browser's to know: drawn on the
+  // server it would be the server's moment, and wrong by the time anybody looked.
+  let now = $state<{ date: string; minute: number } | null>(null);
+  $effect(() => {
+    const tick = () => (now = wallClock(new Date(), data.zone));
+    tick();
+    const timer = setInterval(tick, 30_000);
+    return () => clearInterval(timer);
   });
 
-  const hours = $derived(Array.from({ length: (bounds.last - bounds.first) / 60 }, (_, i) => bounds.first + i * 60));
+  const nowOnPage = $derived(now !== null && data.days.some((d) => d.date === now!.date));
+
+  let scroller = $state<HTMLDivElement>();
+  let openedOn = '';
+  $effect(() => {
+    // Once per week shown, so choosing a lesson does not yank the grid back.
+    if (!scroller || !now || openedOn === data.week) return;
+    openedOn = data.week;
+
+    // This week opens with now a third of the way down. Any other week opens an hour before the
+    // earlier of eight in the morning and its first lesson.
+    if (nowOnPage) {
+      scroller.scrollTop = now.minute * PX_PER_MINUTE - scroller.clientHeight / 3;
+      return;
+    }
+    let earliest = 8 * 60;
+    for (const day of data.days) {
+      for (const o of day.occurrences) earliest = Math.min(earliest, o.startMinute);
+    }
+    scroller.scrollTop = Math.max(Math.floor(earliest / 60) * 60 - 60, 0) * PX_PER_MINUTE;
+  });
+
+  const hours = Array.from({ length: (bounds.last - bounds.first) / 60 }, (_, i) => bounds.first + i * 60);
 
   // Side-by-side lanes for lessons that overlap on one day.
   function lanes<T extends { startMinute: number; endMinute: number }>(items: T[]) {
@@ -64,7 +87,7 @@
         >
       </div>
       <h1>Week of {displayDate(data.week)}</h1>
-      <span class="muted zone">{data.zone}</span>
+      <span class="muted zone">{zoneName(data.zone)}</span>
     </header>
 
     {#if !data.hasOfferings || !data.hasSeries}
@@ -78,7 +101,7 @@
       </div>
     {/if}
 
-    <div class="scroller">
+    <div class="scroller" bind:this={scroller}>
       <div class="week" style:--rows={`${(bounds.last - bounds.first) * PX_PER_MINUTE}px`}>
         <div class="corner"></div>
         {#each data.days as day (day.date)}
@@ -90,10 +113,17 @@
 
         <div class="axis">
           {#each hours as hour (hour)}
-            <div class="hour" style:top={`${(hour - bounds.first) * PX_PER_MINUTE}px`}>
-              {displayClock(hour).replace(':00', '')}
-            </div>
+            {#if hour > bounds.first && !(nowOnPage && Math.abs(hour - now!.minute) < 20)}
+              <div class="hour" style:top={`${(hour - bounds.first) * PX_PER_MINUTE}px`}>
+                {displayClock(hour).replace(':00', '')}
+              </div>
+            {/if}
           {/each}
+          {#if now && nowOnPage}
+            <div class="now-label" style:top={`${(now.minute - bounds.first) * PX_PER_MINUTE}px`}>
+              {displayClock(now.minute)}
+            </div>
+          {/if}
         </div>
 
         {#each data.days as day (day.date)}
@@ -103,6 +133,9 @@
             {/each}
             {#if day.closedFor}
               <div class="closure-note">{day.closedFor}</div>
+            {/if}
+            {#if now && now.date === day.date}
+              <div class="now" style:top={`${(now.minute - bounds.first) * PX_PER_MINUTE}px`} aria-hidden="true"></div>
             {/if}
             {#each lanes(day.occurrences) as { item: o, lane, of } (o.id)}
               <a
@@ -313,7 +346,11 @@
   }
 
   .scroller {
-    overflow-x: auto;
+    overflow: auto;
+    /* Tall enough to be the page; short enough that the day headers never leave the screen. */
+    height: calc(100dvh - 10rem);
+    min-height: 24rem;
+    overscroll-behavior: contain;
     border: 1px solid var(--color-line);
     border-radius: var(--radius);
     background: var(--color-surface);
@@ -332,7 +369,12 @@
     font-size: 0.9rem;
     position: sticky;
     top: 0;
+    z-index: 3;
     background: var(--color-surface);
+  }
+  .corner {
+    left: 0;
+    z-index: 4;
   }
   .day-head.today {
     color: var(--color-accent);
@@ -344,7 +386,38 @@
     font-weight: 500;
   }
   .axis {
-    position: relative;
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    background: var(--color-surface);
+  }
+  .now {
+    position: absolute;
+    left: 0;
+    right: 0;
+    border-top: 2px solid var(--color-danger);
+    z-index: 1;
+    pointer-events: none;
+  }
+  .now::before {
+    content: '';
+    position: absolute;
+    left: -5px;
+    top: -6px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--color-danger);
+  }
+  .now-label {
+    position: absolute;
+    right: 0.25rem;
+    transform: translateY(-50%);
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--color-danger);
+    background: var(--color-surface);
+    padding: 0 0.15rem;
   }
   .hour {
     position: absolute;
@@ -352,9 +425,6 @@
     transform: translateY(-0.5em);
     font-size: 0.75rem;
     color: var(--color-muted);
-  }
-  .hour:first-child {
-    transform: none;
   }
   .column {
     position: relative;

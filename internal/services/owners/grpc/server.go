@@ -153,9 +153,10 @@ func (s *Server) SetTimeZone(ctx context.Context, req *fijopb.SetTimeZoneRequest
 		return nil, err
 	}
 
+	// Empty is "same as the studio".
 	zone := strings.TrimSpace(req.GetTimeZone())
 
-	if _, err = owners.LoadTimeZone(zone); err != nil {
+	if _, err = owners.LoadTimeZone(zone); zone != "" && err != nil {
 		return nil, grpcerrors.PrepareAndLogGRPCStatus(err, op.Logger(), op.Span(), codes.InvalidArgument, "checking the time zone")
 	}
 
