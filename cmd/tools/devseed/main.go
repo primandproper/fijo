@@ -13,6 +13,9 @@
 //	  --username maria --email maria@example.com --password '...' \
 //	  --studio "Casa de Musica" --time-zone US/Central
 //
+// A studio it provisions also gets the sample offerings below, so the owner app
+// has something to put in a slot on first sign-in.
+//
 // --if-absent makes a second run naming the same owner a no-op rather than the
 // registrar's refusal, so the local compose stack can seed on every start.
 package main
@@ -23,11 +26,43 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"time"
 
 	"github.com/primandproper/fijo/internal/bootstrap"
 	"github.com/primandproper/fijo/internal/build/api"
 	"github.com/primandproper/fijo/internal/config"
+	"github.com/primandproper/fijo/internal/domain/schedule"
+
+	"github.com/primandproper/primitives-go/v2/database"
+	"github.com/primandproper/primitives-go/v2/tenancy"
+
+	"github.com/samber/do/v2"
 )
+
+const day = 24 * time.Hour
+
+// sampleOfferings is one of each kind, priced in cents.
+func sampleOfferings() []*schedule.Offering {
+	return []*schedule.Offering{
+		{
+			NameEN: "30-minute private lesson", NameES: "Clase particular de 30 minutos",
+			Kind: schedule.KindSingle, Duration: 30 * time.Minute, ListPrice: 4000,
+		},
+		{
+			NameEN: "45-minute private lesson", NameES: "Clase particular de 45 minutos",
+			Kind: schedule.KindSingle, Duration: 45 * time.Minute, ListPrice: 5500,
+		},
+		{
+			NameEN: "10-lesson pack", NameES: "Paquete de 10 clases",
+			Kind: schedule.KindPackage, Duration: 30 * time.Minute, ListPrice: 38000,
+			LessonCount: 10, ExpiresAfter: 120 * day, Shareable: true,
+		},
+		{
+			NameEN: "Weekly lessons, monthly", NameES: "Clases semanales, mensual",
+			Kind: schedule.KindRecurring, Duration: 30 * time.Minute, ListPrice: 15000,
+		},
+	}
+}
 
 func main() {
 	var (
@@ -103,5 +138,46 @@ func run(ctx context.Context, configPath string, ifAbsent bool, studio *bootstra
 
 	fmt.Printf("user:    %s (%s)\nstudio:  %s (%s)\n", registered.User.ID, registered.User.Username, registered.Account.ID, registered.Account.Name)
 
+	offerings, err := seedOfferings(ctx, i, tenancy.Of(registered.Account.ID))
+	if err != nil {
+		return err
+	}
+
+	for _, offering := range offerings {
+		fmt.Printf("offering: %s (%s)\n", offering.ID, offering.NameEN)
+	}
+
 	return nil
+}
+
+// seedOfferings writes the sample offerings into the studio on one transaction.
+func seedOfferings(ctx context.Context, i do.Injector, scope tenancy.Scope) ([]*schedule.Offering, error) {
+	client, err := do.Invoke[database.Client](i)
+	if err != nil {
+		return nil, err
+	}
+
+	store, err := do.Invoke[schedule.Store](i)
+	if err != nil {
+		return nil, err
+	}
+
+	var written []*schedule.Offering
+
+	if err = client.WithTransaction(ctx, func(tx database.Tx) error {
+		for _, offering := range sampleOfferings() {
+			created, createErr := store.CreateOffering(ctx, tx, scope, offering)
+			if createErr != nil {
+				return fmt.Errorf("seeding the offering %q: %w", offering.NameEN, createErr)
+			}
+
+			written = append(written, created)
+		}
+
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
+	return written, nil
 }
