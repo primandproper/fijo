@@ -29,8 +29,9 @@ workload is a subcommand and a manifest that names it, not a new `cmd/` director
 `cmd/tools/` holds tools that are never deployed: the config and envvars renderers, `devseed`,
 which registers an owner and their studio on a local database, and `bootstrap`, which an operator
 runs once against a deployment to make the first `service_admin`. Both are flag parsing around
-`internal/bootstrap`; registering and granting a service role are a registrar's acts, so an empty
-directory has no door for either, and what authorizes these is the database credential.
+`internal/bootstrap`; granting a service role needs a permission nobody on an empty directory
+holds, so what authorizes it is the database credential. They register through the same service
+`Register` calls rather than over the wire, so neither needs a running server.
 
 ## Layout
 
@@ -47,9 +48,9 @@ directory has no door for either, and what authorizes these is the database cred
 - `internal/bootstrap/` — the two acts an empty database has no authenticated door for:
   provisioning a studio with its owner, and granting `service_admin`. Deliberately not reachable
   over the wire. Its three callers are `cmd/tools/devseed`, `cmd/tools/bootstrap` and container
-  tests, which reach it through `internal/testutils/seed`. v15 removed identity's
-  `Register` RPC; registration on the wire is now sign-in's anonymous `Register`, which Fijo does
-  not mount yet (no `signIn` config block), so there is no front door for a second studio today.
+  tests, which reach it through `internal/testutils/seed`. Every studio after the
+  first signs itself up through sign-in's anonymous `Register`, which `serve` mounts and leaves
+  open; the owner app's sign-up page is not built yet.
 - `internal/auth/` — the sign-in layer: `principal` (the caller every handler reads; `Scope()` is
   the global directory, `StudioScope()` is Fijo's tenant), `session` (the server-side record behind
   every access token, one per mint), `interceptor` (bearer token → caller in four revocable reads),

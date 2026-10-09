@@ -364,17 +364,29 @@ with the servers left out plus the sweepers.
 
 Both are filed against platform-go as #874 and #875. Neither blocks phase 1.
 
-### How a studio comes to exist (decided 2026-09-22)
+### How a studio comes to exist (decided 2026-09-22, revised 2026-10-09)
 
-Studios are **operator-provisioned**. Self-serve "create your studio" is
-deferred to phase 5, where a sign-up page has a Stripe Checkout behind it and
-a reason to exist; building a public account-minting door before then is a
-surface with no customer.
+Studios **sign themselves up**. platform-go v15 made sign-in's `Register` the
+one registration RPC, anonymous and open unless a deployment closes it, and
+Fijo leaves it open: `serve` mounts `SignInService` because the composition
+root builds a `signin.Service` with identity as its registrar, and a
+registration mints a user, a studio and an `owner` membership (the default
+owner roles `NewService` is handed). The original decision deferred
+self-service to phase 5, with a Stripe Checkout behind the sign-up page; the
+door now opens before the checkout does, and phase 5 puts the checkout in
+front of it.
 
-Two acts have no authenticated door on an empty database — registering the
-first user, and granting `service_admin`, which is a `SetUserServiceRoles`
-call needing a permission nobody holds yet. Both live in `internal/bootstrap`,
-which is deliberately unreachable over the wire and authorized by the database
+What is not built yet is the owner app's sign-up page; until it is, the door is
+reachable from `grpcurl` and not from the app. The page has to send a time
+zone — the browser's — because the materializer refuses a studio whose account
+names none (`studios.ErrNoTimeZone`), where `internal/bootstrap` falls back to
+`DefaultTimeZone`.
+
+One act has no door on an empty database: granting `service_admin`, which is a
+`SetUserServiceRoles` call needing a permission nobody holds yet. It lives in
+`internal/bootstrap` beside registering a studio directly — the same
+`signin.Service.Register` the wire calls, without the server — and that package
+is deliberately unreachable over the wire and authorized by the database
 credential its caller already had to hold. Three callers share it:
 `cmd/tools/bootstrap` (the operator's, run once against a deployment, safe to
 run again), `cmd/tools/devseed` (the developer's, local) and container tests
@@ -384,22 +396,16 @@ studio needs a studio before it can begin. The shape follows DDB's
 username, the password hashed at boot rather than baked into a migration, and
 the promotion a second write after the registration.
 
-**Every studio after the first goes through the front door.** v15 removed
-identity's `Register` RPC (platform-go#1068): registration on the wire is now
-sign-in's `Register`, anonymous and open unless the deployment closes it, with
-the deployment's `RegistrationPolicy` deciding whom it admits. Fijo does not
-mount sign-in's server yet, so the door this paragraph describes is to be
-rebuilt as that RPC plus a policy admitting only `service_admin`. The
-studio CRUD an operator needs is identity's account surface, which `serve`
-already mounts and `service_admin` already holds the permissions for
-(`CreateAccounts`, `ListAllAccounts`, `ArchiveAccounts`,
-`TransferAccountOwnership`, and `UpdateAccounts` by inheriting `owner`). What
-does not exist is a client for it: `grpcurl` until an admin page in the owner
-app is worth the day it costs. Note that `CreateAccount` mints the account for
-the *calling* principal, so the provisioning call is sign-in's `Register`, not
+**An operator can provision a studio too**, through the same `Register` call
+made on somebody's behalf. The studio CRUD an operator needs after that is
+identity's account surface, which `serve` already mounts and `service_admin`
+already holds the permissions for (`CreateAccounts`, `ListAllAccounts`,
+`ArchiveAccounts`, `TransferAccountOwnership`, and `UpdateAccounts` by
+inheriting `owner`). Note that `CreateAccount` mints the account for the
+*calling* principal, so provisioning somebody else's studio is `Register`, not
 `CreateAccount`.
 
-The public registration door Fijo does build is the **invitation-answering**
+The second registration door is the **invitation-answering**
 one, in phase 2, when a two-person studio's second person needs to sign in:
 `signin.Registration` already carries `InvitationID` and `InvitationToken`, no
 account is minted, and the token is the authorization rather than the door
