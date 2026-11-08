@@ -38,8 +38,8 @@ type Rendered struct {
 //
 // The words are deliberately few: who, what, when, and where to write to
 // change it. "Where to write" is the owner's address in the body as well as
-// the reply address, so a client whose mail program ignores Reply-To still
-// knows who to tell.
+// the Reply-To, so a client who forwards it, or writes fresh rather than
+// replying, still knows who to tell.
 func Render(l *Lesson) Rendered {
 	if l.Language == roster.Spanish {
 		return renderES(l)

@@ -207,6 +207,8 @@ func TestRemindersAgainstPostgres(t *testing.T) {
 			test.Eq(t, "lucia@example.com", sent.ToAddress)
 			test.Eq(t, "Casa de Musica", sent.FromName)
 			test.Eq(t, "reminders@fijo.test", sent.FromAddress)
+			test.Eq(t, "maria@example.com", sent.ReplyToAddress, test.Sprint("a reply lands in the owner's inbox"))
+			test.Eq(t, "Casa de Musica", sent.ReplyToName)
 			test.Eq(t, dayBefore.Subject, sent.Subject)
 
 			test.Eq(t, messaging.Sent, listed()[0].Status)

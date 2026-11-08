@@ -231,7 +231,7 @@ Three Fijo-owned domains, each a Store plus Postgres SQL plus mock, DDB-style.
 
 "v1" is phases 0–4 below; "money" is phase 5; "later" is phase 6.
 
-### primitives-go (v2.15.0)
+### primitives-go (v2.18.0)
 
 | Package | Used for | When |
 |---|---|---|
@@ -279,7 +279,7 @@ Three Fijo-owned domains, each a Store plus Postgres SQL plus mock, DDB-style.
 | Recovery codes (#867), idempotent refresh (#869) | platform-go | already filed | Jeffrey, in parallel |
 | Sign-in door for a proven principal (platform-go#874) | platform-go | `signin.Service.IssueForPrincipal`; passkey logins mint through it | filed in phase 0; `internal/auth/mint` is the candidate |
 | Tenant scope on `service.Transports` (platform-go#875) | platform-go | a `TenantScope` resolver beside `Extractor`, or `callers.Principal.TenantScope()` | filed in phase 0; audit read surface inert until then |
-| Reply-To on outbound email (found 2026-11-08) | primitives-go | `ReplyToAddress`/`ReplyToName` on `email.OutboundEmailMessage`, honoured by each provider (Resend's API has `reply_to`) | additive, not yet made; until then `messaging.send` drops it and every reminder names the owner's address in its body |
+| ~~Reply-To on outbound email (found 2026-11-08)~~ | primitives-go | `ReplyToAddress`/`ReplyToName` on `email.OutboundEmailMessage`, honoured by each provider | **closed**: built in primitives-go#78, released in v2.18.0, pinned here |
 
 ## Build order
 
@@ -488,16 +488,16 @@ Reminders go by email, in each contact's language, from the studio's name.
   an owner-set `reminders_off`, kept apart from the SMS-era `opted_out`. Both
   are separate RPCs (`SetHouseholdReminders`, `SetContactReminders`) so the
   existing edit forms cannot reset them.
-- **Reply-To is not sent yet** (the gap table above): primitives-go's email
-  message has no field for it. Every reminder names the owner's address in
-  its body as well, which is what a client whose mail program ignores
-  Reply-To needs anyway.
+- **A reply lands in the owner's inbox**: every reminder carries Reply-To
+  the studio's reply address, under the studio's name (primitives-go#78,
+  v2.18.0, closed the gap the first pass found). The body names the address
+  too, for a client who writes fresh rather than replying.
 - **Migrations**: the timer and metering tables are platform DDL spliced in
   at versions 25 and 26. Numbering them 9 and 10, inside the old platform
   block, was refused by a database already at 24 as out of order; a platform
   table added later takes the next free number.
 
-Not done in this pass: the Reply-To primitive; an SMS channel; a reminder's
+Not done in this pass: an SMS channel; a reminder's
 lesson changing time in place after its reminder went (the unique key means
 the same offset is not sent again for the new time); and bounce or complaint
 handling from the provider.

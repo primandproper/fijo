@@ -52,23 +52,6 @@ type Meter interface {
 	Record(ctx context.Context, tx database.Tx, scope tenancy.Scope, usage ...metering.Usage) error
 }
 
-// Mail is a reminder as handed to the email provider.
-//
-// ReplyTo is the owner's address. primitives-go's OutboundEmailMessage has no
-// Reply-To yet (the gap is in the design doc), so send drops it and a reply
-// goes to the from-address; the body names the owner's address for exactly
-// that reason, and closing the gap is one line in send.
-type Mail struct {
-	email.OutboundEmailMessage
-
-	ReplyTo string
-}
-
-// send hands a Mail to the provider with what the provider can carry.
-func send(ctx context.Context, emailer email.Emailer, mail *Mail) error {
-	return emailer.SendEmail(ctx, &mail.OutboundEmailMessage)
-}
-
 // Reminders finds the reminders owed, writes them, and delivers them.
 type Reminders struct {
 	o11y    observability.Observer
@@ -301,14 +284,15 @@ func (r *Reminders) Deliver(ctx context.Context, id string) (err error) {
 			return nameErr
 		}
 
-		sendErr = send(ctx, r.emailer, &Mail{
-			ToAddress:   d.ToAddress,
-			ToName:      d.ToName,
-			FromAddress: r.from,
-			FromName:    name,
-			Subject:     d.Subject,
-			HTMLContent: d.BodyHTML,
-			ReplyTo:     d.ReplyTo,
+		sendErr = r.emailer.SendEmail(ctx, &email.OutboundEmailMessage{
+			ToAddress:      d.ToAddress,
+			ToName:         d.ToName,
+			FromAddress:    r.from,
+			FromName:       name,
+			ReplyToAddress: d.ReplyTo,
+			ReplyToName:    name,
+			Subject:        d.Subject,
+			HTMLContent:    d.BodyHTML,
 		})
 		if sendErr != nil {
 			attempts, attemptErr := r.store.RecordAttempt(ctx, tx, id, sendErr.Error())
@@ -425,13 +409,14 @@ func (r *Reminders) SendTest(ctx context.Context, scope tenancy.Scope, language 
 		subject = "[Prueba] " + rendered.Subject
 	}
 
-	if err = send(ctx, r.emailer, &Mail{
-		ToAddress:   settings.ReplyTo,
-		FromAddress: r.from,
-		FromName:    name,
-		Subject:     subject,
-		HTMLContent: rendered.HTML,
-		ReplyTo:     settings.ReplyTo,
+	if err = r.emailer.SendEmail(ctx, &email.OutboundEmailMessage{
+		ToAddress:      settings.ReplyTo,
+		FromAddress:    r.from,
+		FromName:       name,
+		ReplyToAddress: settings.ReplyTo,
+		ReplyToName:    name,
+		Subject:        subject,
+		HTMLContent:    rendered.HTML,
 	}); err != nil {
 		return "", op.Error(err, "sending a test reminder")
 	}
