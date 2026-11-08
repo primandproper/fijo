@@ -28,8 +28,12 @@ const (
 	keyAttendee  = "fijo.attendee_id"
 )
 
-// phoneIndex is the unique index ErrPhoneTaken is read off.
-const phoneIndex = "roster_contacts_studio_phone_idx"
+// phoneIndex and emailIndex are the unique indexes ErrPhoneTaken and
+// ErrEmailTaken are read off.
+const (
+	phoneIndex = "roster_contacts_studio_phone_idx"
+	emailIndex = "roster_contacts_studio_email_idx"
+)
 
 // SQLStore is the Postgres implementation of Store.
 type SQLStore struct {
@@ -139,15 +143,22 @@ func notFound(err error) error {
 	return err
 }
 
-// phoneTaken maps the unique index on a studio's live phones onto
-// ErrPhoneTaken, and leaves every other failure alone.
-func phoneTaken(err error) error {
+// taken maps the unique indexes on a studio's live phones and emails onto
+// ErrPhoneTaken and ErrEmailTaken, and leaves every other failure alone.
+func taken(err error) error {
 	var pgErr *pgconn.PgError
-	if errors.As(err, &pgErr) && pgErr.Code == "23505" && pgErr.ConstraintName == phoneIndex {
-		return ErrPhoneTaken
+	if !errors.As(err, &pgErr) || pgErr.Code != "23505" {
+		return err
 	}
 
-	return err
+	switch pgErr.ConstraintName {
+	case phoneIndex:
+		return ErrPhoneTaken
+	case emailIndex:
+		return ErrEmailTaken
+	default:
+		return err
+	}
 }
 
 // CreateHousehold implements Store.
@@ -371,12 +382,13 @@ func (s *SQLStore) CreateContact(ctx context.Context, tx database.Tx, scope tena
 		StudioID:     studio,
 		HouseholdID:  staged.HouseholdID,
 		Name:         staged.Name,
-		Phone:        staged.Phone,
+		Phone:        nullString(staged.Phone),
+		Email:        nullString(staged.Email),
 		Language:     string(staged.Language),
 		Relationship: string(staged.Relationship),
 	})
 	if err != nil {
-		return nil, op.Error(phoneTaken(err), "creating a contact")
+		return nil, op.Error(taken(err), "creating a contact")
 	}
 
 	op.Set(keyContact, row.ID)
@@ -445,14 +457,15 @@ func (s *SQLStore) UpdateContact(ctx context.Context, tx database.Tx, scope tena
 
 	row, err := s.querier.UpdateContact(ctx, tx, &generated.UpdateContactParams{
 		Name:         staged.Name,
-		Phone:        staged.Phone,
+		Phone:        nullString(staged.Phone),
+		Email:        nullString(staged.Email),
 		Language:     string(staged.Language),
 		Relationship: string(staged.Relationship),
 		ID:           staged.ID,
 		StudioID:     studio,
 	})
 	if err != nil {
-		return nil, op.Error(phoneTaken(notFound(err)), "updating a contact")
+		return nil, op.Error(taken(notFound(err)), "updating a contact")
 	}
 
 	return contactFromRow(row), nil
@@ -630,7 +643,8 @@ func (s *SQLStore) ArchiveAttendee(ctx context.Context, tx database.Tx, scope te
 }
 
 // stageContact validates a contact for a write: the studio stamped, the phone
-// normalized, and the household a live one of this studio's.
+// and email normalized (an empty one stays empty, and is NULL in the row), and
+// the household a live one of this studio's.
 func (s *SQLStore) stageContact(ctx context.Context, tx database.Tx, studio string, contact *Contact) (*Contact, error) {
 	if contact == nil {
 		return nil, ErrNilInput
@@ -644,14 +658,27 @@ func (s *SQLStore) stageContact(ctx context.Context, tx database.Tx, studio stri
 		return nil, err
 	}
 
-	phone, err := NormalizePhone(staged.Phone)
-	if err != nil {
-		return nil, err
+	staged.Phone = strings.TrimSpace(staged.Phone)
+	if staged.Phone != "" {
+		phone, err := NormalizePhone(staged.Phone)
+		if err != nil {
+			return nil, err
+		}
+
+		staged.Phone = phone
 	}
 
-	staged.Phone = phone
+	staged.Email = strings.TrimSpace(staged.Email)
+	if staged.Email != "" {
+		address, err := NormalizeEmail(staged.Email)
+		if err != nil {
+			return nil, err
+		}
 
-	if _, err = s.querier.GetHousehold(ctx, tx, &generated.GetHouseholdParams{ID: staged.HouseholdID, StudioID: studio}); err != nil {
+		staged.Email = address
+	}
+
+	if _, err := s.querier.GetHousehold(ctx, tx, &generated.GetHouseholdParams{ID: staged.HouseholdID, StudioID: studio}); err != nil {
 		return nil, notFound(err)
 	}
 
@@ -763,7 +790,8 @@ func contactFromRow(row *generated.RosterContacts) *Contact {
 		StudioID:      row.StudioID,
 		HouseholdID:   row.HouseholdID,
 		Name:          row.Name,
-		Phone:         row.Phone,
+		Phone:         row.Phone.String,
+		Email:         row.Email.String,
 		Language:      Language(row.Language),
 		Relationship:  Relationship(row.Relationship),
 		OptedOut:      row.OptedOut,

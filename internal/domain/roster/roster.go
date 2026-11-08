@@ -1,9 +1,8 @@
 // Package roster is who a studio teaches: households, the contacts on them who
-// get the texts and pay, and the attendees who take the lessons.
+// get the reminders and pay, and the attendees who take the lessons.
 //
 // None of them are users. A client never has a password; the owner writes all
-// of this, and a client's only door (in phase 3) is the phone number on a
-// contact. A child is an attendee with no contact. An adult student is one
+// of this, and a client's only door is the email or phone on a contact. A child is an attendee with no contact. An adult student is one
 // person who is both: an attendee whose ContactID names their own contact.
 //
 // Guardianship is implicit. Every contact on a household is treated as a
@@ -13,6 +12,7 @@ package roster
 
 import (
 	"context"
+	"net/mail"
 	"strings"
 	"time"
 	"unicode"
@@ -79,6 +79,17 @@ var (
 	// contacts. An inbound text is filed by the number it came from, so a
 	// number may belong to one contact at a time.
 	ErrPhoneTaken = platformerrors.New("another contact already has that phone number")
+
+	// ErrInvalidEmail is an address NormalizeEmail could not read as one.
+	ErrInvalidEmail = platformerrors.Wrap(ErrInvalidContact, "not an email address")
+
+	// ErrEmailTaken is an address already on another of the studio's live
+	// contacts. The Acuity import groups and re-matches on it, so an address
+	// may belong to one contact at a time.
+	ErrEmailTaken = platformerrors.New("another contact already has that email address")
+
+	// ErrUnreachable is a contact with neither an email nor a phone.
+	ErrUnreachable = platformerrors.Wrap(ErrInvalidContact, "a contact needs an email or a phone")
 )
 
 // Household is the client account.
@@ -123,7 +134,7 @@ func (h *Household) Validate() error {
 	return nil
 }
 
-// Contact is a person with a phone.
+// Contact is a person the studio can reach: by email, by phone, or both.
 type Contact struct {
 	_ struct{} `json:"-"`
 
@@ -137,8 +148,11 @@ type Contact struct {
 	HouseholdID string `json:"householdID"`
 	Name        string `json:"name"`
 
-	// Phone is E.164. A write normalizes what it is given first.
-	Phone string `json:"phone"`
+	// Phone is E.164, or empty. A write normalizes what it is given first.
+	Phone string `json:"phone,omitempty"`
+
+	// Email is trimmed and lowercased, or empty. A write normalizes it first.
+	Email string `json:"email,omitempty"`
 
 	Language     Language     `json:"language"`
 	Relationship Relationship `json:"relationship"`
@@ -148,8 +162,8 @@ type Contact struct {
 	OptedOut bool `json:"optedOut"`
 }
 
-// Validate is the shape this package refuses before the database does. It
-// expects a phone NormalizePhone has already been through.
+// Validate is the shape this package refuses before the database does: at
+// least one of the email and the phone, and each one present readable.
 func (c *Contact) Validate() error {
 	switch {
 	case c == nil:
@@ -164,10 +178,20 @@ func (c *Contact) Validate() error {
 		return platformerrors.Wrapf(ErrInvalidContact, "unknown language %q", c.Language)
 	case !c.Relationship.Valid():
 		return platformerrors.Wrapf(ErrInvalidContact, "unknown relationship %q", c.Relationship)
+	case strings.TrimSpace(c.Phone) == "" && strings.TrimSpace(c.Email) == "":
+		return ErrUnreachable
 	}
 
-	if _, err := NormalizePhone(c.Phone); err != nil {
-		return err
+	if strings.TrimSpace(c.Phone) != "" {
+		if _, err := NormalizePhone(c.Phone); err != nil {
+			return err
+		}
+	}
+
+	if strings.TrimSpace(c.Email) != "" {
+		if _, err := NormalizeEmail(c.Email); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -250,6 +274,29 @@ func NormalizePhone(raw string) (string, error) {
 	return "+" + number, nil
 }
 
+// NormalizeEmail turns what an owner typed, or what an export held, into the
+// address the roster stores: a bare address, trimmed and lowercased.
+//
+// Lowercasing the local part is not what RFC 5321 promises, but it is what
+// every mailbox a studio's clients use does, and two spellings of one address
+// on two contacts is the worse failure. A display name ("Ana <ana@...>") is
+// refused rather than dropped, so nothing typed is silently discarded.
+func NormalizeEmail(raw string) (string, error) {
+	trimmed := strings.TrimSpace(raw)
+
+	parsed, err := mail.ParseAddress(trimmed)
+	if err != nil || parsed.Name != "" || parsed.Address != trimmed {
+		return "", platformerrors.Wrapf(ErrInvalidEmail, "%q", raw)
+	}
+
+	at := strings.LastIndex(parsed.Address, "@")
+	if at <= 0 || !strings.Contains(parsed.Address[at+1:], ".") || strings.ContainsAny(parsed.Address, " \t") {
+		return "", platformerrors.Wrapf(ErrInvalidEmail, "%q", raw)
+	}
+
+	return strings.ToLower(parsed.Address), nil
+}
+
 // Store reads and writes the roster. Writes take a Tx and reads take an
 // executor. Every method is scoped to a studio, and a row in another studio is
 // ErrNotFound.
@@ -279,7 +326,7 @@ type Store interface {
 	// GetContact reads one, or ErrNotFound.
 	GetContact(ctx context.Context, q database.SQLQueryExecutor, scope tenancy.Scope, id string) (*Contact, error)
 
-	// UpdateContact rewrites the name, phone, language and relationship.
+	// UpdateContact rewrites the name, phone, email, language and relationship.
 	UpdateContact(ctx context.Context, tx database.Tx, scope tenancy.Scope, contact *Contact) (*Contact, error)
 
 	// ArchiveContact retires a contact, unlinking any attendee that was them.

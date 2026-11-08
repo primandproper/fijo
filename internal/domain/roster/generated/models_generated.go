@@ -26,7 +26,7 @@ type RosterContacts struct {
 	StudioID      string
 	HouseholdID   string
 	Name          string
-	Phone         string
+	Phone         sql.NullString
 	Language      string
 	Relationship  string
 	OptedOut      bool
@@ -34,6 +34,7 @@ type RosterContacts struct {
 	CreatedAt     time.Time
 	LastUpdatedAt sql.NullTime
 	ArchivedAt    sql.NullTime
+	Email         sql.NullString
 }
 
 type RosterHouseholds struct {

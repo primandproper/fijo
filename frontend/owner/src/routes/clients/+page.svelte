@@ -37,7 +37,9 @@
       return (
         h.name.toLowerCase().includes(q) ||
         h.attendees.some((a) => a.name.toLowerCase().includes(q)) ||
-        h.contacts.some((c) => c.name.toLowerCase().includes(q) || (digits !== '' && c.phone.includes(digits)))
+        h.contacts.some(
+          (c) => c.name.toLowerCase().includes(q) || c.email.includes(q) || (digits !== '' && c.phone.includes(digits)),
+        )
       );
     }),
   );
@@ -46,8 +48,8 @@
 <div class="wide">
   <h1>Clients</h1>
   <p class="muted">
-    A client is a household: the people you text, and the students who take lessons. A parent and their children are one
-    client; an adult student is a client on their own.
+    A client is a household: the people you send reminders to, and the students who take lessons. A parent and their
+    children are one client; an adult student is a client on their own.
   </p>
 
   {#if form?.error}
@@ -55,7 +57,7 @@
   {/if}
 
   {#if data.households.length > 0}
-    <input class="search" type="search" placeholder="Find a client, student or phone" bind:value={query} />
+    <input class="search" type="search" placeholder="Find a client, student, email or phone" bind:value={query} />
     <section class="card list">
       {#each shown as household (household.id)}
         <a class="item" href={resolve('/clients/[id]', { id: household.id })}>
@@ -70,7 +72,7 @@
             </div>
             <div class="muted">
               {#each household.contacts as contact, i (contact.id)}{i > 0 ? ' · ' : ''}{contact.name}
-                {contact.displayPhone}{/each}
+                {contact.email || contact.displayPhone}{/each}
             </div>
           </div>
           <div class="lessons muted">
@@ -90,10 +92,19 @@
   <section class="card">
     <h2>Add a client</h2>
     <form method="POST" action="?/create" use:enhance>
+      <label for="contactName">Who you send reminders to</label>
+      <input id="contactName" name="contactName" bind:value={contactName} required />
       <div class="row two">
         <div>
-          <label for="contactName">Who you text</label>
-          <input id="contactName" name="contactName" bind:value={contactName} required />
+          <label for="email">Their email</label>
+          <input
+            id="email"
+            name="email"
+            type="email"
+            autocomplete="off"
+            value={form?.values?.email ?? ''}
+            placeholder="ana@example.com"
+          />
         </div>
         <div>
           <label for="phone">Their phone</label>
@@ -104,10 +115,10 @@
             inputmode="tel"
             value={form?.values?.phone ?? ''}
             placeholder="(512) 555-0100"
-            required
           />
         </div>
       </div>
+      <p class="muted">An email, a phone, or both. Reminders go by email.</p>
       <label class="check">
         <input type="checkbox" name="attends" bind:checked={attends} />
         They take lessons themselves
@@ -120,7 +131,7 @@
           <input id="name" name="name" value={form?.values?.name ?? ''} placeholder="García family" />
         </div>
         <div>
-          <label for="language">Texts in</label>
+          <label for="language">Reminders in</label>
           <select id="language" name="language">
             <option value="en">English</option>
             <option value="es">Spanish</option>

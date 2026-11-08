@@ -40,6 +40,7 @@ INSERT INTO roster_contacts (
 	household_id,
 	name,
 	phone,
+	email,
 	language,
 	relationship
 ) VALUES (
@@ -49,9 +50,10 @@ INSERT INTO roster_contacts (
 	$4,
 	$5,
 	$6,
-	$7
+	$7,
+	$8
 )
-RETURNING id, studio_id, household_id, name, phone, language, relationship, opted_out, verified_at, created_at, last_updated_at, archived_at
+RETURNING id, studio_id, household_id, name, phone, language, relationship, opted_out, verified_at, created_at, last_updated_at, archived_at, email
 `
 
 type CreateContactParams struct {
@@ -59,7 +61,8 @@ type CreateContactParams struct {
 	StudioID     string
 	HouseholdID  string
 	Name         string
-	Phone        string
+	Phone        sql.NullString
+	Email        sql.NullString
 	Language     string
 	Relationship string
 }
@@ -71,6 +74,7 @@ func (q *Queries) CreateContact(ctx context.Context, db DBTX, arg *CreateContact
 		arg.HouseholdID,
 		arg.Name,
 		arg.Phone,
+		arg.Email,
 		arg.Language,
 		arg.Relationship,
 	)
@@ -88,12 +92,13 @@ func (q *Queries) CreateContact(ctx context.Context, db DBTX, arg *CreateContact
 		&i.CreatedAt,
 		&i.LastUpdatedAt,
 		&i.ArchivedAt,
+		&i.Email,
 	)
 	return &i, err
 }
 
 const getContact = `-- name: GetContact :one
-SELECT id, studio_id, household_id, name, phone, language, relationship, opted_out, verified_at, created_at, last_updated_at, archived_at
+SELECT id, studio_id, household_id, name, phone, language, relationship, opted_out, verified_at, created_at, last_updated_at, archived_at, email
 FROM roster_contacts
 WHERE roster_contacts.id = $1
 	AND roster_contacts.studio_id = $2
@@ -121,12 +126,13 @@ func (q *Queries) GetContact(ctx context.Context, db DBTX, arg *GetContactParams
 		&i.CreatedAt,
 		&i.LastUpdatedAt,
 		&i.ArchivedAt,
+		&i.Email,
 	)
 	return &i, err
 }
 
 const listContactsForHouseholds = `-- name: ListContactsForHouseholds :many
-SELECT id, studio_id, household_id, name, phone, language, relationship, opted_out, verified_at, created_at, last_updated_at, archived_at
+SELECT id, studio_id, household_id, name, phone, language, relationship, opted_out, verified_at, created_at, last_updated_at, archived_at, email
 FROM roster_contacts
 WHERE roster_contacts.studio_id = $1
 	AND roster_contacts.household_id = ANY($2::text[])
@@ -161,6 +167,7 @@ func (q *Queries) ListContactsForHouseholds(ctx context.Context, db DBTX, arg *L
 			&i.CreatedAt,
 			&i.LastUpdatedAt,
 			&i.ArchivedAt,
+			&i.Email,
 		); err != nil {
 			return nil, err
 		}
@@ -200,18 +207,20 @@ const updateContact = `-- name: UpdateContact :one
 UPDATE roster_contacts SET
 	name = $1,
 	phone = $2,
-	language = $3,
-	relationship = $4,
+	email = $3,
+	language = $4,
+	relationship = $5,
 	last_updated_at = NOW()
-WHERE roster_contacts.id = $5
-	AND roster_contacts.studio_id = $6
+WHERE roster_contacts.id = $6
+	AND roster_contacts.studio_id = $7
 	AND roster_contacts.archived_at IS NULL
-RETURNING id, studio_id, household_id, name, phone, language, relationship, opted_out, verified_at, created_at, last_updated_at, archived_at
+RETURNING id, studio_id, household_id, name, phone, language, relationship, opted_out, verified_at, created_at, last_updated_at, archived_at, email
 `
 
 type UpdateContactParams struct {
 	Name         string
-	Phone        string
+	Phone        sql.NullString
+	Email        sql.NullString
 	Language     string
 	Relationship string
 	ID           string
@@ -222,6 +231,7 @@ func (q *Queries) UpdateContact(ctx context.Context, db DBTX, arg *UpdateContact
 	row := db.QueryRowContext(ctx, updateContact,
 		arg.Name,
 		arg.Phone,
+		arg.Email,
 		arg.Language,
 		arg.Relationship,
 		arg.ID,
@@ -241,6 +251,7 @@ func (q *Queries) UpdateContact(ctx context.Context, db DBTX, arg *UpdateContact
 		&i.CreatedAt,
 		&i.LastUpdatedAt,
 		&i.ArchivedAt,
+		&i.Email,
 	)
 	return &i, err
 }

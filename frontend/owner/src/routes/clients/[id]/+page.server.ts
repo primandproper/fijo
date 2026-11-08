@@ -100,13 +100,14 @@ export const actions: Actions = {
       householdId: params.id,
       name: text(form, 'name'),
       phone: text(form, 'phone'),
+      email: text(form, 'email'),
       language: languageOf(text(form, 'language')),
       relationship: RELATIONSHIPS[text(form, 'relationship') === 'self' ? 'self' : 'guardian'].value,
       optedOut: false,
       verified: false,
     };
     if (!contact.name) return fail(400, { error: 'A contact needs a name.' });
-    if (!contact.phone) return fail(400, { error: 'A contact needs a phone number.' });
+    if (!contact.phone && !contact.email) return fail(400, { error: 'A contact needs an email or a phone number.' });
     const token = locals.accessToken!;
     return attempt(
       () =>

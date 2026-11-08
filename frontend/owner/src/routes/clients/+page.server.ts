@@ -63,6 +63,7 @@ export const actions: Actions = {
     const language = languageOf(text('language'));
     const contactName = text('contactName');
     const phone = text('phone');
+    const email = text('email');
     const attends = form.get('attends') === 'on';
     const children = text('children')
       .split('\n')
@@ -72,9 +73,9 @@ export const actions: Actions = {
     const withLesson = form.get('withLesson') === 'on';
     const lessonFor = text('lessonFor');
 
-    const values = { name: text('name'), contactName, phone, attends, children: text('children'), withLesson };
-    if (!contactName) return fail(400, { error: 'Give the name of the person you text.', values });
-    if (!phone) return fail(400, { error: 'Give a phone number to text.', values });
+    const values = { name: text('name'), contactName, phone, email, attends, children: text('children'), withLesson };
+    if (!contactName) return fail(400, { error: 'Give the name of the person you send reminders to.', values });
+    if (!phone && !email) return fail(400, { error: 'Give an email or a phone number.', values });
     if (!attends && children.length === 0) {
       return fail(400, { error: 'Name who takes lessons, or tick that the contact does.', values });
     }
@@ -100,6 +101,7 @@ export const actions: Actions = {
               householdId: '',
               name: contactName,
               phone,
+              email,
               language,
               relationship: 0,
               optedOut: false,

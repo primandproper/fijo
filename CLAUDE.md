@@ -9,7 +9,9 @@ businesses, built on `github.com/primandproper/platform-go/v15` (the domain tier
 sign-in, audit, sessions, rbac, ...) over `github.com/primandproper/primitives-go/v2` (the
 infrastructure tier). Go 1.27. Read `docs/DESIGN.md` first: it holds the settled facts, the domain
 model, what Fijo composes from each tier, and the build order. Phases 0 (scaffold and owner sign-in)
-and 1 (the grid) are done, phase 2 (the roster) is half done, and phases 3–6 are ahead.
+and 1 (the grid) are done, phase 2 (the roster) is half done, and phases 3–6 are ahead. Since
+2026-11-07 reminders are email first and SMS is "later", and an Acuity CSV import is the cutover
+blocker (design doc, "Email first, and leaving Acuity").
 
 **The reference consumer is `../dinnerdonebetter`.** When you wonder how something is done on this
 stack, read how DDB does it before inventing anything. The two sibling repositories'
@@ -68,8 +70,8 @@ holds, so what authorizes it is the database credential. They register through t
   preferences); `schedule` is phase 1's grid — offerings, series, occurrences, closures, the
   civil `Date`/`ClockTime` types, the `Materializer` that turns rules into rows, and `Commands`,
   the audited acts that write rows and their audit entry on one transaction. `roster` is the
-  studio's clients — households, contacts (phones, E.164, unique per studio) and attendees — and
-  every series names at least one attendee. Messaging will follow the same outline.
+  studio's clients — households, contacts (an email, a phone in E.164, or both; each unique per
+  studio) and attendees — and every series names at least one attendee. Messaging will follow the same outline.
 - `internal/studios/` — what a studio is that identity owns rather than Fijo: today the time zone
   the materializer resolves a wall clock in, behind the narrow interface the domain takes.
 - `internal/services/<name>/grpc/` — Fijo's gRPC servers, each with a `Require` declaring its

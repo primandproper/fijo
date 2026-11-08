@@ -5,6 +5,7 @@ INSERT INTO roster_contacts (
 	household_id,
 	name,
 	phone,
+	email,
 	language,
 	relationship
 ) VALUES (
@@ -12,7 +13,8 @@ INSERT INTO roster_contacts (
 	sqlc.arg(studio_id),
 	sqlc.arg(household_id),
 	sqlc.arg(name),
-	sqlc.arg(phone),
+	sqlc.narg(phone),
+	sqlc.narg(email),
 	sqlc.arg(language),
 	sqlc.arg(relationship)
 )
@@ -36,7 +38,8 @@ ORDER BY roster_contacts.household_id, roster_contacts.created_at, roster_contac
 -- name: UpdateContact :one
 UPDATE roster_contacts SET
 	name = sqlc.arg(name),
-	phone = sqlc.arg(phone),
+	phone = sqlc.narg(phone),
+	email = sqlc.narg(email),
 	language = sqlc.arg(language),
 	relationship = sqlc.arg(relationship),
 	last_updated_at = NOW()

@@ -106,14 +106,17 @@ export interface Contact {
   householdId: string;
   name: string;
   /**
-   * E.164 as stored. A write accepts what a person typed and normalizes it; a
-   * number with no country code is read as North American.
+   * E.164 as stored, or empty. A write accepts what a person typed and
+   * normalizes it; a number with no country code is read as North American.
+   * A contact has a phone, an email, or both.
    */
   phone: string;
   language: Language;
   relationship: Relationship;
   optedOut: boolean;
   verified: boolean;
+  /** Lowercased as stored, or empty. */
+  email: string;
 }
 
 export interface Attendee {
@@ -121,7 +124,7 @@ export interface Attendee {
   householdId: string;
   name: string;
   language: Language;
-  /** Set for an adult who carries their own phone. */
+  /** Set for an adult who is their own contact. */
   contactId: string;
 }
 
@@ -165,7 +168,7 @@ export interface CreateHouseholdRequest {
   /** Only the name, language and notes are read. */
   household: Household | undefined;
   contacts: NewContact[];
-  /** Attendees with no phone of their own: children, usually. */
+  /** Attendees who are nobody's contact: children, usually. */
   attendees: Attendee[];
 }
 
@@ -216,6 +219,7 @@ function createBaseContact(): Contact {
     relationship: 0,
     optedOut: false,
     verified: false,
+    email: "",
   };
 }
 
@@ -244,6 +248,9 @@ export const Contact: MessageFns<Contact> = {
     }
     if (message.verified !== false) {
       writer.uint32(64).bool(message.verified);
+    }
+    if (message.email !== "") {
+      writer.uint32(74).string(message.email);
     }
     return writer;
   },
@@ -319,6 +326,14 @@ export const Contact: MessageFns<Contact> = {
           message.verified = reader.bool();
           continue;
         }
+        case 9: {
+          if (tag !== 74) {
+            break;
+          }
+
+          message.email = reader.string();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -346,6 +361,7 @@ export const Contact: MessageFns<Contact> = {
         ? globalThis.Boolean(object.opted_out)
         : false,
       verified: isSet(object.verified) ? globalThis.Boolean(object.verified) : false,
+      email: isSet(object.email) ? globalThis.String(object.email) : "",
     };
   },
 
@@ -375,6 +391,9 @@ export const Contact: MessageFns<Contact> = {
     if (message.verified !== false) {
       obj.verified = message.verified;
     }
+    if (message.email !== "") {
+      obj.email = message.email;
+    }
     return obj;
   },
 
@@ -391,6 +410,7 @@ export const Contact: MessageFns<Contact> = {
     message.relationship = object.relationship ?? 0;
     message.optedOut = object.optedOut ?? false;
     message.verified = object.verified ?? false;
+    message.email = object.email ?? "";
     return message;
   },
 };

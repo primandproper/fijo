@@ -38,6 +38,34 @@ func TestNormalizePhone(t *testing.T) {
 	}
 }
 
+func TestNormalizeEmail(t *testing.T) {
+	t.Parallel()
+
+	for raw, want := range map[string]string{
+		"ana@example.com":          "ana@example.com",
+		"  Ana.Ruiz@Example.COM  ": "ana.ruiz@example.com",
+		"lucia+piano@example.mx":   "lucia+piano@example.mx",
+	} {
+		t.Run(raw, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := NormalizeEmail(raw)
+			must.NoError(t, err)
+			test.Eq(t, want, got)
+		})
+	}
+
+	for _, raw := range []string{"", "ana", "ana@", "@example.com", "ana@example", "Ana Ruiz <ana@example.com>", "ana@@example.com", "ana ruiz@example.com"} {
+		t.Run("refuses "+raw, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := NormalizeEmail(raw)
+			test.ErrorIs(t, err, ErrInvalidEmail)
+			test.ErrorIs(t, err, ErrInvalidContact)
+		})
+	}
+}
+
 func TestValidate(t *testing.T) {
 	t.Parallel()
 
@@ -49,15 +77,29 @@ func TestValidate(t *testing.T) {
 		test.ErrorIs(t, (&Household{StudioID: "s", Name: "García", Language: "fr"}).Validate(), ErrInvalidHousehold)
 	})
 
-	t.Run("a contact needs a phone and a relationship", func(t *testing.T) {
+	t.Run("a contact needs an email or a phone, and a relationship", func(t *testing.T) {
 		t.Parallel()
 
 		valid := Contact{StudioID: "s", HouseholdID: "h", Name: "Lucía", Phone: "512 555 0100", Language: Spanish, Relationship: Guardian}
 		test.NoError(t, valid.Validate())
 
-		noPhone := valid
-		noPhone.Phone = ""
-		test.ErrorIs(t, noPhone.Validate(), ErrInvalidContact)
+		emailOnly := valid
+		emailOnly.Phone = ""
+		emailOnly.Email = "lucia@example.com"
+		test.NoError(t, emailOnly.Validate())
+
+		both := valid
+		both.Email = "lucia@example.com"
+		test.NoError(t, both.Validate())
+
+		neither := valid
+		neither.Phone = "  "
+		test.ErrorIs(t, neither.Validate(), ErrUnreachable)
+		test.ErrorIs(t, neither.Validate(), ErrInvalidContact)
+
+		badEmail := valid
+		badEmail.Email = "lucia at example"
+		test.ErrorIs(t, badEmail.Validate(), ErrInvalidEmail)
 
 		unknown := valid
 		unknown.Relationship = "aunt"

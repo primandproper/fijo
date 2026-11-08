@@ -128,6 +128,57 @@ func TestSQLStoreAgainstPostgres(t *testing.T) {
 			}))
 		})
 
+		t.Run("an email belongs to one contact in a studio", func(t *testing.T) {
+			var reached *roster.Contact
+
+			must.NoError(t, client.WithTransaction(ctx, func(tx database.Tx) error {
+				var createErr error
+				reached, createErr = store.CreateContact(ctx, tx, scope, &roster.Contact{
+					HouseholdID: garcia.ID, Name: "Marco García", Email: " Marco@Example.com ",
+					Language: roster.Spanish, Relationship: roster.Guardian,
+				})
+
+				return createErr
+			}))
+			test.Eq(t, "marco@example.com", reached.Email)
+			test.Eq(t, "", reached.Phone)
+
+			refusal := client.WithTransaction(ctx, func(tx database.Tx) error {
+				_, createErr := store.CreateContact(ctx, tx, scope, &roster.Contact{
+					HouseholdID: garcia.ID, Name: "Somebody", Email: "MARCO@example.com",
+					Language: roster.English, Relationship: roster.Guardian,
+				})
+
+				return createErr
+			})
+			test.ErrorIs(t, refusal, roster.ErrEmailTaken)
+
+			// A phone can be added to an email-only contact, and taking the email
+			// away again leaves them reachable by the phone.
+			must.NoError(t, client.WithTransaction(ctx, func(tx database.Tx) error {
+				updated := *reached
+				updated.Phone = "512 555 0177"
+				updated.Email = ""
+
+				var updateErr error
+				reached, updateErr = store.UpdateContact(ctx, tx, scope, &updated)
+
+				return updateErr
+			}))
+			test.Eq(t, "+15125550177", reached.Phone)
+			test.Eq(t, "", reached.Email)
+
+			refusal = client.WithTransaction(ctx, func(tx database.Tx) error {
+				unreachable := *reached
+				unreachable.Phone = ""
+
+				_, updateErr := store.UpdateContact(ctx, tx, scope, &unreachable)
+
+				return updateErr
+			})
+			test.ErrorIs(t, refusal, roster.ErrUnreachable)
+		})
+
 		t.Run("an adult student is a contact and an attendee", func(t *testing.T) {
 			var ana *roster.Attendee
 

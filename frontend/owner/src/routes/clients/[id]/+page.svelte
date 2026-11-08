@@ -52,7 +52,7 @@
     <div>
       <h1>{household.name}</h1>
       <p class="muted">
-        Texts in {LANGUAGES[household.language].label}{#if household.notes}
+        Reminders in {LANGUAGES[household.language].label}{#if household.notes}
           · {household.notes}{/if}
       </p>
     </div>
@@ -74,7 +74,7 @@
       <form method="POST" action="?/updateHousehold" use:enhance={closeOnSuccess}>
         <label for="h-name">Client name</label>
         <input id="h-name" name="name" value={household.name} required />
-        <label for="h-language">Texts in</label>
+        <label for="h-language">Reminders in</label>
         <select id="h-language" name="language" value={household.language}>
           {#each Object.entries(LANGUAGES) as [value, l] (value)}
             <option {value}>{l.label}</option>
@@ -122,7 +122,7 @@
             <strong>{student.name}</strong>
             <span class="muted">
               · {LANGUAGES[student.language].label}{#if student.contactId}
-                · texts as {contactName(student.contactId)}{/if}
+                · is {contactName(student.contactId)}{/if}
             </span>
           </div>
           <div class="buttons">
@@ -185,9 +185,9 @@
                 </select>
               </div>
             </div>
-            <label for="{student.id}-contact">Texts as</label>
+            <label for="{student.id}-contact">Is the contact</label>
             <select id="{student.id}-contact" name="contactId" value={student.contactId}>
-              <option value="">Nobody: a child, or texted through a guardian</option>
+              <option value="">Nobody: a child, or reached through a guardian</option>
               {#each household.contacts as contact (contact.id)}
                 <option value={contact.id}>{contact.name}</option>
               {/each}
@@ -221,7 +221,7 @@
         {open === 'new-contact' ? 'Close' : 'Add a contact'}
       </button>
     </div>
-    <p class="muted">The people who get texts about lessons, and who pay.</p>
+    <p class="muted">The people who get reminders about lessons, and who pay.</p>
 
     {#if open === 'new-contact'}
       <form method="POST" action="?/saveContact" use:enhance={closeOnSuccess} class="inline">
@@ -241,7 +241,9 @@
             <strong>{contact.name}</strong>
             <span class="muted">· {RELATIONSHIPS[contact.relationship].label}</span>
             <div>
-              <a href="tel:{contact.phone}">{contact.displayPhone}</a>
+              {#if contact.email}<a href="mailto:{contact.email}">{contact.email}</a>{/if}
+              {#if contact.email && contact.phone}<span class="muted">·</span>{/if}
+              {#if contact.phone}<a href="tel:{contact.phone}">{contact.displayPhone}</a>{/if}
               <span class="muted">· {LANGUAGES[contact.language].label}</span>
               {#if contact.optedOut}<span class="tag">opted out of texts</span>{/if}
             </div>
@@ -263,7 +265,7 @@
         {/if}
       </div>
     {:else}
-      <p class="muted">Nobody to text yet.</p>
+      <p class="muted">Nobody to send reminders to yet.</p>
     {/each}
   </section>
 
@@ -281,12 +283,21 @@
 
 {#snippet contactFields(
   prefix: string,
-  contact: { name: string; phone: string; language: string; relationship: string } | null,
+  contact: { name: string; phone: string; email: string; language: string; relationship: string } | null,
 )}
+  <label for="{prefix}-name">Name</label>
+  <input id="{prefix}-name" name="name" value={contact?.name ?? ''} required />
   <div class="row two">
     <div>
-      <label for="{prefix}-name">Name</label>
-      <input id="{prefix}-name" name="name" value={contact?.name ?? ''} required />
+      <label for="{prefix}-email">Email</label>
+      <input
+        id="{prefix}-email"
+        name="email"
+        type="email"
+        autocomplete="off"
+        value={contact?.email ?? ''}
+        placeholder="ana@example.com"
+      />
     </div>
     <div>
       <label for="{prefix}-phone">Phone</label>
@@ -297,13 +308,12 @@
         inputmode="tel"
         value={contact?.phone ?? ''}
         placeholder="(512) 555-0100"
-        required
       />
     </div>
   </div>
   <div class="row two">
     <div>
-      <label for="{prefix}-language">Texts in</label>
+      <label for="{prefix}-language">Reminders in</label>
       <select id="{prefix}-language" name="language" value={contact?.language ?? household.language}>
         {#each Object.entries(LANGUAGES) as [value, l] (value)}
           <option {value}>{l.label}</option>

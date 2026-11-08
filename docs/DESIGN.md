@@ -9,10 +9,12 @@ the "Settled facts" section; the rest is derived from it.
 - Scheduling for one- and two-person recurring-appointment businesses. The model
   is the weekly grid: standing appointments with exceptions, cancellations and
   make-ups. Nothing music-specific in the core.
-- Owners are identity users. Clients are not users: a phone number and a name,
-  never a password. The client's door is SMS. Email is for owners.
-- Guardian and attendee are distinct. Anyone on a household with a phone number
-  who has not opted out gets the texts. Language is per person.
+- Owners are identity users. Clients are not users: a name and a way to reach
+  them, never a password. ~~The client's door is SMS. Email is for owners.~~
+  **Revised 2026-11-07:** a contact has an email, a phone, or both, and the
+  client's door is email first. See "Email first, and leaving Acuity" below.
+- Guardian and attendee are distinct. Anyone on a household with a way to be
+  reached who has not opted out gets the reminders. Language is per person.
 - Every client-facing string ships in English and Spanish. Not to be re-litigated.
 - An appointment is a service, a time, one or more attendees, one or more staff.
   Staff is reassignable per occurrence. Group appointments exist.
@@ -31,7 +33,8 @@ the "Settled facts" section; the rest is derived from it.
   US/Central.
 - Stripe only, via Stripe Checkout. Metering of texts from day one; plan gating
   and Fijo's own pricing deferred.
-- SMS is Twilio, and Fijo is the **ISV** on one Twilio account: each studio is
+- SMS (deferred to "later" on 2026-11-07, the decision below stands for when it
+  returns) is Twilio, and Fijo is the **ISV** on one Twilio account: each studio is
   registered as its own A2P 10DLC **Sole Proprietor** brand through Twilio's ISV
   API, so a studio sends under its own brand from its own number. Per-tenant
   numbers are therefore required rather than deferred. Evaluation until the
@@ -39,6 +42,58 @@ the "Settled facts" section; the rest is derived from it.
   vendors" below.
 - Google Calendar: read-only push with a sync button, after v1.
 - platform-go v15 is frozen. Platform changes are additive or filed as issues.
+
+## Email first, and leaving Acuity (decided 2026-11-07)
+
+The first studio's owner was asked what would stop him switching. Two answers,
+and they revise the plan:
+
+1. **Switching must ask nothing of his clients.** He wants his existing
+   relationships brought over from Acuity, and his plan has no API access
+   (Acuity's API is its top tier). Every Acuity plan exports CSV.
+2. **Email reaches his clients better than texts do.**
+
+The two meet: a texting number new to the client needs documented opt-in
+under 10DLC, and whether consent collected under Acuity carries to a new
+sender on a new number is doubtful. A transactional reminder by email needs
+neither a carrier registration nor an opt-in round trip, so email is what
+makes "the clients do nothing" true on cutover day.
+
+What changes:
+
+- **A contact has an email, a phone, or both**, and at least one. Both are
+  unique among a studio's live contacts: the phone because an inbound text is
+  filed by its number, the email because the import groups Acuity records by
+  it and a re-import matches on it. Emails are stored trimmed and lowercased.
+- **Reminders go by email first.** Phase 3 is "the reminder", not "the reminder
+  text": timers, bilingual templates, the outbox, behind a channel so SMS can
+  join later. Mail is sent from a Fijo domain under the studio's name with
+  `Reply-To` set to the owner's own address, so a reply lands in his inbox. No
+  per-studio domain, no inbound mail parsing, no Fijo-side thread in v1.
+- **SMS, Twilio, the ISV registration and per-tenant numbers move to "later"**,
+  together with the inbound thread. The vendor decision below still stands for
+  when they return; its open question (an ISV profile for a sole proprietor)
+  stops blocking anything.
+- **The client page's door (phase 4) is an emailed sign-in link**
+  (`signin/magiclinks`), with the phone code for a contact who has only a phone
+  once SMS exists.
+- **Importing from Acuity is the cutover blocker** and comes before reminders.
+  The owner uploads Acuity's two exports, the client list (name, email, phone,
+  notes) and the appointments report (time, client, type, price, notes), and
+  Fijo shows a preview that writes nothing until he confirms:
+  - clients become households and contacts, with records that share an email,
+    phone or last name proposed as one household (Acuity has one flat record
+    per name booked, so a parent booking two children is two records with one
+    email);
+  - future appointments grouped by client, type, weekday and time, at one- or
+    two-week spacing, become proposed standing lessons from their first future
+    date, and what fits no pattern is listed for him;
+  - it can be run again: a trial run now and a final one on cutover day, when
+    he turns off Acuity's booking and reminders, matching on the email (or the
+    phone) rather than writing duplicates;
+  - package balances wait for the money phase and are typed in meanwhile.
+
+  Built against a real export from the first studio, not guessed columns.
 
 ## Tenancy and roles
 
@@ -58,8 +113,9 @@ Three Fijo-owned domains, each a Store plus Postgres SQL plus mock, DDB-style.
 ### roster
 
 - **Household**: the client account. Default language, reminder offsets, notes.
-- **Contact**: a person with a phone number (E.164). Name, language, opted_out,
-  verified_at, relationship (`guardian` or `self`). Contacts receive texts. The
+- **Contact**: a person with an email, a phone number (E.164), or both. Name,
+  language, opted_out, verified_at, relationship (`guardian` or `self`).
+  Contacts receive the reminders. The
   payer on any agreement is a contact.
 - **Attendee**: a person who attends. Name, language, optional `contact_id` when
   they carry their own phone. An adult who attends is one person that is both a
@@ -110,7 +166,9 @@ Three Fijo-owned domains, each a Store plus Postgres SQL plus mock, DDB-style.
 
 ### messaging
 
-- **Thread**: one per household. **Message**: direction, channel (`sms`),
+- *(2026-11-07: v1 is outbound email with replies to the owner's inbox; the
+  thread and inbound arrive with SMS, "later".)*
+- **Thread**: one per household. **Message**: direction, channel (`email`, `sms`),
   body, language, provider message id, status, optional occurrence id, optional
   reminder id.
 - **Reminder**: a scheduled outbound text for (occurrence, contact, offset),
@@ -136,11 +194,11 @@ Three Fijo-owned domains, each a Store plus Postgres SQL plus mock, DDB-style.
 | `server/grpc`, `server/http`, `routing`, `healthcheck` | API, webhook receipt, probes | v1 |
 | `authentication` (argon2, tokens), `authentication/webauthn` | owner sign-in engines | v1 |
 | `authorization`, `tenancy`, `errors`, `filtering`, `clock`, `identifiers`, `random` | cross-cutting | v1 |
-| `email` (provider as DDB) | owner password reset, invitations | v1 |
+| `email` (provider as DDB) | owner password reset, invitations, client reminders | v1 |
 | `secrets/env` | localdev secrets | v1 |
 | `webhooks/inbound` | Twilio inbound (new verifier), Stripe callbacks | v1 / money |
 | `capitalism/stripe` | checkout and subscriptions | money |
-| `sms` | interface, config, noop, mock, twilio | v1, phase 3 |
+| `sms` | interface, config, noop, mock, twilio | later (was phase 3) |
 | `messagequeue`, `jobs` | not needed while timers + outbox + in-process workers suffice | later |
 
 ### platform-go (v15.1.0)
@@ -153,7 +211,7 @@ Three Fijo-owned domains, each a Store plus Postgres SQL plus mock, DDB-style.
 | `audit` (+grpc) | who moved what | v1 |
 | `outbox` | after-commit sends (texts, emails) | v1 |
 | `timers` | reminder firing, once fleet-wide | v1 |
-| `metering` | SMS count per studio | v1 |
+| `metering` | email (and later SMS) count per studio | v1 |
 | `service`, `errormappers`, `privacyadapters` | composition root | v1 |
 | `billing`, `billing/sync`, `billing/plans`, `billing/standing` | offerings as products, packages as purchases, recurring as subscriptions | money |
 | `entitlements` | seat and SMS-allowance gating | later |
@@ -188,19 +246,23 @@ Three Fijo-owned domains, each a Store plus Postgres SQL plus mock, DDB-style.
    yet.
 2. **The roster.** Households, contacts, attendees, languages, opt-outs.
    Attach attendees and payer to series. Invite link (verification deferred to
-   phase 3 where the sms package exists).
-3. **The reminder text.** `sms` package (noop + Twilio). Reminder scheduling on
-   timers, bilingual templates, outbox for after-commit sends, SMS metering.
-   Inbound webhook → thread. Owner thread UI with reply. Phone verification
-   store and the invite claim.
-4. **Client page.** Phone-code sign-in, upcoming lessons, balance, "ask to
-   reschedule" opens the thread.
+   phase 3 where the sms package exists). *2026-11-07:* contacts gain an
+   email, then the **Acuity import** (see "Email first, and leaving Acuity").
+3. **The reminder.** ~~`sms` package (noop + Twilio).~~ Reminder scheduling on
+   timers, bilingual templates, outbox for after-commit sends, sent by email
+   with `Reply-To` the owner, metered. ~~Inbound webhook → thread. Owner thread
+   UI with reply. Phone verification store and the invite claim.~~ (moved to
+   later with SMS)
+4. **Client page.** Emailed sign-in link, upcoming lessons, balance, "ask to
+   reschedule" mails the owner.
 5. **Money.** Offerings ↔ billing products, packages as purchases feeding the
    balance ledger, recurring as subscriptions with price override, Stripe
    Checkout, `billing/sync` on the Stripe webhook.
 6. **Later.** Waitlist, dataprivacy and retention flows, entitlements gating,
-   Google Calendar push (OAuth grant store gap). Per-tenant numbers and A2P
-   registration moved into phase 3, where the ISV model puts them.
+   Google Calendar push (OAuth grant store gap). SMS (2026-11-07): the `sms`
+   package, Twilio as ISV with per-tenant numbers and A2P registration, inbound
+   webhook → thread with the owner's thread UI, phone verification and the
+   invite claim.
 
 ## Phase 1 as built (2026-09-22)
 
@@ -458,6 +520,9 @@ being open.
 
 
 ### Messaging vendors (decided 2026-09-22)
+
+*SMS moved to "later" on 2026-11-07 (see "Email first, and leaving Acuity");
+what follows is the decision for when it returns.*
 
 **Twilio, with Fijo as the ISV.** 10DLC is a carrier requirement enforced
 through The Campaign Registry, so no provider avoids it and changing vendors

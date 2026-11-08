@@ -173,7 +173,7 @@ func sampleClients() []*sampleClient {
 	return []*sampleClient{
 		{
 			household: roster.Household{Name: "García", Language: roster.Spanish, Notes: "Pickup is grandma on Thursdays."},
-			contact:   roster.Contact{Name: "Lucía García", Phone: "+1 512 555 0101", Language: roster.Spanish, Relationship: roster.Guardian},
+			contact:   roster.Contact{Name: "Lucía García", Phone: "+1 512 555 0101", Email: "lucia.garcia@example.com", Language: roster.Spanish, Relationship: roster.Guardian},
 			children:  []string{"Sofía García", "Mateo García"},
 			lessons: []*sampleLesson{
 				{student: "Sofía García", offering: 0, weekday: time.Tuesday, at: schedule.ClockTime{Hour: 16}, interval: 1},
@@ -190,7 +190,7 @@ func sampleClients() []*sampleClient {
 		},
 		{
 			household: roster.Household{Name: "Chen", Language: roster.English},
-			contact:   roster.Contact{Name: "Wei Chen", Phone: "+1 512 555 0103", Language: roster.English, Relationship: roster.Guardian},
+			contact:   roster.Contact{Name: "Wei Chen", Email: "wei.chen@example.com", Language: roster.English, Relationship: roster.Guardian},
 			children:  []string{"Lily Chen"},
 			lessons: []*sampleLesson{
 				{student: "Lily Chen", offering: 3, weekday: time.Saturday, at: schedule.ClockTime{Hour: 10}, interval: 2},

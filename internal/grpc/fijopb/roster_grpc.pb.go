@@ -1,6 +1,7 @@
 // The roster: who a studio teaches. A household is the client account; its
-// contacts have phones and get the texts; its attendees take the lessons. An
-// adult student is both, an attendee whose contact_id names their own contact.
+// contacts have an email, a phone or both and get the reminders; its attendees
+// take the lessons. An adult student is both, an attendee whose contact_id
+// names their own contact.
 //
 // Nobody here is a user. Every call is the caller's own studio, read off the
 // principal; no studio is ever on the wire.

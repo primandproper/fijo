@@ -1,6 +1,7 @@
 // The roster: who a studio teaches. A household is the client account; its
-// contacts have phones and get the texts; its attendees take the lessons. An
-// adult student is both, an attendee whose contact_id names their own contact.
+// contacts have an email, a phone or both and get the reminders; its attendees
+// take the lessons. An adult student is both, an attendee whose contact_id
+// names their own contact.
 //
 // Nobody here is a user. Every call is the caller's own studio, read off the
 // principal; no studio is ever on the wire.
@@ -134,13 +135,16 @@ type Contact struct {
 	Id          string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	HouseholdId string                 `protobuf:"bytes,2,opt,name=household_id,json=householdId,proto3" json:"household_id,omitempty"`
 	Name        string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
-	// E.164 as stored. A write accepts what a person typed and normalizes it; a
-	// number with no country code is read as North American.
-	Phone         string       `protobuf:"bytes,4,opt,name=phone,proto3" json:"phone,omitempty"`
-	Language      Language     `protobuf:"varint,5,opt,name=language,proto3,enum=fijo.v1.Language" json:"language,omitempty"`
-	Relationship  Relationship `protobuf:"varint,6,opt,name=relationship,proto3,enum=fijo.v1.Relationship" json:"relationship,omitempty"`
-	OptedOut      bool         `protobuf:"varint,7,opt,name=opted_out,json=optedOut,proto3" json:"opted_out,omitempty"`
-	Verified      bool         `protobuf:"varint,8,opt,name=verified,proto3" json:"verified,omitempty"`
+	// E.164 as stored, or empty. A write accepts what a person typed and
+	// normalizes it; a number with no country code is read as North American.
+	// A contact has a phone, an email, or both.
+	Phone        string       `protobuf:"bytes,4,opt,name=phone,proto3" json:"phone,omitempty"`
+	Language     Language     `protobuf:"varint,5,opt,name=language,proto3,enum=fijo.v1.Language" json:"language,omitempty"`
+	Relationship Relationship `protobuf:"varint,6,opt,name=relationship,proto3,enum=fijo.v1.Relationship" json:"relationship,omitempty"`
+	OptedOut     bool         `protobuf:"varint,7,opt,name=opted_out,json=optedOut,proto3" json:"opted_out,omitempty"`
+	Verified     bool         `protobuf:"varint,8,opt,name=verified,proto3" json:"verified,omitempty"`
+	// Lowercased as stored, or empty.
+	Email         string `protobuf:"bytes,9,opt,name=email,proto3" json:"email,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -231,13 +235,20 @@ func (x *Contact) GetVerified() bool {
 	return false
 }
 
+func (x *Contact) GetEmail() string {
+	if x != nil {
+		return x.Email
+	}
+	return ""
+}
+
 type Attendee struct {
 	state       protoimpl.MessageState `protogen:"open.v1"`
 	Id          string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	HouseholdId string                 `protobuf:"bytes,2,opt,name=household_id,json=householdId,proto3" json:"household_id,omitempty"`
 	Name        string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
 	Language    Language               `protobuf:"varint,4,opt,name=language,proto3,enum=fijo.v1.Language" json:"language,omitempty"`
-	// Set for an adult who carries their own phone.
+	// Set for an adult who is their own contact.
 	ContactId     string `protobuf:"bytes,5,opt,name=contact_id,json=contactId,proto3" json:"contact_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -636,7 +647,7 @@ type CreateHouseholdRequest struct {
 	// Only the name, language and notes are read.
 	Household *Household    `protobuf:"bytes,1,opt,name=household,proto3" json:"household,omitempty"`
 	Contacts  []*NewContact `protobuf:"bytes,2,rep,name=contacts,proto3" json:"contacts,omitempty"`
-	// Attendees with no phone of their own: children, usually.
+	// Attendees who are nobody's contact: children, usually.
 	Attendees     []*Attendee `protobuf:"bytes,3,rep,name=attendees,proto3" json:"attendees,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1094,7 +1105,7 @@ var File_fijo_v1_roster_proto protoreflect.FileDescriptor
 
 const file_fijo_v1_roster_proto_rawDesc = "" +
 	"\n" +
-	"\x14fijo/v1/roster.proto\x12\afijo.v1\"\x89\x02\n" +
+	"\x14fijo/v1/roster.proto\x12\afijo.v1\"\x9f\x02\n" +
 	"\aContact\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12!\n" +
 	"\fhousehold_id\x18\x02 \x01(\tR\vhouseholdId\x12\x12\n" +
@@ -1103,7 +1114,8 @@ const file_fijo_v1_roster_proto_rawDesc = "" +
 	"\blanguage\x18\x05 \x01(\x0e2\x11.fijo.v1.LanguageR\blanguage\x129\n" +
 	"\frelationship\x18\x06 \x01(\x0e2\x15.fijo.v1.RelationshipR\frelationship\x12\x1b\n" +
 	"\topted_out\x18\a \x01(\bR\boptedOut\x12\x1a\n" +
-	"\bverified\x18\b \x01(\bR\bverified\"\x9f\x01\n" +
+	"\bverified\x18\b \x01(\bR\bverified\x12\x14\n" +
+	"\x05email\x18\t \x01(\tR\x05email\"\x9f\x01\n" +
 	"\bAttendee\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12!\n" +
 	"\fhousehold_id\x18\x02 \x01(\tR\vhouseholdId\x12\x12\n" +

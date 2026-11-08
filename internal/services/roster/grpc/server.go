@@ -152,7 +152,7 @@ func (s *Server) fail(err error, op observability.Operation, description string)
 
 	// say is set for a refusal Fijo words itself. The status's message is the
 	// first client-safe sentinel in the error's chain when there is one, and a
-	// bad phone wraps the platform's generic "not a recognized value", so the
+	// bad phone or email wraps the platform's generic "not a recognized value", so the
 	// chain is cut here and the words go in its place.
 	var say string
 
@@ -162,12 +162,21 @@ func (s *Server) fail(err error, op observability.Operation, description string)
 	case errors.Is(err, roster.ErrPhoneTaken):
 		code = codes.AlreadyExists
 		say = "Another client already has that phone number."
+	case errors.Is(err, roster.ErrEmailTaken):
+		code = codes.AlreadyExists
+		say = "Another client already has that email address."
 	case errors.Is(err, ErrHasStandingLessons):
 		code = codes.FailedPrecondition
 		say = "They still have standing lessons. End those first."
 	case errors.Is(err, roster.ErrInvalidPhone):
 		code = codes.InvalidArgument
 		say = "That is not a phone number we can text. A number outside the US and Canada needs its country code, like +52."
+	case errors.Is(err, roster.ErrInvalidEmail):
+		code = codes.InvalidArgument
+		say = "That is not an email address we can send to."
+	case errors.Is(err, roster.ErrUnreachable):
+		code = codes.InvalidArgument
+		say = "A contact needs an email or a phone number."
 	case errors.Is(err, roster.ErrInvalidHousehold),
 		errors.Is(err, roster.ErrInvalidContact),
 		errors.Is(err, roster.ErrInvalidAttendee),
@@ -623,6 +632,7 @@ func householdToProto(household *roster.Household) *fijopb.Household {
 			HouseholdId:  contact.HouseholdID,
 			Name:         contact.Name,
 			Phone:        contact.Phone,
+			Email:        contact.Email,
 			Language:     languageToProto(contact.Language),
 			Relationship: relationshipToProto(contact.Relationship),
 			OptedOut:     contact.OptedOut,
@@ -658,6 +668,7 @@ func contactFromProto(in *fijopb.Contact) *roster.Contact {
 		HouseholdID:  in.GetHouseholdId(),
 		Name:         strings.TrimSpace(in.GetName()),
 		Phone:        in.GetPhone(),
+		Email:        in.GetEmail(),
 		Language:     languageFromProto(in.GetLanguage()),
 		Relationship: relationshipFromProto(in.GetRelationship()),
 	}
