@@ -22,3 +22,13 @@ export {
   type Attendee,
   type NewContact,
 } from './generated/fijo/v1/roster.js';
+export type {
+  ImportPreview,
+  ImportHousehold,
+  ImportContact,
+  ImportLesson,
+  ImportOffering,
+  ImportLeftover,
+  ImportColumn,
+  ApplyAcuityImportResponse,
+} from './generated/fijo/v1/importing.js';

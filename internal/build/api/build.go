@@ -29,6 +29,8 @@ import (
 	"github.com/primandproper/fijo/internal/domain/owners"
 	"github.com/primandproper/fijo/internal/domain/roster"
 	"github.com/primandproper/fijo/internal/domain/schedule"
+	"github.com/primandproper/fijo/internal/importing"
+	importinggrpc "github.com/primandproper/fijo/internal/services/importing/grpc"
 	ownerauthgrpc "github.com/primandproper/fijo/internal/services/ownerauth/grpc"
 	ownersgrpc "github.com/primandproper/fijo/internal/services/owners/grpc"
 	rostergrpc "github.com/primandproper/fijo/internal/services/roster/grpc"
@@ -87,6 +89,7 @@ func BuildInjector(ctx context.Context, cfg *config.Config) (*do.RootScope, erro
 	materialize.Register(i)
 	registerScheduleServer(i)
 	registerRosterServer(i)
+	registerImportServer(i)
 	registerInterceptors(i)
 
 	service.RegisterTransports(i, &service.Transports{
@@ -97,6 +100,7 @@ func BuildInjector(ctx context.Context, cfg *config.Config) (*do.RootScope, erro
 			func(srv *grpc.Server) { do.MustInvoke[*ownersgrpc.Server](i).RegisterOn(srv) },
 			func(srv *grpc.Server) { do.MustInvoke[*schedulegrpc.Server](i).RegisterOn(srv) },
 			func(srv *grpc.Server) { do.MustInvoke[*rostergrpc.Server](i).RegisterOn(srv) },
+			func(srv *grpc.Server) { do.MustInvoke[*importinggrpc.Server](i).RegisterOn(srv) },
 		},
 	})
 
@@ -127,6 +131,10 @@ func NewServer(ctx context.Context, cfg *config.Config) (*service.Service, error
 
 	if _, err = do.Invoke[*rostergrpc.Server](i); err != nil {
 		return nil, platformerrors.Wrap(err, "building the roster server")
+	}
+
+	if _, err = do.Invoke[*importinggrpc.Server](i); err != nil {
+		return nil, platformerrors.Wrap(err, "building the import server")
 	}
 
 	return service.New(i)
@@ -646,5 +654,49 @@ func registerRosterServer(i do.Injector) {
 		}
 
 		return rostergrpc.NewServer(store, lessons, zones, client, pillars)
+	})
+}
+
+// registerImportServer registers the import from Acuity. It writes through the
+// roster's and the schedule's stores, and gives each standing lesson it writes
+// its rows through the materializer, as one made by hand gets them.
+func registerImportServer(i do.Injector) {
+	do.Provide(i, func(i do.Injector) (*importinggrpc.Server, error) {
+		pillars, err := observability.InvokePillars(i)
+		if err != nil {
+			return nil, err
+		}
+
+		rosterStore, err := do.Invoke[roster.Store](i)
+		if err != nil {
+			return nil, err
+		}
+
+		scheduleStore, err := do.Invoke[schedule.Store](i)
+		if err != nil {
+			return nil, err
+		}
+
+		grid, err := do.Invoke[*schedule.Materializer](i)
+		if err != nil {
+			return nil, err
+		}
+
+		writer, err := importing.NewWriter(rosterStore, scheduleStore, grid)
+		if err != nil {
+			return nil, err
+		}
+
+		zones, err := do.Invoke[schedule.Zones](i)
+		if err != nil {
+			return nil, err
+		}
+
+		client, err := do.Invoke[database.Client](i)
+		if err != nil {
+			return nil, err
+		}
+
+		return importinggrpc.NewServer(writer, zones, client, pillars)
 	})
 }

@@ -95,6 +95,52 @@ What changes:
 
   Built against a real export from the first studio, not guessed columns.
 
+### The Acuity import as built, first pass (2026-11-08)
+
+A rough cut is in the tree, written before any real export was in hand.
+Acuity's help center refuses automated reads, so the headers are a guess
+assembled from its prose ("client first name", "start time and date",
+"appointment type") and the shorter names third-party guides quote ("First
+Name", "Start Time", "Type"). **When the first studio's files arrive, the work
+is the alias table in `internal/importing/acuity/headers.go` and the date
+layouts in `parse.go`**; the preview's "How the files were read" lists which
+header was read as what, and every column not read is named in its warnings
+(an intake form's questions turn up there).
+
+- **`internal/importing`** is source-neutral: a `Plan` (households with their
+  contacts and attendees, offerings, standing lessons, leftovers, warnings)
+  and a `Writer` that marks what is already on the roster (`Annotate`: any
+  planned email or phone on a live contact) and writes the rest on one
+  transaction (`Write`), materializing each new series as a hand-made one is.
+- **`internal/importing/acuity`** turns the two CSVs into a plan, by the rules
+  in its package comment: people are their names; records sharing an email or
+  phone are one household; whoever has an appointment ahead is a student; a
+  reach one person alone carries makes them a contact, and a shared one goes
+  to somebody who takes no lessons or to a "<household> family" contact
+  flagged as a guessed name; one person's upcoming appointments of one type
+  on one weekday and time, weekly or fortnightly, are a standing lesson from
+  the first of them, with a warning for each week Acuity has none.
+  Appointment types become `single` offerings (Spanish name = English until
+  the owner translates), matched by name to what the studio already sells; a
+  lesson priced unlike its offering gets the price as its override.
+- **Times are read as wall clocks** in the studio's zone; an offset on a value
+  is ignored. Past appointments are read only for people; canceled ones and
+  duplicates of an appointment ID are dropped.
+- **`fijo.v1.ImportService`** has `PreviewAcuityImport` and
+  `ApplyAcuityImport`. Nothing is stored between them: apply sends the same
+  files and the keys the owner unticked, and plan keys are derived from the
+  content so they come out the same. Clients with nothing ahead are shown but
+  unticked. The owner who runs the import teaches every lesson it writes.
+- **The owner app** has `/clients/import`, linked from `/clients`: two file
+  inputs and a language, then the preview with a box per client and per
+  lesson, then the counts.
+- **Known gaps:** two different people with one name are one person; a re-run
+  skips a client already on the roster entirely, so a lesson added in Acuity
+  after the first run for an existing client is not picked up; one-off
+  appointments are listed rather than written (there is no one-off RPC);
+  package balances wait for the money phase; nothing here is audited, as
+  roster writes are not yet.
+
 ## Tenancy and roles
 
 The studio is an identity account and is Fijo's tenant: every Fijo row carries

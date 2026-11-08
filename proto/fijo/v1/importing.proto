@@ -1,0 +1,139 @@
+// Bringing a studio's clients and standing lessons over from another system.
+//
+// The owner uploads the files, looks at the preview, unticks what is wrong,
+// and applies. Nothing is kept between the two calls: apply reads the same
+// files again, so every key in a preview comes out the same from the same
+// files, and the skipped keys are what carries the owner's choices across.
+// A client whose email or phone is already on the roster is never written
+// twice, so an import can be run as a trial and again on the day of the
+// switch.
+//
+// Every call is the caller's own studio, read off the principal.
+
+syntax = "proto3";
+
+package fijo.v1;
+
+import "fijo/v1/roster.proto";
+
+option go_package = "github.com/primandproper/fijo/internal/grpc/fijopb;fijopb";
+
+service ImportService {
+  rpc PreviewAcuityImport(PreviewAcuityImportRequest) returns (ImportPreview);
+  rpc ApplyAcuityImport(ApplyAcuityImportRequest) returns (ApplyAcuityImportResponse);
+}
+
+// AcuityFiles is Acuity's two CSV exports, as text. Either may be empty, but
+// not both.
+message AcuityFiles {
+  // Clients > Import/Export > Export client list.
+  string clients_csv = 1;
+  // Reports > Import/Export > Export appointments, over the weeks ahead.
+  string appointments_csv = 2;
+  // What every household starts in; Acuity does not record a language.
+  Language language = 3;
+}
+
+message PreviewAcuityImportRequest { AcuityFiles files = 1; }
+
+message ApplyAcuityImportRequest {
+  AcuityFiles files = 1;
+  // Keys from the preview the owner unticked. Skipping a household skips its
+  // lessons.
+  repeated string skip_household_keys = 2;
+  repeated string skip_lesson_keys = 3;
+  // Also write clients with no appointment ahead of them.
+  bool include_inactive = 4;
+}
+
+message ApplyAcuityImportResponse {
+  int32 households_written = 1;
+  int32 households_on_roster = 2;
+  int32 households_skipped = 3;
+  int32 offerings_written = 4;
+  int32 lessons_written = 5;
+}
+
+message ImportPreview {
+  repeated ImportColumn columns = 1;
+  repeated ImportHousehold households = 2;
+  repeated ImportOffering offerings = 3;
+  repeated ImportLesson lessons = 4;
+  repeated ImportLeftover leftovers = 5;
+  repeated string warnings = 6;
+}
+
+// ImportColumn is which header in which file was read as what. header is empty
+// for a field no header matched.
+message ImportColumn {
+  string file = 1;
+  string field = 2;
+  string header = 3;
+}
+
+message ImportHousehold {
+  string key = 1;
+  string name = 2;
+  Language language = 3;
+  string notes = 4;
+  repeated ImportContact contacts = 5;
+  repeated ImportAttendee attendees = 6;
+  repeated string warnings = 7;
+  // Somebody on it has an appointment ahead.
+  bool active = 8;
+  // One of its emails or phones is already on the roster; it will not be
+  // written again.
+  bool on_roster = 9;
+}
+
+message ImportContact {
+  string name = 1;
+  string email = 2;
+  string phone = 3;
+  Relationship relationship = 4;
+  // The plan made the name up: Acuity had nobody by name for this email or
+  // phone.
+  bool guessed_name = 5;
+}
+
+message ImportAttendee {
+  string key = 1;
+  string name = 2;
+}
+
+message ImportOffering {
+  string key = 1;
+  string name = 2;
+  int32 duration_minutes = 3;
+  // In cents; -1 when no appointment of the type said.
+  int64 list_price = 4;
+  // Set when the studio already sells something by this name.
+  string existing_offering_id = 5;
+}
+
+message ImportLesson {
+  string key = 1;
+  string household_key = 2;
+  string attendee_name = 3;
+  string offering_key = 4;
+  // 0 is Sunday.
+  int32 weekday = 5;
+  // Minutes after midnight, in the studio's time.
+  int32 start_minutes = 6;
+  int32 interval_weeks = 7;
+  // YYYY-MM-DD.
+  string starts_on = 8;
+  // In cents; -1 when Acuity did not say.
+  int64 price = 9;
+  // How many upcoming appointments it was read from.
+  int32 seen = 10;
+  repeated string warnings = 11;
+}
+
+message ImportLeftover {
+  string who = 1;
+  string what = 2;
+  string reason = 3;
+  // YYYY-MM-DD each.
+  repeated string dates = 4;
+}

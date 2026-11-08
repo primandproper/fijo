@@ -72,6 +72,9 @@ holds, so what authorizes it is the database credential. They register through t
   the audited acts that write rows and their audit entry on one transaction. `roster` is the
   studio's clients — households, contacts (an email, a phone in E.164, or both; each unique per
   studio) and attendees — and every series names at least one attendee. Messaging will follow the same outline.
+- `internal/importing/` — a source-neutral import `Plan` and the `Writer` that writes one on a
+  transaction; `internal/importing/acuity/` reads Acuity's CSV exports into a plan. Its headers are
+  a guess until a real export arrives: `headers.go` is the one table to correct.
 - `internal/studios/` — what a studio is that identity owns rather than Fijo: today the time zone
   the materializer resolves a wall clock in, behind the narrow interface the domain takes.
 - `internal/services/<name>/grpc/` — Fijo's gRPC servers, each with a `Require` declaring its

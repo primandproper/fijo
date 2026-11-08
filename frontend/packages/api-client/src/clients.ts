@@ -2,8 +2,8 @@
  * gRPC clients for the Fijo API, promisified, with per-call auth in metadata rather than per-client
  * credentials — the shape DDB's consumer app uses. The services: platform's sign-in (password
  * login and the refresh exchange), Fijo's owner auth (passkeys, reset, sign-out), Fijo's owners
- * (who am I, my time zone), Fijo's schedule (the grid and the commands that change it) and Fijo's
- * roster (the studio's clients).
+ * (who am I, my time zone), Fijo's schedule (the grid and the commands that change it), Fijo's
+ * roster (the studio's clients) and Fijo's import (bringing clients over from Acuity).
  */
 import * as grpc from '@grpc/grpc-js';
 import type { Metadata } from '@grpc/grpc-js';
@@ -75,6 +75,13 @@ import {
   type ListHouseholdsResponse,
   type NewContact,
 } from './generated/fijo/v1/roster.js';
+import {
+  ImportServiceClient,
+  type ApplyAcuityImportRequest,
+  type ApplyAcuityImportResponse,
+  type ImportPreview,
+  type PreviewAcuityImportRequest,
+} from './generated/fijo/v1/importing.js';
 
 export interface ClientConfig {
   serverUrl: string;
@@ -114,6 +121,7 @@ export function createClients(config: ClientConfig) {
   const ownersClient = new OwnersServiceClient(config.serverUrl, credentials);
   const scheduleClient = new ScheduleServiceClient(config.serverUrl, credentials);
   const rosterClient = new RosterServiceClient(config.serverUrl, credentials);
+  const importClient = new ImportServiceClient(config.serverUrl, credentials);
 
   // Every schedule call is the caller's own studio, so each is the request and a bearer token.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -126,6 +134,13 @@ export function createClients(config: ClientConfig) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const rost = <Req, Res>(method: (...args: any[]) => grpc.ClientUnaryCall) => {
     const call = promisify<Req, Res>(method.bind(rosterClient) as Unary<Req, Res>);
+    return (token: string, req: Req): Promise<Res> => call(req, bearer(token));
+  };
+
+  // And the import's.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const imp = <Req, Res>(method: (...args: any[]) => grpc.ClientUnaryCall) => {
+    const call = promisify<Req, Res>(method.bind(importClient) as Unary<Req, Res>);
     return (token: string, req: Req): Promise<Res> => call(req, bearer(token));
   };
 
@@ -255,6 +270,10 @@ export function createClients(config: ClientConfig) {
       createAttendee: rost<{ attendee: Attendee }, HouseholdResponse>(rosterClient.createAttendee),
       updateAttendee: rost<{ attendee: Attendee }, HouseholdResponse>(rosterClient.updateAttendee),
       archiveAttendee: rost<{ id: string }, HouseholdResponse>(rosterClient.archiveAttendee),
+    },
+    imports: {
+      previewAcuity: imp<PreviewAcuityImportRequest, ImportPreview>(importClient.previewAcuityImport),
+      applyAcuity: imp<ApplyAcuityImportRequest, ApplyAcuityImportResponse>(importClient.applyAcuityImport),
     },
   };
 }

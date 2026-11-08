@@ -51,6 +51,7 @@
     A client is a household: the people you send reminders to, and the students who take lessons. A parent and their
     children are one client; an adult student is a client on their own.
   </p>
+  <p><a href={resolve('/clients/import')}>Bring your clients over from Acuity</a></p>
 
   {#if form?.error}
     <div class="alert error">{form.error}</div>
