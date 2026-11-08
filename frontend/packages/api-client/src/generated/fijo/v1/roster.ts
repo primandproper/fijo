@@ -117,6 +117,8 @@ export interface Contact {
   verified: boolean;
   /** Lowercased as stored, or empty. */
   email: string;
+  /** The owner has said this contact gets no reminders. */
+  remindersOff: boolean;
 }
 
 export interface Attendee {
@@ -137,6 +139,12 @@ export interface Household {
   archived: boolean;
   contacts: Contact[];
   attendees: Attendee[];
+  /**
+   * How many minutes before each lesson the household's two reminders go out;
+   * zero is one it does not want. A new household starts at a day and an hour.
+   */
+  firstReminderMinutes: number;
+  secondReminderMinutes: number;
 }
 
 export interface ListHouseholdsRequest {
@@ -197,6 +205,18 @@ export interface ArchiveContactRequest {
   id: string;
 }
 
+export interface SetContactRemindersRequest {
+  contactId: string;
+  remindersOff: boolean;
+}
+
+/** Each is zero for none, or 15 to 10080 minutes (a week). */
+export interface SetHouseholdRemindersRequest {
+  householdId: string;
+  firstReminderMinutes: number;
+  secondReminderMinutes: number;
+}
+
 export interface CreateAttendeeRequest {
   attendee: Attendee | undefined;
 }
@@ -220,6 +240,7 @@ function createBaseContact(): Contact {
     optedOut: false,
     verified: false,
     email: "",
+    remindersOff: false,
   };
 }
 
@@ -251,6 +272,9 @@ export const Contact: MessageFns<Contact> = {
     }
     if (message.email !== "") {
       writer.uint32(74).string(message.email);
+    }
+    if (message.remindersOff !== false) {
+      writer.uint32(80).bool(message.remindersOff);
     }
     return writer;
   },
@@ -334,6 +358,14 @@ export const Contact: MessageFns<Contact> = {
           message.email = reader.string();
           continue;
         }
+        case 10: {
+          if (tag !== 80) {
+            break;
+          }
+
+          message.remindersOff = reader.bool();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -362,6 +394,11 @@ export const Contact: MessageFns<Contact> = {
         : false,
       verified: isSet(object.verified) ? globalThis.Boolean(object.verified) : false,
       email: isSet(object.email) ? globalThis.String(object.email) : "",
+      remindersOff: isSet(object.remindersOff)
+        ? globalThis.Boolean(object.remindersOff)
+        : isSet(object.reminders_off)
+        ? globalThis.Boolean(object.reminders_off)
+        : false,
     };
   },
 
@@ -394,6 +431,9 @@ export const Contact: MessageFns<Contact> = {
     if (message.email !== "") {
       obj.email = message.email;
     }
+    if (message.remindersOff !== false) {
+      obj.remindersOff = message.remindersOff;
+    }
     return obj;
   },
 
@@ -411,6 +451,7 @@ export const Contact: MessageFns<Contact> = {
     message.optedOut = object.optedOut ?? false;
     message.verified = object.verified ?? false;
     message.email = object.email ?? "";
+    message.remindersOff = object.remindersOff ?? false;
     return message;
   },
 };
@@ -548,7 +589,17 @@ export const Attendee: MessageFns<Attendee> = {
 };
 
 function createBaseHousehold(): Household {
-  return { id: "", name: "", language: 0, notes: "", archived: false, contacts: [], attendees: [] };
+  return {
+    id: "",
+    name: "",
+    language: 0,
+    notes: "",
+    archived: false,
+    contacts: [],
+    attendees: [],
+    firstReminderMinutes: 0,
+    secondReminderMinutes: 0,
+  };
 }
 
 export const Household: MessageFns<Household> = {
@@ -573,6 +624,12 @@ export const Household: MessageFns<Household> = {
     }
     for (const v of message.attendees) {
       Attendee.encode(v!, writer.uint32(58).fork()).join();
+    }
+    if (message.firstReminderMinutes !== 0) {
+      writer.uint32(64).int32(message.firstReminderMinutes);
+    }
+    if (message.secondReminderMinutes !== 0) {
+      writer.uint32(72).int32(message.secondReminderMinutes);
     }
     return writer;
   },
@@ -640,6 +697,22 @@ export const Household: MessageFns<Household> = {
           message.attendees.push(Attendee.decode(reader, reader.uint32()));
           continue;
         }
+        case 8: {
+          if (tag !== 64) {
+            break;
+          }
+
+          message.firstReminderMinutes = reader.int32();
+          continue;
+        }
+        case 9: {
+          if (tag !== 72) {
+            break;
+          }
+
+          message.secondReminderMinutes = reader.int32();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -660,6 +733,16 @@ export const Household: MessageFns<Household> = {
       attendees: globalThis.Array.isArray(object?.attendees)
         ? object.attendees.map((e: any) => Attendee.fromJSON(e))
         : [],
+      firstReminderMinutes: isSet(object.firstReminderMinutes)
+        ? globalThis.Number(object.firstReminderMinutes)
+        : isSet(object.first_reminder_minutes)
+        ? globalThis.Number(object.first_reminder_minutes)
+        : 0,
+      secondReminderMinutes: isSet(object.secondReminderMinutes)
+        ? globalThis.Number(object.secondReminderMinutes)
+        : isSet(object.second_reminder_minutes)
+        ? globalThis.Number(object.second_reminder_minutes)
+        : 0,
     };
   },
 
@@ -686,6 +769,12 @@ export const Household: MessageFns<Household> = {
     if (message.attendees?.length) {
       obj.attendees = message.attendees.map((e) => Attendee.toJSON(e));
     }
+    if (message.firstReminderMinutes !== 0) {
+      obj.firstReminderMinutes = Math.round(message.firstReminderMinutes);
+    }
+    if (message.secondReminderMinutes !== 0) {
+      obj.secondReminderMinutes = Math.round(message.secondReminderMinutes);
+    }
     return obj;
   },
 
@@ -701,6 +790,8 @@ export const Household: MessageFns<Household> = {
     message.archived = object.archived ?? false;
     message.contacts = object.contacts?.map((e) => Contact.fromPartial(e)) || [];
     message.attendees = object.attendees?.map((e) => Attendee.fromPartial(e)) || [];
+    message.firstReminderMinutes = object.firstReminderMinutes ?? 0;
+    message.secondReminderMinutes = object.secondReminderMinutes ?? 0;
     return message;
   },
 };
@@ -1482,6 +1573,194 @@ export const ArchiveContactRequest: MessageFns<ArchiveContactRequest> = {
   },
 };
 
+function createBaseSetContactRemindersRequest(): SetContactRemindersRequest {
+  return { contactId: "", remindersOff: false };
+}
+
+export const SetContactRemindersRequest: MessageFns<SetContactRemindersRequest> = {
+  encode(message: SetContactRemindersRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.contactId !== "") {
+      writer.uint32(10).string(message.contactId);
+    }
+    if (message.remindersOff !== false) {
+      writer.uint32(16).bool(message.remindersOff);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): SetContactRemindersRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseSetContactRemindersRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.contactId = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.remindersOff = reader.bool();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): SetContactRemindersRequest {
+    return {
+      contactId: isSet(object.contactId)
+        ? globalThis.String(object.contactId)
+        : isSet(object.contact_id)
+        ? globalThis.String(object.contact_id)
+        : "",
+      remindersOff: isSet(object.remindersOff)
+        ? globalThis.Boolean(object.remindersOff)
+        : isSet(object.reminders_off)
+        ? globalThis.Boolean(object.reminders_off)
+        : false,
+    };
+  },
+
+  toJSON(message: SetContactRemindersRequest): unknown {
+    const obj: any = {};
+    if (message.contactId !== "") {
+      obj.contactId = message.contactId;
+    }
+    if (message.remindersOff !== false) {
+      obj.remindersOff = message.remindersOff;
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<SetContactRemindersRequest>, I>>(base?: I): SetContactRemindersRequest {
+    return SetContactRemindersRequest.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<SetContactRemindersRequest>, I>>(object: I): SetContactRemindersRequest {
+    const message = createBaseSetContactRemindersRequest();
+    message.contactId = object.contactId ?? "";
+    message.remindersOff = object.remindersOff ?? false;
+    return message;
+  },
+};
+
+function createBaseSetHouseholdRemindersRequest(): SetHouseholdRemindersRequest {
+  return { householdId: "", firstReminderMinutes: 0, secondReminderMinutes: 0 };
+}
+
+export const SetHouseholdRemindersRequest: MessageFns<SetHouseholdRemindersRequest> = {
+  encode(message: SetHouseholdRemindersRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.householdId !== "") {
+      writer.uint32(10).string(message.householdId);
+    }
+    if (message.firstReminderMinutes !== 0) {
+      writer.uint32(16).int32(message.firstReminderMinutes);
+    }
+    if (message.secondReminderMinutes !== 0) {
+      writer.uint32(24).int32(message.secondReminderMinutes);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): SetHouseholdRemindersRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseSetHouseholdRemindersRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.householdId = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.firstReminderMinutes = reader.int32();
+          continue;
+        }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
+
+          message.secondReminderMinutes = reader.int32();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): SetHouseholdRemindersRequest {
+    return {
+      householdId: isSet(object.householdId)
+        ? globalThis.String(object.householdId)
+        : isSet(object.household_id)
+        ? globalThis.String(object.household_id)
+        : "",
+      firstReminderMinutes: isSet(object.firstReminderMinutes)
+        ? globalThis.Number(object.firstReminderMinutes)
+        : isSet(object.first_reminder_minutes)
+        ? globalThis.Number(object.first_reminder_minutes)
+        : 0,
+      secondReminderMinutes: isSet(object.secondReminderMinutes)
+        ? globalThis.Number(object.secondReminderMinutes)
+        : isSet(object.second_reminder_minutes)
+        ? globalThis.Number(object.second_reminder_minutes)
+        : 0,
+    };
+  },
+
+  toJSON(message: SetHouseholdRemindersRequest): unknown {
+    const obj: any = {};
+    if (message.householdId !== "") {
+      obj.householdId = message.householdId;
+    }
+    if (message.firstReminderMinutes !== 0) {
+      obj.firstReminderMinutes = Math.round(message.firstReminderMinutes);
+    }
+    if (message.secondReminderMinutes !== 0) {
+      obj.secondReminderMinutes = Math.round(message.secondReminderMinutes);
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<SetHouseholdRemindersRequest>, I>>(base?: I): SetHouseholdRemindersRequest {
+    return SetHouseholdRemindersRequest.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<SetHouseholdRemindersRequest>, I>>(object: I): SetHouseholdRemindersRequest {
+    const message = createBaseSetHouseholdRemindersRequest();
+    message.householdId = object.householdId ?? "";
+    message.firstReminderMinutes = object.firstReminderMinutes ?? 0;
+    message.secondReminderMinutes = object.secondReminderMinutes ?? 0;
+    return message;
+  },
+};
+
 function createBaseCreateAttendeeRequest(): CreateAttendeeRequest {
   return { attendee: undefined };
 }
@@ -1749,6 +2028,28 @@ export const RosterServiceService = {
     responseSerialize: (value: HouseholdResponse): Buffer => Buffer.from(HouseholdResponse.encode(value).finish()),
     responseDeserialize: (value: Buffer): HouseholdResponse => HouseholdResponse.decode(value),
   },
+  /** The owner turning a contact's reminders off, or back on. */
+  setContactReminders: {
+    path: "/fijo.v1.RosterService/SetContactReminders" as const,
+    requestStream: false as const,
+    responseStream: false as const,
+    requestSerialize: (value: SetContactRemindersRequest): Buffer =>
+      Buffer.from(SetContactRemindersRequest.encode(value).finish()),
+    requestDeserialize: (value: Buffer): SetContactRemindersRequest => SetContactRemindersRequest.decode(value),
+    responseSerialize: (value: HouseholdResponse): Buffer => Buffer.from(HouseholdResponse.encode(value).finish()),
+    responseDeserialize: (value: Buffer): HouseholdResponse => HouseholdResponse.decode(value),
+  },
+  /** How long before each lesson the household's two reminders go out. */
+  setHouseholdReminders: {
+    path: "/fijo.v1.RosterService/SetHouseholdReminders" as const,
+    requestStream: false as const,
+    responseStream: false as const,
+    requestSerialize: (value: SetHouseholdRemindersRequest): Buffer =>
+      Buffer.from(SetHouseholdRemindersRequest.encode(value).finish()),
+    requestDeserialize: (value: Buffer): SetHouseholdRemindersRequest => SetHouseholdRemindersRequest.decode(value),
+    responseSerialize: (value: HouseholdResponse): Buffer => Buffer.from(HouseholdResponse.encode(value).finish()),
+    responseDeserialize: (value: Buffer): HouseholdResponse => HouseholdResponse.decode(value),
+  },
   createAttendee: {
     path: "/fijo.v1.RosterService/CreateAttendee" as const,
     requestStream: false as const,
@@ -1798,6 +2099,10 @@ export interface RosterServiceServer extends UntypedServiceImplementation {
   createContact: handleUnaryCall<CreateContactRequest, HouseholdResponse>;
   updateContact: handleUnaryCall<UpdateContactRequest, HouseholdResponse>;
   archiveContact: handleUnaryCall<ArchiveContactRequest, HouseholdResponse>;
+  /** The owner turning a contact's reminders off, or back on. */
+  setContactReminders: handleUnaryCall<SetContactRemindersRequest, HouseholdResponse>;
+  /** How long before each lesson the household's two reminders go out. */
+  setHouseholdReminders: handleUnaryCall<SetHouseholdRemindersRequest, HouseholdResponse>;
   createAttendee: handleUnaryCall<CreateAttendeeRequest, HouseholdResponse>;
   updateAttendee: handleUnaryCall<UpdateAttendeeRequest, HouseholdResponse>;
   archiveAttendee: handleUnaryCall<ArchiveAttendeeRequest, HouseholdResponse>;
@@ -1928,6 +2233,38 @@ export interface RosterServiceClient extends Client {
   ): ClientUnaryCall;
   archiveContact(
     request: ArchiveContactRequest,
+    metadata: Metadata,
+    options: Partial<CallOptions>,
+    callback: (error: ServiceError | null, response: HouseholdResponse) => void,
+  ): ClientUnaryCall;
+  /** The owner turning a contact's reminders off, or back on. */
+  setContactReminders(
+    request: SetContactRemindersRequest,
+    callback: (error: ServiceError | null, response: HouseholdResponse) => void,
+  ): ClientUnaryCall;
+  setContactReminders(
+    request: SetContactRemindersRequest,
+    metadata: Metadata,
+    callback: (error: ServiceError | null, response: HouseholdResponse) => void,
+  ): ClientUnaryCall;
+  setContactReminders(
+    request: SetContactRemindersRequest,
+    metadata: Metadata,
+    options: Partial<CallOptions>,
+    callback: (error: ServiceError | null, response: HouseholdResponse) => void,
+  ): ClientUnaryCall;
+  /** How long before each lesson the household's two reminders go out. */
+  setHouseholdReminders(
+    request: SetHouseholdRemindersRequest,
+    callback: (error: ServiceError | null, response: HouseholdResponse) => void,
+  ): ClientUnaryCall;
+  setHouseholdReminders(
+    request: SetHouseholdRemindersRequest,
+    metadata: Metadata,
+    callback: (error: ServiceError | null, response: HouseholdResponse) => void,
+  ): ClientUnaryCall;
+  setHouseholdReminders(
+    request: SetHouseholdRemindersRequest,
     metadata: Metadata,
     options: Partial<CallOptions>,
     callback: (error: ServiceError | null, response: HouseholdResponse) => void,

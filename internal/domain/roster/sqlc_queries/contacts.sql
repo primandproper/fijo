@@ -64,3 +64,14 @@ UPDATE roster_attendees SET
 	last_updated_at = NOW()
 WHERE roster_attendees.contact_id = sqlc.arg(contact_id)
 	AND roster_attendees.studio_id = sqlc.arg(studio_id);
+
+-- SetContactReminders is the owner saying a contact gets no reminders, or
+-- gets them again.
+-- name: SetContactReminders :one
+UPDATE roster_contacts SET
+	reminders_off = sqlc.arg(reminders_off),
+	last_updated_at = NOW()
+WHERE roster_contacts.id = sqlc.arg(id)
+	AND roster_contacts.studio_id = sqlc.arg(studio_id)
+	AND roster_contacts.archived_at IS NULL
+RETURNING *;

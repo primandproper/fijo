@@ -32,3 +32,4 @@ export type {
   ImportColumn,
   ApplyAcuityImportResponse,
 } from './generated/fijo/v1/importing.js';
+export { ReminderStatus, type Reminder, type ReminderSettings } from './generated/fijo/v1/reminders.js';

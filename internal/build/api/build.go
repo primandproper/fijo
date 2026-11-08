@@ -26,6 +26,7 @@ import (
 	"github.com/primandproper/fijo/internal/authz/roles"
 	"github.com/primandproper/fijo/internal/config"
 	"github.com/primandproper/fijo/internal/database/migrations"
+	"github.com/primandproper/fijo/internal/domain/messaging"
 	"github.com/primandproper/fijo/internal/domain/owners"
 	"github.com/primandproper/fijo/internal/domain/roster"
 	"github.com/primandproper/fijo/internal/domain/schedule"
@@ -33,8 +34,10 @@ import (
 	importinggrpc "github.com/primandproper/fijo/internal/services/importing/grpc"
 	ownerauthgrpc "github.com/primandproper/fijo/internal/services/ownerauth/grpc"
 	ownersgrpc "github.com/primandproper/fijo/internal/services/owners/grpc"
+	remindersgrpc "github.com/primandproper/fijo/internal/services/reminders/grpc"
 	rostergrpc "github.com/primandproper/fijo/internal/services/roster/grpc"
 	schedulegrpc "github.com/primandproper/fijo/internal/services/schedule/grpc"
+	"github.com/primandproper/fijo/internal/studios"
 	"github.com/primandproper/fijo/internal/workers/materialize"
 
 	"github.com/primandproper/platform-go/v15/audit"
@@ -90,6 +93,7 @@ func BuildInjector(ctx context.Context, cfg *config.Config) (*do.RootScope, erro
 	registerScheduleServer(i)
 	registerRosterServer(i)
 	registerImportServer(i)
+	registerReminderServer(i, cfg)
 	registerInterceptors(i)
 
 	service.RegisterTransports(i, &service.Transports{
@@ -101,6 +105,7 @@ func BuildInjector(ctx context.Context, cfg *config.Config) (*do.RootScope, erro
 			func(srv *grpc.Server) { do.MustInvoke[*schedulegrpc.Server](i).RegisterOn(srv) },
 			func(srv *grpc.Server) { do.MustInvoke[*rostergrpc.Server](i).RegisterOn(srv) },
 			func(srv *grpc.Server) { do.MustInvoke[*importinggrpc.Server](i).RegisterOn(srv) },
+			func(srv *grpc.Server) { do.MustInvoke[*remindersgrpc.Server](i).RegisterOn(srv) },
 		},
 	})
 
@@ -135,6 +140,10 @@ func NewServer(ctx context.Context, cfg *config.Config) (*service.Service, error
 
 	if _, err = do.Invoke[*importinggrpc.Server](i); err != nil {
 		return nil, platformerrors.Wrap(err, "building the import server")
+	}
+
+	if _, err = do.Invoke[*remindersgrpc.Server](i); err != nil {
+		return nil, platformerrors.Wrap(err, "building the reminder server")
 	}
 
 	return service.New(i)
@@ -698,5 +707,55 @@ func registerImportServer(i do.Injector) {
 		}
 
 		return importinggrpc.NewServer(writer, zones, client, pillars)
+	})
+}
+
+// registerReminderServer registers the reminder settings, the test reminder
+// and the record of what was sent. serve writes no reminder and fires no
+// timer, so its *messaging.Reminders has neither a timer set nor a meter: the
+// worker's does both.
+func registerReminderServer(i do.Injector, cfg *config.Config) {
+	do.Provide(i, func(i do.Injector) (messaging.Store, error) {
+		pillars, err := observability.InvokePillars(i)
+		if err != nil {
+			return nil, err
+		}
+
+		return messaging.NewSQLStore(messaging.WithPillars(pillars))
+	})
+
+	do.Provide(i, func(i do.Injector) (*remindersgrpc.Server, error) {
+		pillars, err := observability.InvokePillars(i)
+		if err != nil {
+			return nil, err
+		}
+
+		client, err := do.Invoke[database.Client](i)
+		if err != nil {
+			return nil, err
+		}
+
+		store, err := do.Invoke[messaging.Store](i)
+		if err != nil {
+			return nil, err
+		}
+
+		zones, err := do.Invoke[*studios.Zones](i)
+		if err != nil {
+			return nil, err
+		}
+
+		emailer, err := do.Invoke[email.Emailer](i)
+		if err != nil {
+			return nil, err
+		}
+
+		reminders, err := messaging.NewReminders(client, store, zones, nil, emailer, nil, cfg.Auth.Mail.FromAddress,
+			messaging.WithRemindersPillars(pillars))
+		if err != nil {
+			return nil, err
+		}
+
+		return remindersgrpc.NewServer(store, reminders, client, pillars)
 	})
 }

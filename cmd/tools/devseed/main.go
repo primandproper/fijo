@@ -146,10 +146,11 @@ func run(ctx context.Context, configPath string, ifAbsent bool, studio *bootstra
 // sampleClient is a household for the sample studio and the standing lessons
 // its students take.
 type sampleClient struct {
-	household roster.Household
 	contact   roster.Contact
 	children  []string
 	lessons   []*sampleLesson
+	household roster.Household
+
 	// attends makes the contact a student too: an adult who takes lessons.
 	attends bool
 }

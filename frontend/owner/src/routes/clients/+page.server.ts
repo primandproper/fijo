@@ -93,7 +93,18 @@ export const actions: Actions = {
     let household;
     try {
       const res = await api.roster.createHousehold(token, {
-        household: { id: '', name, language, notes: '', archived: false, contacts: [], attendees: [] },
+        // A new household starts with a day and an hour before; these are not read.
+        household: {
+          id: '',
+          name,
+          language,
+          notes: '',
+          archived: false,
+          contacts: [],
+          attendees: [],
+          firstReminderMinutes: 0,
+          secondReminderMinutes: 0,
+        },
         contacts: [
           {
             contact: {
@@ -106,6 +117,7 @@ export const actions: Actions = {
               relationship: 0,
               optedOut: false,
               verified: false,
+              remindersOff: false,
             },
             attends,
           },

@@ -4,6 +4,8 @@
   import { enhance } from '$app/forms';
   import { resolve } from '$app/paths';
   import SeriesFields from '$lib/components/SeriesFields.svelte';
+  import ReminderList from '$lib/components/ReminderList.svelte';
+  import { REMINDER_CHOICES } from '$lib/reminders';
   import { LANGUAGES, RELATIONSHIPS } from '$lib/roster';
   import { money } from '$lib/schedule';
   import { displayClock, displayDate, WEEKDAYS } from '$lib/time';
@@ -246,6 +248,8 @@
               {#if contact.phone}<a href="tel:{contact.phone}">{contact.displayPhone}</a>{/if}
               <span class="muted">· {LANGUAGES[contact.language].label}</span>
               {#if contact.optedOut}<span class="tag">opted out of texts</span>{/if}
+              {#if contact.remindersOff}<span class="tag">no reminders</span>
+              {:else if !contact.email}<span class="tag">no email, so no reminders</span>{/if}
             </div>
           </div>
           <button type="button" class="secondary" onclick={() => toggle(`contact:${contact.id}`)}>
@@ -258,6 +262,13 @@
             {@render contactFields(contact.id, contact)}
             <button type="submit">Save</button>
           </form>
+          <form method="POST" action="?/contactReminders" use:enhance class="inline">
+            <input type="hidden" name="id" value={contact.id} />
+            <input type="hidden" name="off" value={contact.remindersOff ? '' : 'on'} />
+            <button type="submit" class="secondary">
+              {contact.remindersOff ? `Send ${contact.name} reminders again` : `Stop reminders to ${contact.name}`}
+            </button>
+          </form>
           <form method="POST" action="?/removeContact" use:enhance={closeOnSuccess} class="inline">
             <input type="hidden" name="id" value={contact.id} />
             <button type="submit" class="danger">Remove {contact.name}</button>
@@ -267,6 +278,49 @@
     {:else}
       <p class="muted">Nobody to send reminders to yet.</p>
     {/each}
+  </section>
+
+  <section class="card">
+    <h2>Reminders</h2>
+    <p class="muted">
+      {#if !data.remindersOn}
+        Reminders are off for the studio; <a href={resolve('/reminders')}>turn them on</a> when you are ready.
+      {:else}
+        Each contact with an email gets these before every lesson.
+      {/if}
+    </p>
+    <form
+      method="POST"
+      action="?/householdReminders"
+      use:enhance={() =>
+        ({ update }) =>
+          update({ reset: false })}
+      class="inline"
+    >
+      <div>
+        <label for="firstReminder">First reminder</label>
+        <select id="firstReminder" name="first">
+          {#each REMINDER_CHOICES as choice (choice.minutes)}
+            <option value={choice.minutes} selected={choice.minutes === household.firstReminderMinutes}>
+              {choice.label}
+            </option>
+          {/each}
+        </select>
+      </div>
+      <div>
+        <label for="secondReminder">Second reminder</label>
+        <select id="secondReminder" name="second">
+          {#each REMINDER_CHOICES as choice (choice.minutes)}
+            <option value={choice.minutes} selected={choice.minutes === household.secondReminderMinutes}>
+              {choice.label}
+            </option>
+          {/each}
+        </select>
+      </div>
+      <button type="submit">Save</button>
+    </form>
+    <h3>Sent to {household.name}</h3>
+    <ReminderList reminders={data.reminders} />
   </section>
 
   <section class="card danger-zone">

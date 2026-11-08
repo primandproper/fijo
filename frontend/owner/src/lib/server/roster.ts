@@ -17,6 +17,8 @@ export function shapeHousehold(h: Household) {
     name: h.name,
     language: languageName(h.language),
     notes: h.notes,
+    firstReminderMinutes: h.firstReminderMinutes,
+    secondReminderMinutes: h.secondReminderMinutes,
     contacts: h.contacts.map((c) => ({
       id: c.id,
       name: c.name,
@@ -26,6 +28,7 @@ export function shapeHousehold(h: Household) {
       language: languageName(c.language),
       relationship: relationshipName(c.relationship),
       optedOut: c.optedOut,
+      remindersOff: c.remindersOff,
     })),
     attendees: h.attendees.map((a) => ({
       id: a.id,

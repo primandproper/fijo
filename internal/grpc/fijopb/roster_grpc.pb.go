@@ -28,17 +28,19 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	RosterService_ListHouseholds_FullMethodName   = "/fijo.v1.RosterService/ListHouseholds"
-	RosterService_GetHousehold_FullMethodName     = "/fijo.v1.RosterService/GetHousehold"
-	RosterService_CreateHousehold_FullMethodName  = "/fijo.v1.RosterService/CreateHousehold"
-	RosterService_UpdateHousehold_FullMethodName  = "/fijo.v1.RosterService/UpdateHousehold"
-	RosterService_ArchiveHousehold_FullMethodName = "/fijo.v1.RosterService/ArchiveHousehold"
-	RosterService_CreateContact_FullMethodName    = "/fijo.v1.RosterService/CreateContact"
-	RosterService_UpdateContact_FullMethodName    = "/fijo.v1.RosterService/UpdateContact"
-	RosterService_ArchiveContact_FullMethodName   = "/fijo.v1.RosterService/ArchiveContact"
-	RosterService_CreateAttendee_FullMethodName   = "/fijo.v1.RosterService/CreateAttendee"
-	RosterService_UpdateAttendee_FullMethodName   = "/fijo.v1.RosterService/UpdateAttendee"
-	RosterService_ArchiveAttendee_FullMethodName  = "/fijo.v1.RosterService/ArchiveAttendee"
+	RosterService_ListHouseholds_FullMethodName        = "/fijo.v1.RosterService/ListHouseholds"
+	RosterService_GetHousehold_FullMethodName          = "/fijo.v1.RosterService/GetHousehold"
+	RosterService_CreateHousehold_FullMethodName       = "/fijo.v1.RosterService/CreateHousehold"
+	RosterService_UpdateHousehold_FullMethodName       = "/fijo.v1.RosterService/UpdateHousehold"
+	RosterService_ArchiveHousehold_FullMethodName      = "/fijo.v1.RosterService/ArchiveHousehold"
+	RosterService_CreateContact_FullMethodName         = "/fijo.v1.RosterService/CreateContact"
+	RosterService_UpdateContact_FullMethodName         = "/fijo.v1.RosterService/UpdateContact"
+	RosterService_ArchiveContact_FullMethodName        = "/fijo.v1.RosterService/ArchiveContact"
+	RosterService_SetContactReminders_FullMethodName   = "/fijo.v1.RosterService/SetContactReminders"
+	RosterService_SetHouseholdReminders_FullMethodName = "/fijo.v1.RosterService/SetHouseholdReminders"
+	RosterService_CreateAttendee_FullMethodName        = "/fijo.v1.RosterService/CreateAttendee"
+	RosterService_UpdateAttendee_FullMethodName        = "/fijo.v1.RosterService/UpdateAttendee"
+	RosterService_ArchiveAttendee_FullMethodName       = "/fijo.v1.RosterService/ArchiveAttendee"
 )
 
 // RosterServiceClient is the client API for RosterService service.
@@ -57,6 +59,10 @@ type RosterServiceClient interface {
 	CreateContact(ctx context.Context, in *CreateContactRequest, opts ...grpc.CallOption) (*HouseholdResponse, error)
 	UpdateContact(ctx context.Context, in *UpdateContactRequest, opts ...grpc.CallOption) (*HouseholdResponse, error)
 	ArchiveContact(ctx context.Context, in *ArchiveContactRequest, opts ...grpc.CallOption) (*HouseholdResponse, error)
+	// The owner turning a contact's reminders off, or back on.
+	SetContactReminders(ctx context.Context, in *SetContactRemindersRequest, opts ...grpc.CallOption) (*HouseholdResponse, error)
+	// How long before each lesson the household's two reminders go out.
+	SetHouseholdReminders(ctx context.Context, in *SetHouseholdRemindersRequest, opts ...grpc.CallOption) (*HouseholdResponse, error)
 	CreateAttendee(ctx context.Context, in *CreateAttendeeRequest, opts ...grpc.CallOption) (*HouseholdResponse, error)
 	UpdateAttendee(ctx context.Context, in *UpdateAttendeeRequest, opts ...grpc.CallOption) (*HouseholdResponse, error)
 	ArchiveAttendee(ctx context.Context, in *ArchiveAttendeeRequest, opts ...grpc.CallOption) (*HouseholdResponse, error)
@@ -150,6 +156,26 @@ func (c *rosterServiceClient) ArchiveContact(ctx context.Context, in *ArchiveCon
 	return out, nil
 }
 
+func (c *rosterServiceClient) SetContactReminders(ctx context.Context, in *SetContactRemindersRequest, opts ...grpc.CallOption) (*HouseholdResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(HouseholdResponse)
+	err := c.cc.Invoke(ctx, RosterService_SetContactReminders_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *rosterServiceClient) SetHouseholdReminders(ctx context.Context, in *SetHouseholdRemindersRequest, opts ...grpc.CallOption) (*HouseholdResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(HouseholdResponse)
+	err := c.cc.Invoke(ctx, RosterService_SetHouseholdReminders_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *rosterServiceClient) CreateAttendee(ctx context.Context, in *CreateAttendeeRequest, opts ...grpc.CallOption) (*HouseholdResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(HouseholdResponse)
@@ -196,6 +222,10 @@ type RosterServiceServer interface {
 	CreateContact(context.Context, *CreateContactRequest) (*HouseholdResponse, error)
 	UpdateContact(context.Context, *UpdateContactRequest) (*HouseholdResponse, error)
 	ArchiveContact(context.Context, *ArchiveContactRequest) (*HouseholdResponse, error)
+	// The owner turning a contact's reminders off, or back on.
+	SetContactReminders(context.Context, *SetContactRemindersRequest) (*HouseholdResponse, error)
+	// How long before each lesson the household's two reminders go out.
+	SetHouseholdReminders(context.Context, *SetHouseholdRemindersRequest) (*HouseholdResponse, error)
 	CreateAttendee(context.Context, *CreateAttendeeRequest) (*HouseholdResponse, error)
 	UpdateAttendee(context.Context, *UpdateAttendeeRequest) (*HouseholdResponse, error)
 	ArchiveAttendee(context.Context, *ArchiveAttendeeRequest) (*HouseholdResponse, error)
@@ -232,6 +262,12 @@ func (UnimplementedRosterServiceServer) UpdateContact(context.Context, *UpdateCo
 }
 func (UnimplementedRosterServiceServer) ArchiveContact(context.Context, *ArchiveContactRequest) (*HouseholdResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ArchiveContact not implemented")
+}
+func (UnimplementedRosterServiceServer) SetContactReminders(context.Context, *SetContactRemindersRequest) (*HouseholdResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SetContactReminders not implemented")
+}
+func (UnimplementedRosterServiceServer) SetHouseholdReminders(context.Context, *SetHouseholdRemindersRequest) (*HouseholdResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SetHouseholdReminders not implemented")
 }
 func (UnimplementedRosterServiceServer) CreateAttendee(context.Context, *CreateAttendeeRequest) (*HouseholdResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CreateAttendee not implemented")
@@ -407,6 +443,42 @@ func _RosterService_ArchiveContact_Handler(srv interface{}, ctx context.Context,
 	return interceptor(ctx, in, info, handler)
 }
 
+func _RosterService_SetContactReminders_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetContactRemindersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RosterServiceServer).SetContactReminders(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RosterService_SetContactReminders_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RosterServiceServer).SetContactReminders(ctx, req.(*SetContactRemindersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RosterService_SetHouseholdReminders_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetHouseholdRemindersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RosterServiceServer).SetHouseholdReminders(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RosterService_SetHouseholdReminders_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RosterServiceServer).SetHouseholdReminders(ctx, req.(*SetHouseholdRemindersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _RosterService_CreateAttendee_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(CreateAttendeeRequest)
 	if err := dec(in); err != nil {
@@ -499,6 +571,14 @@ var RosterService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ArchiveContact",
 			Handler:    _RosterService_ArchiveContact_Handler,
+		},
+		{
+			MethodName: "SetContactReminders",
+			Handler:    _RosterService_SetContactReminders_Handler,
+		},
+		{
+			MethodName: "SetHouseholdReminders",
+			Handler:    _RosterService_SetHouseholdReminders_Handler,
 		},
 		{
 			MethodName: "CreateAttendee",

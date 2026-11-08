@@ -53,7 +53,7 @@ INSERT INTO roster_contacts (
 	$7,
 	$8
 )
-RETURNING id, studio_id, household_id, name, phone, language, relationship, opted_out, verified_at, created_at, last_updated_at, archived_at, email
+RETURNING id, studio_id, household_id, name, phone, language, relationship, opted_out, verified_at, created_at, last_updated_at, archived_at, email, reminders_off
 `
 
 type CreateContactParams struct {
@@ -93,12 +93,13 @@ func (q *Queries) CreateContact(ctx context.Context, db DBTX, arg *CreateContact
 		&i.LastUpdatedAt,
 		&i.ArchivedAt,
 		&i.Email,
+		&i.RemindersOff,
 	)
 	return &i, err
 }
 
 const getContact = `-- name: GetContact :one
-SELECT id, studio_id, household_id, name, phone, language, relationship, opted_out, verified_at, created_at, last_updated_at, archived_at, email
+SELECT id, studio_id, household_id, name, phone, language, relationship, opted_out, verified_at, created_at, last_updated_at, archived_at, email, reminders_off
 FROM roster_contacts
 WHERE roster_contacts.id = $1
 	AND roster_contacts.studio_id = $2
@@ -127,12 +128,13 @@ func (q *Queries) GetContact(ctx context.Context, db DBTX, arg *GetContactParams
 		&i.LastUpdatedAt,
 		&i.ArchivedAt,
 		&i.Email,
+		&i.RemindersOff,
 	)
 	return &i, err
 }
 
 const listContactsForHouseholds = `-- name: ListContactsForHouseholds :many
-SELECT id, studio_id, household_id, name, phone, language, relationship, opted_out, verified_at, created_at, last_updated_at, archived_at, email
+SELECT id, studio_id, household_id, name, phone, language, relationship, opted_out, verified_at, created_at, last_updated_at, archived_at, email, reminders_off
 FROM roster_contacts
 WHERE roster_contacts.studio_id = $1
 	AND roster_contacts.household_id = ANY($2::text[])
@@ -168,6 +170,7 @@ func (q *Queries) ListContactsForHouseholds(ctx context.Context, db DBTX, arg *L
 			&i.LastUpdatedAt,
 			&i.ArchivedAt,
 			&i.Email,
+			&i.RemindersOff,
 		); err != nil {
 			return nil, err
 		}
@@ -180,6 +183,46 @@ func (q *Queries) ListContactsForHouseholds(ctx context.Context, db DBTX, arg *L
 		return nil, err
 	}
 	return items, nil
+}
+
+const setContactReminders = `-- name: SetContactReminders :one
+UPDATE roster_contacts SET
+	reminders_off = $1,
+	last_updated_at = NOW()
+WHERE roster_contacts.id = $2
+	AND roster_contacts.studio_id = $3
+	AND roster_contacts.archived_at IS NULL
+RETURNING id, studio_id, household_id, name, phone, language, relationship, opted_out, verified_at, created_at, last_updated_at, archived_at, email, reminders_off
+`
+
+type SetContactRemindersParams struct {
+	RemindersOff bool
+	ID           string
+	StudioID     string
+}
+
+// SetContactReminders is the owner saying a contact gets no reminders, or
+// gets them again.
+func (q *Queries) SetContactReminders(ctx context.Context, db DBTX, arg *SetContactRemindersParams) (*RosterContacts, error) {
+	row := db.QueryRowContext(ctx, setContactReminders, arg.RemindersOff, arg.ID, arg.StudioID)
+	var i RosterContacts
+	err := row.Scan(
+		&i.ID,
+		&i.StudioID,
+		&i.HouseholdID,
+		&i.Name,
+		&i.Phone,
+		&i.Language,
+		&i.Relationship,
+		&i.OptedOut,
+		&i.VerifiedAt,
+		&i.CreatedAt,
+		&i.LastUpdatedAt,
+		&i.ArchivedAt,
+		&i.Email,
+		&i.RemindersOff,
+	)
+	return &i, err
 }
 
 const unlinkContact = `-- name: UnlinkContact :exec
@@ -214,7 +257,7 @@ UPDATE roster_contacts SET
 WHERE roster_contacts.id = $6
 	AND roster_contacts.studio_id = $7
 	AND roster_contacts.archived_at IS NULL
-RETURNING id, studio_id, household_id, name, phone, language, relationship, opted_out, verified_at, created_at, last_updated_at, archived_at, email
+RETURNING id, studio_id, household_id, name, phone, language, relationship, opted_out, verified_at, created_at, last_updated_at, archived_at, email, reminders_off
 `
 
 type UpdateContactParams struct {
@@ -252,6 +295,7 @@ func (q *Queries) UpdateContact(ctx context.Context, db DBTX, arg *UpdateContact
 		&i.LastUpdatedAt,
 		&i.ArchivedAt,
 		&i.Email,
+		&i.RemindersOff,
 	)
 	return &i, err
 }

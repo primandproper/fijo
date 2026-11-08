@@ -144,7 +144,9 @@ type Contact struct {
 	OptedOut     bool         `protobuf:"varint,7,opt,name=opted_out,json=optedOut,proto3" json:"opted_out,omitempty"`
 	Verified     bool         `protobuf:"varint,8,opt,name=verified,proto3" json:"verified,omitempty"`
 	// Lowercased as stored, or empty.
-	Email         string `protobuf:"bytes,9,opt,name=email,proto3" json:"email,omitempty"`
+	Email string `protobuf:"bytes,9,opt,name=email,proto3" json:"email,omitempty"`
+	// The owner has said this contact gets no reminders.
+	RemindersOff  bool `protobuf:"varint,10,opt,name=reminders_off,json=remindersOff,proto3" json:"reminders_off,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -242,6 +244,13 @@ func (x *Contact) GetEmail() string {
 	return ""
 }
 
+func (x *Contact) GetRemindersOff() bool {
+	if x != nil {
+		return x.RemindersOff
+	}
+	return false
+}
+
 type Attendee struct {
 	state       protoimpl.MessageState `protogen:"open.v1"`
 	Id          string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -324,13 +333,17 @@ type Household struct {
 	Id    string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	Name  string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
 	// What a contact or attendee added to the household starts with.
-	Language      Language    `protobuf:"varint,3,opt,name=language,proto3,enum=fijo.v1.Language" json:"language,omitempty"`
-	Notes         string      `protobuf:"bytes,4,opt,name=notes,proto3" json:"notes,omitempty"`
-	Archived      bool        `protobuf:"varint,5,opt,name=archived,proto3" json:"archived,omitempty"`
-	Contacts      []*Contact  `protobuf:"bytes,6,rep,name=contacts,proto3" json:"contacts,omitempty"`
-	Attendees     []*Attendee `protobuf:"bytes,7,rep,name=attendees,proto3" json:"attendees,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Language  Language    `protobuf:"varint,3,opt,name=language,proto3,enum=fijo.v1.Language" json:"language,omitempty"`
+	Notes     string      `protobuf:"bytes,4,opt,name=notes,proto3" json:"notes,omitempty"`
+	Archived  bool        `protobuf:"varint,5,opt,name=archived,proto3" json:"archived,omitempty"`
+	Contacts  []*Contact  `protobuf:"bytes,6,rep,name=contacts,proto3" json:"contacts,omitempty"`
+	Attendees []*Attendee `protobuf:"bytes,7,rep,name=attendees,proto3" json:"attendees,omitempty"`
+	// How many minutes before each lesson the household's two reminders go out;
+	// zero is one it does not want. A new household starts at a day and an hour.
+	FirstReminderMinutes  int32 `protobuf:"varint,8,opt,name=first_reminder_minutes,json=firstReminderMinutes,proto3" json:"first_reminder_minutes,omitempty"`
+	SecondReminderMinutes int32 `protobuf:"varint,9,opt,name=second_reminder_minutes,json=secondReminderMinutes,proto3" json:"second_reminder_minutes,omitempty"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
 }
 
 func (x *Household) Reset() {
@@ -410,6 +423,20 @@ func (x *Household) GetAttendees() []*Attendee {
 		return x.Attendees
 	}
 	return nil
+}
+
+func (x *Household) GetFirstReminderMinutes() int32 {
+	if x != nil {
+		return x.FirstReminderMinutes
+	}
+	return 0
+}
+
+func (x *Household) GetSecondReminderMinutes() int32 {
+	if x != nil {
+		return x.SecondReminderMinutes
+	}
+	return 0
 }
 
 type ListHouseholdsRequest struct {
@@ -969,6 +996,119 @@ func (x *ArchiveContactRequest) GetId() string {
 	return ""
 }
 
+type SetContactRemindersRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ContactId     string                 `protobuf:"bytes,1,opt,name=contact_id,json=contactId,proto3" json:"contact_id,omitempty"`
+	RemindersOff  bool                   `protobuf:"varint,2,opt,name=reminders_off,json=remindersOff,proto3" json:"reminders_off,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SetContactRemindersRequest) Reset() {
+	*x = SetContactRemindersRequest{}
+	mi := &file_fijo_v1_roster_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetContactRemindersRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetContactRemindersRequest) ProtoMessage() {}
+
+func (x *SetContactRemindersRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_fijo_v1_roster_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetContactRemindersRequest.ProtoReflect.Descriptor instead.
+func (*SetContactRemindersRequest) Descriptor() ([]byte, []int) {
+	return file_fijo_v1_roster_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *SetContactRemindersRequest) GetContactId() string {
+	if x != nil {
+		return x.ContactId
+	}
+	return ""
+}
+
+func (x *SetContactRemindersRequest) GetRemindersOff() bool {
+	if x != nil {
+		return x.RemindersOff
+	}
+	return false
+}
+
+// Each is zero for none, or 15 to 10080 minutes (a week).
+type SetHouseholdRemindersRequest struct {
+	state                 protoimpl.MessageState `protogen:"open.v1"`
+	HouseholdId           string                 `protobuf:"bytes,1,opt,name=household_id,json=householdId,proto3" json:"household_id,omitempty"`
+	FirstReminderMinutes  int32                  `protobuf:"varint,2,opt,name=first_reminder_minutes,json=firstReminderMinutes,proto3" json:"first_reminder_minutes,omitempty"`
+	SecondReminderMinutes int32                  `protobuf:"varint,3,opt,name=second_reminder_minutes,json=secondReminderMinutes,proto3" json:"second_reminder_minutes,omitempty"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
+}
+
+func (x *SetHouseholdRemindersRequest) Reset() {
+	*x = SetHouseholdRemindersRequest{}
+	mi := &file_fijo_v1_roster_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetHouseholdRemindersRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetHouseholdRemindersRequest) ProtoMessage() {}
+
+func (x *SetHouseholdRemindersRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_fijo_v1_roster_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetHouseholdRemindersRequest.ProtoReflect.Descriptor instead.
+func (*SetHouseholdRemindersRequest) Descriptor() ([]byte, []int) {
+	return file_fijo_v1_roster_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *SetHouseholdRemindersRequest) GetHouseholdId() string {
+	if x != nil {
+		return x.HouseholdId
+	}
+	return ""
+}
+
+func (x *SetHouseholdRemindersRequest) GetFirstReminderMinutes() int32 {
+	if x != nil {
+		return x.FirstReminderMinutes
+	}
+	return 0
+}
+
+func (x *SetHouseholdRemindersRequest) GetSecondReminderMinutes() int32 {
+	if x != nil {
+		return x.SecondReminderMinutes
+	}
+	return 0
+}
+
 type CreateAttendeeRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Attendee      *Attendee              `protobuf:"bytes,1,opt,name=attendee,proto3" json:"attendee,omitempty"`
@@ -978,7 +1118,7 @@ type CreateAttendeeRequest struct {
 
 func (x *CreateAttendeeRequest) Reset() {
 	*x = CreateAttendeeRequest{}
-	mi := &file_fijo_v1_roster_proto_msgTypes[15]
+	mi := &file_fijo_v1_roster_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -990,7 +1130,7 @@ func (x *CreateAttendeeRequest) String() string {
 func (*CreateAttendeeRequest) ProtoMessage() {}
 
 func (x *CreateAttendeeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_fijo_v1_roster_proto_msgTypes[15]
+	mi := &file_fijo_v1_roster_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1003,7 +1143,7 @@ func (x *CreateAttendeeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateAttendeeRequest.ProtoReflect.Descriptor instead.
 func (*CreateAttendeeRequest) Descriptor() ([]byte, []int) {
-	return file_fijo_v1_roster_proto_rawDescGZIP(), []int{15}
+	return file_fijo_v1_roster_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *CreateAttendeeRequest) GetAttendee() *Attendee {
@@ -1022,7 +1162,7 @@ type UpdateAttendeeRequest struct {
 
 func (x *UpdateAttendeeRequest) Reset() {
 	*x = UpdateAttendeeRequest{}
-	mi := &file_fijo_v1_roster_proto_msgTypes[16]
+	mi := &file_fijo_v1_roster_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1034,7 +1174,7 @@ func (x *UpdateAttendeeRequest) String() string {
 func (*UpdateAttendeeRequest) ProtoMessage() {}
 
 func (x *UpdateAttendeeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_fijo_v1_roster_proto_msgTypes[16]
+	mi := &file_fijo_v1_roster_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1047,7 +1187,7 @@ func (x *UpdateAttendeeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateAttendeeRequest.ProtoReflect.Descriptor instead.
 func (*UpdateAttendeeRequest) Descriptor() ([]byte, []int) {
-	return file_fijo_v1_roster_proto_rawDescGZIP(), []int{16}
+	return file_fijo_v1_roster_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *UpdateAttendeeRequest) GetAttendee() *Attendee {
@@ -1066,7 +1206,7 @@ type ArchiveAttendeeRequest struct {
 
 func (x *ArchiveAttendeeRequest) Reset() {
 	*x = ArchiveAttendeeRequest{}
-	mi := &file_fijo_v1_roster_proto_msgTypes[17]
+	mi := &file_fijo_v1_roster_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1078,7 +1218,7 @@ func (x *ArchiveAttendeeRequest) String() string {
 func (*ArchiveAttendeeRequest) ProtoMessage() {}
 
 func (x *ArchiveAttendeeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_fijo_v1_roster_proto_msgTypes[17]
+	mi := &file_fijo_v1_roster_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1091,7 +1231,7 @@ func (x *ArchiveAttendeeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ArchiveAttendeeRequest.ProtoReflect.Descriptor instead.
 func (*ArchiveAttendeeRequest) Descriptor() ([]byte, []int) {
-	return file_fijo_v1_roster_proto_rawDescGZIP(), []int{17}
+	return file_fijo_v1_roster_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *ArchiveAttendeeRequest) GetId() string {
@@ -1105,7 +1245,7 @@ var File_fijo_v1_roster_proto protoreflect.FileDescriptor
 
 const file_fijo_v1_roster_proto_rawDesc = "" +
 	"\n" +
-	"\x14fijo/v1/roster.proto\x12\afijo.v1\"\x9f\x02\n" +
+	"\x14fijo/v1/roster.proto\x12\afijo.v1\"\xc4\x02\n" +
 	"\aContact\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12!\n" +
 	"\fhousehold_id\x18\x02 \x01(\tR\vhouseholdId\x12\x12\n" +
@@ -1115,14 +1255,16 @@ const file_fijo_v1_roster_proto_rawDesc = "" +
 	"\frelationship\x18\x06 \x01(\x0e2\x15.fijo.v1.RelationshipR\frelationship\x12\x1b\n" +
 	"\topted_out\x18\a \x01(\bR\boptedOut\x12\x1a\n" +
 	"\bverified\x18\b \x01(\bR\bverified\x12\x14\n" +
-	"\x05email\x18\t \x01(\tR\x05email\"\x9f\x01\n" +
+	"\x05email\x18\t \x01(\tR\x05email\x12#\n" +
+	"\rreminders_off\x18\n" +
+	" \x01(\bR\fremindersOff\"\x9f\x01\n" +
 	"\bAttendee\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12!\n" +
 	"\fhousehold_id\x18\x02 \x01(\tR\vhouseholdId\x12\x12\n" +
 	"\x04name\x18\x03 \x01(\tR\x04name\x12-\n" +
 	"\blanguage\x18\x04 \x01(\x0e2\x11.fijo.v1.LanguageR\blanguage\x12\x1d\n" +
 	"\n" +
-	"contact_id\x18\x05 \x01(\tR\tcontactId\"\xef\x01\n" +
+	"contact_id\x18\x05 \x01(\tR\tcontactId\"\xdd\x02\n" +
 	"\tHousehold\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12-\n" +
@@ -1130,7 +1272,9 @@ const file_fijo_v1_roster_proto_rawDesc = "" +
 	"\x05notes\x18\x04 \x01(\tR\x05notes\x12\x1a\n" +
 	"\barchived\x18\x05 \x01(\bR\barchived\x12,\n" +
 	"\bcontacts\x18\x06 \x03(\v2\x10.fijo.v1.ContactR\bcontacts\x12/\n" +
-	"\tattendees\x18\a \x03(\v2\x11.fijo.v1.AttendeeR\tattendees\"B\n" +
+	"\tattendees\x18\a \x03(\v2\x11.fijo.v1.AttendeeR\tattendees\x124\n" +
+	"\x16first_reminder_minutes\x18\b \x01(\x05R\x14firstReminderMinutes\x126\n" +
+	"\x17second_reminder_minutes\x18\t \x01(\x05R\x15secondReminderMinutes\"B\n" +
 	"\x15ListHouseholdsRequest\x12)\n" +
 	"\x10include_archived\x18\x01 \x01(\bR\x0fincludeArchived\"L\n" +
 	"\x16ListHouseholdsResponse\x122\n" +
@@ -1160,7 +1304,15 @@ const file_fijo_v1_roster_proto_rawDesc = "" +
 	"\x14UpdateContactRequest\x12*\n" +
 	"\acontact\x18\x01 \x01(\v2\x10.fijo.v1.ContactR\acontact\"'\n" +
 	"\x15ArchiveContactRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\"F\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\"`\n" +
+	"\x1aSetContactRemindersRequest\x12\x1d\n" +
+	"\n" +
+	"contact_id\x18\x01 \x01(\tR\tcontactId\x12#\n" +
+	"\rreminders_off\x18\x02 \x01(\bR\fremindersOff\"\xaf\x01\n" +
+	"\x1cSetHouseholdRemindersRequest\x12!\n" +
+	"\fhousehold_id\x18\x01 \x01(\tR\vhouseholdId\x124\n" +
+	"\x16first_reminder_minutes\x18\x02 \x01(\x05R\x14firstReminderMinutes\x126\n" +
+	"\x17second_reminder_minutes\x18\x03 \x01(\x05R\x15secondReminderMinutes\"F\n" +
 	"\x15CreateAttendeeRequest\x12-\n" +
 	"\battendee\x18\x01 \x01(\v2\x11.fijo.v1.AttendeeR\battendee\"F\n" +
 	"\x15UpdateAttendeeRequest\x12-\n" +
@@ -1174,7 +1326,7 @@ const file_fijo_v1_roster_proto_rawDesc = "" +
 	"\fRelationship\x12\x1c\n" +
 	"\x18RELATIONSHIP_UNSPECIFIED\x10\x00\x12\x19\n" +
 	"\x15RELATIONSHIP_GUARDIAN\x10\x01\x12\x15\n" +
-	"\x11RELATIONSHIP_SELF\x10\x022\xf7\x06\n" +
+	"\x11RELATIONSHIP_SELF\x10\x022\xab\b\n" +
 	"\rRosterService\x12Q\n" +
 	"\x0eListHouseholds\x12\x1e.fijo.v1.ListHouseholdsRequest\x1a\x1f.fijo.v1.ListHouseholdsResponse\x12H\n" +
 	"\fGetHousehold\x12\x1c.fijo.v1.GetHouseholdRequest\x1a\x1a.fijo.v1.HouseholdResponse\x12N\n" +
@@ -1183,7 +1335,9 @@ const file_fijo_v1_roster_proto_rawDesc = "" +
 	"\x10ArchiveHousehold\x12 .fijo.v1.ArchiveHouseholdRequest\x1a!.fijo.v1.ArchiveHouseholdResponse\x12J\n" +
 	"\rCreateContact\x12\x1d.fijo.v1.CreateContactRequest\x1a\x1a.fijo.v1.HouseholdResponse\x12J\n" +
 	"\rUpdateContact\x12\x1d.fijo.v1.UpdateContactRequest\x1a\x1a.fijo.v1.HouseholdResponse\x12L\n" +
-	"\x0eArchiveContact\x12\x1e.fijo.v1.ArchiveContactRequest\x1a\x1a.fijo.v1.HouseholdResponse\x12L\n" +
+	"\x0eArchiveContact\x12\x1e.fijo.v1.ArchiveContactRequest\x1a\x1a.fijo.v1.HouseholdResponse\x12V\n" +
+	"\x13SetContactReminders\x12#.fijo.v1.SetContactRemindersRequest\x1a\x1a.fijo.v1.HouseholdResponse\x12Z\n" +
+	"\x15SetHouseholdReminders\x12%.fijo.v1.SetHouseholdRemindersRequest\x1a\x1a.fijo.v1.HouseholdResponse\x12L\n" +
 	"\x0eCreateAttendee\x12\x1e.fijo.v1.CreateAttendeeRequest\x1a\x1a.fijo.v1.HouseholdResponse\x12L\n" +
 	"\x0eUpdateAttendee\x12\x1e.fijo.v1.UpdateAttendeeRequest\x1a\x1a.fijo.v1.HouseholdResponse\x12N\n" +
 	"\x0fArchiveAttendee\x12\x1f.fijo.v1.ArchiveAttendeeRequest\x1a\x1a.fijo.v1.HouseholdResponseB;Z9github.com/primandproper/fijo/internal/grpc/fijopb;fijopbb\x06proto3"
@@ -1201,28 +1355,30 @@ func file_fijo_v1_roster_proto_rawDescGZIP() []byte {
 }
 
 var file_fijo_v1_roster_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_fijo_v1_roster_proto_msgTypes = make([]protoimpl.MessageInfo, 18)
+var file_fijo_v1_roster_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
 var file_fijo_v1_roster_proto_goTypes = []any{
-	(Language)(0),                    // 0: fijo.v1.Language
-	(Relationship)(0),                // 1: fijo.v1.Relationship
-	(*Contact)(nil),                  // 2: fijo.v1.Contact
-	(*Attendee)(nil),                 // 3: fijo.v1.Attendee
-	(*Household)(nil),                // 4: fijo.v1.Household
-	(*ListHouseholdsRequest)(nil),    // 5: fijo.v1.ListHouseholdsRequest
-	(*ListHouseholdsResponse)(nil),   // 6: fijo.v1.ListHouseholdsResponse
-	(*GetHouseholdRequest)(nil),      // 7: fijo.v1.GetHouseholdRequest
-	(*HouseholdResponse)(nil),        // 8: fijo.v1.HouseholdResponse
-	(*NewContact)(nil),               // 9: fijo.v1.NewContact
-	(*CreateHouseholdRequest)(nil),   // 10: fijo.v1.CreateHouseholdRequest
-	(*UpdateHouseholdRequest)(nil),   // 11: fijo.v1.UpdateHouseholdRequest
-	(*ArchiveHouseholdRequest)(nil),  // 12: fijo.v1.ArchiveHouseholdRequest
-	(*ArchiveHouseholdResponse)(nil), // 13: fijo.v1.ArchiveHouseholdResponse
-	(*CreateContactRequest)(nil),     // 14: fijo.v1.CreateContactRequest
-	(*UpdateContactRequest)(nil),     // 15: fijo.v1.UpdateContactRequest
-	(*ArchiveContactRequest)(nil),    // 16: fijo.v1.ArchiveContactRequest
-	(*CreateAttendeeRequest)(nil),    // 17: fijo.v1.CreateAttendeeRequest
-	(*UpdateAttendeeRequest)(nil),    // 18: fijo.v1.UpdateAttendeeRequest
-	(*ArchiveAttendeeRequest)(nil),   // 19: fijo.v1.ArchiveAttendeeRequest
+	(Language)(0),                        // 0: fijo.v1.Language
+	(Relationship)(0),                    // 1: fijo.v1.Relationship
+	(*Contact)(nil),                      // 2: fijo.v1.Contact
+	(*Attendee)(nil),                     // 3: fijo.v1.Attendee
+	(*Household)(nil),                    // 4: fijo.v1.Household
+	(*ListHouseholdsRequest)(nil),        // 5: fijo.v1.ListHouseholdsRequest
+	(*ListHouseholdsResponse)(nil),       // 6: fijo.v1.ListHouseholdsResponse
+	(*GetHouseholdRequest)(nil),          // 7: fijo.v1.GetHouseholdRequest
+	(*HouseholdResponse)(nil),            // 8: fijo.v1.HouseholdResponse
+	(*NewContact)(nil),                   // 9: fijo.v1.NewContact
+	(*CreateHouseholdRequest)(nil),       // 10: fijo.v1.CreateHouseholdRequest
+	(*UpdateHouseholdRequest)(nil),       // 11: fijo.v1.UpdateHouseholdRequest
+	(*ArchiveHouseholdRequest)(nil),      // 12: fijo.v1.ArchiveHouseholdRequest
+	(*ArchiveHouseholdResponse)(nil),     // 13: fijo.v1.ArchiveHouseholdResponse
+	(*CreateContactRequest)(nil),         // 14: fijo.v1.CreateContactRequest
+	(*UpdateContactRequest)(nil),         // 15: fijo.v1.UpdateContactRequest
+	(*ArchiveContactRequest)(nil),        // 16: fijo.v1.ArchiveContactRequest
+	(*SetContactRemindersRequest)(nil),   // 17: fijo.v1.SetContactRemindersRequest
+	(*SetHouseholdRemindersRequest)(nil), // 18: fijo.v1.SetHouseholdRemindersRequest
+	(*CreateAttendeeRequest)(nil),        // 19: fijo.v1.CreateAttendeeRequest
+	(*UpdateAttendeeRequest)(nil),        // 20: fijo.v1.UpdateAttendeeRequest
+	(*ArchiveAttendeeRequest)(nil),       // 21: fijo.v1.ArchiveAttendeeRequest
 }
 var file_fijo_v1_roster_proto_depIdxs = []int32{
 	0,  // 0: fijo.v1.Contact.language:type_name -> fijo.v1.Language
@@ -1250,22 +1406,26 @@ var file_fijo_v1_roster_proto_depIdxs = []int32{
 	14, // 22: fijo.v1.RosterService.CreateContact:input_type -> fijo.v1.CreateContactRequest
 	15, // 23: fijo.v1.RosterService.UpdateContact:input_type -> fijo.v1.UpdateContactRequest
 	16, // 24: fijo.v1.RosterService.ArchiveContact:input_type -> fijo.v1.ArchiveContactRequest
-	17, // 25: fijo.v1.RosterService.CreateAttendee:input_type -> fijo.v1.CreateAttendeeRequest
-	18, // 26: fijo.v1.RosterService.UpdateAttendee:input_type -> fijo.v1.UpdateAttendeeRequest
-	19, // 27: fijo.v1.RosterService.ArchiveAttendee:input_type -> fijo.v1.ArchiveAttendeeRequest
-	6,  // 28: fijo.v1.RosterService.ListHouseholds:output_type -> fijo.v1.ListHouseholdsResponse
-	8,  // 29: fijo.v1.RosterService.GetHousehold:output_type -> fijo.v1.HouseholdResponse
-	8,  // 30: fijo.v1.RosterService.CreateHousehold:output_type -> fijo.v1.HouseholdResponse
-	8,  // 31: fijo.v1.RosterService.UpdateHousehold:output_type -> fijo.v1.HouseholdResponse
-	13, // 32: fijo.v1.RosterService.ArchiveHousehold:output_type -> fijo.v1.ArchiveHouseholdResponse
-	8,  // 33: fijo.v1.RosterService.CreateContact:output_type -> fijo.v1.HouseholdResponse
-	8,  // 34: fijo.v1.RosterService.UpdateContact:output_type -> fijo.v1.HouseholdResponse
-	8,  // 35: fijo.v1.RosterService.ArchiveContact:output_type -> fijo.v1.HouseholdResponse
-	8,  // 36: fijo.v1.RosterService.CreateAttendee:output_type -> fijo.v1.HouseholdResponse
-	8,  // 37: fijo.v1.RosterService.UpdateAttendee:output_type -> fijo.v1.HouseholdResponse
-	8,  // 38: fijo.v1.RosterService.ArchiveAttendee:output_type -> fijo.v1.HouseholdResponse
-	28, // [28:39] is the sub-list for method output_type
-	17, // [17:28] is the sub-list for method input_type
+	17, // 25: fijo.v1.RosterService.SetContactReminders:input_type -> fijo.v1.SetContactRemindersRequest
+	18, // 26: fijo.v1.RosterService.SetHouseholdReminders:input_type -> fijo.v1.SetHouseholdRemindersRequest
+	19, // 27: fijo.v1.RosterService.CreateAttendee:input_type -> fijo.v1.CreateAttendeeRequest
+	20, // 28: fijo.v1.RosterService.UpdateAttendee:input_type -> fijo.v1.UpdateAttendeeRequest
+	21, // 29: fijo.v1.RosterService.ArchiveAttendee:input_type -> fijo.v1.ArchiveAttendeeRequest
+	6,  // 30: fijo.v1.RosterService.ListHouseholds:output_type -> fijo.v1.ListHouseholdsResponse
+	8,  // 31: fijo.v1.RosterService.GetHousehold:output_type -> fijo.v1.HouseholdResponse
+	8,  // 32: fijo.v1.RosterService.CreateHousehold:output_type -> fijo.v1.HouseholdResponse
+	8,  // 33: fijo.v1.RosterService.UpdateHousehold:output_type -> fijo.v1.HouseholdResponse
+	13, // 34: fijo.v1.RosterService.ArchiveHousehold:output_type -> fijo.v1.ArchiveHouseholdResponse
+	8,  // 35: fijo.v1.RosterService.CreateContact:output_type -> fijo.v1.HouseholdResponse
+	8,  // 36: fijo.v1.RosterService.UpdateContact:output_type -> fijo.v1.HouseholdResponse
+	8,  // 37: fijo.v1.RosterService.ArchiveContact:output_type -> fijo.v1.HouseholdResponse
+	8,  // 38: fijo.v1.RosterService.SetContactReminders:output_type -> fijo.v1.HouseholdResponse
+	8,  // 39: fijo.v1.RosterService.SetHouseholdReminders:output_type -> fijo.v1.HouseholdResponse
+	8,  // 40: fijo.v1.RosterService.CreateAttendee:output_type -> fijo.v1.HouseholdResponse
+	8,  // 41: fijo.v1.RosterService.UpdateAttendee:output_type -> fijo.v1.HouseholdResponse
+	8,  // 42: fijo.v1.RosterService.ArchiveAttendee:output_type -> fijo.v1.HouseholdResponse
+	30, // [30:43] is the sub-list for method output_type
+	17, // [17:30] is the sub-list for method input_type
 	17, // [17:17] is the sub-list for extension type_name
 	17, // [17:17] is the sub-list for extension extendee
 	0,  // [0:17] is the sub-list for field type_name
@@ -1282,7 +1442,7 @@ func file_fijo_v1_roster_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_fijo_v1_roster_proto_rawDesc), len(file_fijo_v1_roster_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   18,
+			NumMessages:   20,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

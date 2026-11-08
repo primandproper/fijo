@@ -28,6 +28,10 @@ service RosterService {
   rpc CreateContact(CreateContactRequest) returns (HouseholdResponse);
   rpc UpdateContact(UpdateContactRequest) returns (HouseholdResponse);
   rpc ArchiveContact(ArchiveContactRequest) returns (HouseholdResponse);
+  // The owner turning a contact's reminders off, or back on.
+  rpc SetContactReminders(SetContactRemindersRequest) returns (HouseholdResponse);
+  // How long before each lesson the household's two reminders go out.
+  rpc SetHouseholdReminders(SetHouseholdRemindersRequest) returns (HouseholdResponse);
 
   rpc CreateAttendee(CreateAttendeeRequest) returns (HouseholdResponse);
   rpc UpdateAttendee(UpdateAttendeeRequest) returns (HouseholdResponse);
@@ -62,6 +66,8 @@ message Contact {
   bool verified = 8;
   // Lowercased as stored, or empty.
   string email = 9;
+  // The owner has said this contact gets no reminders.
+  bool reminders_off = 10;
 }
 
 message Attendee {
@@ -82,6 +88,10 @@ message Household {
   bool archived = 5;
   repeated Contact contacts = 6;
   repeated Attendee attendees = 7;
+  // How many minutes before each lesson the household's two reminders go out;
+  // zero is one it does not want. A new household starts at a day and an hour.
+  int32 first_reminder_minutes = 8;
+  int32 second_reminder_minutes = 9;
 }
 
 message ListHouseholdsRequest { bool include_archived = 1; }
@@ -118,6 +128,18 @@ message CreateContactRequest {
 }
 message UpdateContactRequest { Contact contact = 1; }
 message ArchiveContactRequest { string id = 1; }
+
+message SetContactRemindersRequest {
+  string contact_id = 1;
+  bool reminders_off = 2;
+}
+
+// Each is zero for none, or 15 to 10080 minutes (a week).
+message SetHouseholdRemindersRequest {
+  string household_id = 1;
+  int32 first_reminder_minutes = 2;
+  int32 second_reminder_minutes = 3;
+}
 
 message CreateAttendeeRequest { Attendee attendee = 1; }
 message UpdateAttendeeRequest { Attendee attendee = 1; }

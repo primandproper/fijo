@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/primandproper/fijo/internal/domain/roster/generated"
 
@@ -471,6 +472,71 @@ func (s *SQLStore) UpdateContact(ctx context.Context, tx database.Tx, scope tena
 	return contactFromRow(row), nil
 }
 
+// SetHouseholdReminders implements Store.
+func (s *SQLStore) SetHouseholdReminders(ctx context.Context, tx database.Tx, scope tenancy.Scope, householdID string, first, second time.Duration) (_ *Household, err error) {
+	ctx, op, done := s.observe(ctx)
+	defer done(&err)
+
+	studio, err := writable(tx, scope)
+	if err != nil {
+		return nil, op.Error(err, "setting a household's reminders")
+	}
+
+	op.Set(keyStudio, studio).Set(keyHousehold, householdID)
+
+	switch {
+	case householdID == "":
+		return nil, op.Error(ErrEmptyID, "setting a household's reminders")
+	case !ValidReminder(first) || !ValidReminder(second):
+		return nil, op.Error(ErrInvalidReminder, "setting a household's reminders")
+	}
+
+	row, err := s.querier.SetHouseholdReminders(ctx, tx, &generated.SetHouseholdRemindersParams{
+		ID:                    householdID,
+		StudioID:              studio,
+		FirstReminderMinutes:  nullMinutes(first),
+		SecondReminderMinutes: nullMinutes(second),
+	})
+	if err != nil {
+		return nil, op.Error(notFound(err), "setting a household's reminders")
+	}
+
+	households, err := s.withPeople(ctx, tx, studio, []*generated.RosterHouseholds{row})
+	if err != nil {
+		return nil, op.Error(err, "setting a household's reminders")
+	}
+
+	return households[0], nil
+}
+
+// SetContactReminders implements Store.
+func (s *SQLStore) SetContactReminders(ctx context.Context, tx database.Tx, scope tenancy.Scope, contactID string, off bool) (_ *Contact, err error) {
+	ctx, op, done := s.observe(ctx)
+	defer done(&err)
+
+	studio, err := writable(tx, scope)
+	if err != nil {
+		return nil, op.Error(err, "setting a contact's reminders")
+	}
+
+	op.Set(keyStudio, studio).Set(keyContact, contactID)
+
+	if contactID == "" {
+		return nil, op.Error(ErrEmptyID, "setting a contact's reminders")
+	}
+
+	row, err := s.querier.SetContactReminders(ctx, tx, &generated.SetContactRemindersParams{
+		ID:           contactID,
+		StudioID:     studio,
+		RemindersOff: off,
+	})
+	if err != nil {
+		return nil, op.Error(notFound(err), "setting a contact's reminders")
+	}
+
+	return contactFromRow(row), nil
+}
+
 // ArchiveContact implements Store.
 func (s *SQLStore) ArchiveContact(ctx context.Context, tx database.Tx, scope tenancy.Scope, id string) (err error) {
 	ctx, op, done := s.observe(ctx)
@@ -767,16 +833,18 @@ func (s *SQLStore) withPeople(ctx context.Context, q database.SQLQueryExecutor, 
 
 func householdFromRow(row *generated.RosterHouseholds) *Household {
 	return &Household{
-		CreatedAt:     row.CreatedAt,
-		LastUpdatedAt: database.TimePointerFromNullTime(row.LastUpdatedAt),
-		ArchivedAt:    database.TimePointerFromNullTime(row.ArchivedAt),
-		ID:            row.ID,
-		StudioID:      row.StudioID,
-		Name:          row.Name,
-		Language:      Language(row.Language),
-		Notes:         row.Notes,
-		Contacts:      []*Contact{},
-		Attendees:     []*Attendee{},
+		CreatedAt:      row.CreatedAt,
+		LastUpdatedAt:  database.TimePointerFromNullTime(row.LastUpdatedAt),
+		ArchivedAt:     database.TimePointerFromNullTime(row.ArchivedAt),
+		ID:             row.ID,
+		StudioID:       row.StudioID,
+		Name:           row.Name,
+		Language:       Language(row.Language),
+		Notes:          row.Notes,
+		FirstReminder:  minutes(row.FirstReminderMinutes),
+		SecondReminder: minutes(row.SecondReminderMinutes),
+		Contacts:       []*Contact{},
+		Attendees:      []*Attendee{},
 	}
 }
 
@@ -795,6 +863,7 @@ func contactFromRow(row *generated.RosterContacts) *Contact {
 		Language:      Language(row.Language),
 		Relationship:  Relationship(row.Relationship),
 		OptedOut:      row.OptedOut,
+		RemindersOff:  row.RemindersOff,
 	}
 }
 
@@ -810,6 +879,20 @@ func attendeeFromRow(row *generated.RosterAttendees) *Attendee {
 		Language:      Language(row.Language),
 		ContactID:     row.ContactID.String,
 	}
+}
+
+// minutes is a stored reminder time, NULL being none.
+func minutes(value sql.NullInt32) time.Duration {
+	if !value.Valid {
+		return 0
+	}
+
+	return time.Duration(value.Int32) * time.Minute
+}
+
+// nullMinutes is a reminder time as stored, none being NULL.
+func nullMinutes(d time.Duration) sql.NullInt32 {
+	return sql.NullInt32{Int32: int32(d / time.Minute), Valid: d > 0}
 }
 
 func nullString(value string) sql.NullString {

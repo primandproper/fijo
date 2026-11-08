@@ -4,9 +4,9 @@
 // its tables and renders their DDL for a dialect and a table prefix, and
 // primitives-go's migrate package splices that text into a numbered sequence
 // as if it were a file — so the identity, authorization, audit, session,
-// WebAuthn, passkey, reset-token and refresh-token tables are created by the
-// same run that creates Fijo's own, and nothing platform-owned is copied into
-// this repository. The numbers are Fijo's to pick, because the sequence is
+// WebAuthn, passkey, reset-token, refresh-token, timer and metering tables are
+// created by the same run that creates Fijo's own, and nothing platform-owned
+// is copied into this repository. The numbers are Fijo's to pick, because the sequence is
 // Fijo's; they start at one and leave room after the platform block for Fijo's
 // own files, which begin at twenty.
 //
@@ -48,10 +48,14 @@ import (
 	webauthnsessionsmigrations "github.com/primandproper/platform-go/v15/authentication/webauthnsessions/migrations"
 	"github.com/primandproper/platform-go/v15/identity"
 	identitymigrations "github.com/primandproper/platform-go/v15/identity/migrations"
+	"github.com/primandproper/platform-go/v15/metering"
+	meteringmigrations "github.com/primandproper/platform-go/v15/metering/migrations"
 	"github.com/primandproper/platform-go/v15/rbac"
 	rbacmigrations "github.com/primandproper/platform-go/v15/rbac/migrations"
 	sessionsdatabase "github.com/primandproper/platform-go/v15/sessions/database"
 	sessionsmigrations "github.com/primandproper/platform-go/v15/sessions/database/migrations"
+	"github.com/primandproper/platform-go/v15/timers"
+	timersmigrations "github.com/primandproper/platform-go/v15/timers/migrations"
 	"github.com/primandproper/primitives-go/v2/database"
 	"github.com/primandproper/primitives-go/v2/database/ddl"
 	"github.com/primandproper/primitives-go/v2/database/dialect"
@@ -83,6 +87,12 @@ const (
 	passkeysVersion         uint64 = 6
 	passwordResetVersion    uint64 = 7
 	refreshTokensVersion    uint64 = 8
+
+	// Platform tables composed after Fijo's own files began take the next
+	// free numbers instead: a database already at a later version refuses a
+	// migration numbered below it as out of order.
+	timersVersion   uint64 = 25
+	meteringVersion uint64 = 26
 )
 
 // Fijo has the database to itself, so every platform table lives at its
@@ -130,6 +140,8 @@ func NewMigrator(logger logging.Logger) (*Migrator, error) {
 		{version: passkeysVersion, name: "create_passkey_credentials_table", render: renderPasskeys},
 		{version: passwordResetVersion, name: "create_password_reset_tokens_table", render: renderPasswordReset},
 		{version: refreshTokensVersion, name: "create_refresh_tokens_table", render: renderRefreshTokens},
+		{version: timersVersion, name: "create_timers_table", render: renderTimers},
+		{version: meteringVersion, name: "create_metering_tables", render: renderMetering},
 	}
 
 	opts := []migrate.Option{
@@ -301,4 +313,15 @@ func roleReference(table string) string {
 	return "\n\nALTER TABLE " + table +
 		"\n\tADD CONSTRAINT " + table + "_role_fk" +
 		"\n\tFOREIGN KEY (role) REFERENCES " + authzRoles + " (name) ON DELETE RESTRICT;\n"
+}
+
+// renderTimers is the table the reminders' delivery timers live in. One table
+// serves every timer set; a set is a name, not a table.
+func renderTimers() (string, error) {
+	return timersmigrations.SQL(dialect.Postgres, timers.DefaultTablePrefix)
+}
+
+// renderMetering is the usage tables: what each studio has sent, by month.
+func renderMetering() (string, error) {
+	return meteringmigrations.SQL(dialect.Postgres, metering.DefaultTablePrefix)
 }

@@ -24,7 +24,7 @@ import (
 // than materializing none.
 var ErrNoTimeZone = platformerrors.New("the studio's account names no time zone")
 
-// Zones reads a studio's time zone from its identity account.
+// Zones reads a studio's time zone, and its name, from its identity account.
 //
 // The directory is read in the global scope, because that is the scope the
 // identity directory is: studios are accounts in one directory, and the studio
@@ -37,6 +37,7 @@ type Zones struct {
 	accounts identity.Store
 	reader   database.SQLQueryExecutor
 	cached   map[string]*time.Location
+	names    map[string]string
 	mu       sync.RWMutex
 }
 
@@ -49,7 +50,7 @@ func NewZones(accounts identity.Store, reader database.SQLQueryExecutor) (*Zones
 		return nil, platformerrors.Wrap(platformerrors.ErrNilInputParameter, "nil read executor")
 	}
 
-	return &Zones{accounts: accounts, reader: reader, cached: map[string]*time.Location{}}, nil
+	return &Zones{accounts: accounts, reader: reader, cached: map[string]*time.Location{}, names: map[string]string{}}, nil
 }
 
 // ZoneOf implements the zone lookup the schedule's materializer takes.
@@ -87,9 +88,37 @@ func (z *Zones) ZoneOf(ctx context.Context, studioID string) (*time.Location, er
 	return loc, nil
 }
 
-// Forget drops a cached answer, for a deployment that has just changed one.
+// NameOf is what the studio is called, which is the name its reminders are
+// sent under.
+func (z *Zones) NameOf(ctx context.Context, studioID string) (string, error) {
+	if studioID == "" {
+		return "", platformerrors.Wrap(platformerrors.ErrEmptyInputParameter, "empty studio")
+	}
+
+	z.mu.RLock()
+	cached, known := z.names[studioID]
+	z.mu.RUnlock()
+
+	if known {
+		return cached, nil
+	}
+
+	account, err := z.accounts.GetAccount(ctx, z.reader, tenancy.Global(), studioID)
+	if err != nil {
+		return "", platformerrors.Wrapf(err, "reading the studio %q", studioID)
+	}
+
+	z.mu.Lock()
+	z.names[studioID] = account.Name
+	z.mu.Unlock()
+
+	return account.Name, nil
+}
+
+// Forget drops the cached answers, for a deployment that has just changed one.
 func (z *Zones) Forget(studioID string) {
 	z.mu.Lock()
 	delete(z.cached, studioID)
+	delete(z.names, studioID)
 	z.mu.Unlock()
 }

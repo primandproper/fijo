@@ -90,7 +90,26 @@ var (
 
 	// ErrUnreachable is a contact with neither an email nor a phone.
 	ErrUnreachable = platformerrors.Wrap(ErrInvalidContact, "a contact needs an email or a phone")
+
+	// ErrInvalidReminder is a reminder time outside what a household may ask
+	// for: whole minutes, from MinReminder to MaxReminder before the lesson.
+	ErrInvalidReminder = platformerrors.Wrap(platformerrors.ErrUnrecognizedInputValue, "a reminder goes out between 15 minutes and a week before the lesson")
 )
+
+// The reminder times a household may ask for, and the two it starts with.
+const (
+	MinReminder = 15 * time.Minute
+	MaxReminder = 7 * 24 * time.Hour
+
+	DefaultFirstReminder  = 24 * time.Hour
+	DefaultSecondReminder = time.Hour
+)
+
+// ValidReminder reports whether d is a reminder time a household may ask for:
+// zero, which is none, or whole minutes between MinReminder and MaxReminder.
+func ValidReminder(d time.Duration) bool {
+	return d == 0 || (d >= MinReminder && d <= MaxReminder && d%time.Minute == 0)
+}
 
 // Household is the client account.
 type Household struct {
@@ -100,11 +119,11 @@ type Household struct {
 	LastUpdatedAt *time.Time `json:"lastUpdatedAt,omitempty"`
 	ArchivedAt    *time.Time `json:"archivedAt,omitempty"`
 
-	ID       string `json:"id"`
-	StudioID string `json:"studioID"`
-
 	// Name is how the owner finds them: "García" or "Ana Ruiz".
 	Name string `json:"name"`
+
+	StudioID string `json:"studioID"`
+	ID       string `json:"id"`
 
 	// Language is what a contact or attendee added to the household starts
 	// with.
@@ -116,6 +135,12 @@ type Household struct {
 	// the reads that say so.
 	Contacts  []*Contact  `json:"contacts"`
 	Attendees []*Attendee `json:"attendees"`
+
+	// FirstReminder and SecondReminder are how long before each lesson the
+	// household's two reminders go out; zero is one it does not want. A new
+	// household gets DefaultFirstReminder and DefaultSecondReminder.
+	FirstReminder  time.Duration `json:"firstReminder"`
+	SecondReminder time.Duration `json:"secondReminder"`
 }
 
 // Validate is the shape this package refuses before the database does.
@@ -160,6 +185,9 @@ type Contact struct {
 	// OptedOut is the carrier saying this number sent STOP. Nothing writes it
 	// until the sms package exists.
 	OptedOut bool `json:"optedOut"`
+
+	// RemindersOff is the owner saying this contact gets no reminders.
+	RemindersOff bool `json:"remindersOff"`
 }
 
 // Validate is the shape this package refuses before the database does: at
@@ -313,6 +341,10 @@ type Store interface {
 	// UpdateHousehold rewrites the name, language and notes.
 	UpdateHousehold(ctx context.Context, tx database.Tx, scope tenancy.Scope, household *Household) (*Household, error)
 
+	// SetHouseholdReminders rewrites how long before a lesson each of the
+	// household's two reminders goes out, zero for one it does not want.
+	SetHouseholdReminders(ctx context.Context, tx database.Tx, scope tenancy.Scope, householdID string, first, second time.Duration) (*Household, error)
+
 	// ArchiveHousehold retires the household and everybody on it.
 	ArchiveHousehold(ctx context.Context, tx database.Tx, scope tenancy.Scope, id string) error
 
@@ -328,6 +360,9 @@ type Store interface {
 
 	// UpdateContact rewrites the name, phone, email, language and relationship.
 	UpdateContact(ctx context.Context, tx database.Tx, scope tenancy.Scope, contact *Contact) (*Contact, error)
+
+	// SetContactReminders turns a contact's reminders off, or back on.
+	SetContactReminders(ctx context.Context, tx database.Tx, scope tenancy.Scope, contactID string, off bool) (*Contact, error)
 
 	// ArchiveContact retires a contact, unlinking any attendee that was them.
 	ArchiveContact(ctx context.Context, tx database.Tx, scope tenancy.Scope, id string) error

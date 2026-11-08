@@ -4,6 +4,8 @@ import type { Actions, PageServerLoad } from './$types';
 import { api } from '$lib/grpc/clients';
 import { messageOf } from '$lib/errors';
 import { languageOf, RELATIONSHIPS } from '$lib/roster';
+import { isReminderMinutes } from '$lib/reminders';
+import { shapeReminder } from '$lib/server/reminders';
 import { shapeHousehold } from '$lib/server/roster';
 import { byWeekTime, seriesOf, shapeSeries } from '$lib/server/series';
 import { studioContext } from '$lib/server/studio';
@@ -21,11 +23,13 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
   }
   if (!household) error(404, 'No such client.');
 
-  const [ctx, offerings, series, roster] = await Promise.all([
+  const [ctx, offerings, series, roster, reminderSettings, reminders] = await Promise.all([
     studioContext(token),
     api.schedule.listOfferings(token, { includeArchived: true }),
     api.schedule.listSeries(token, { includeArchived: false }),
     api.roster.listHouseholds(token, { includeArchived: false }),
+    api.reminders.getSettings(token, {}),
+    api.reminders.list(token, { householdId: params.id, limit: 20 }),
   ]);
 
   const today = wallClock(new Date(), ctx.studioZone).date;
@@ -39,6 +43,8 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
     // Set when the client was added but the first lesson that came with them was not.
     lessonProblem: url.searchParams.get('lesson') ?? '',
     household: shaped,
+    remindersOn: reminderSettings.remindersOn,
+    reminders: reminders.reminders.map((r) => shapeReminder(r, ctx.studioZone)),
     offerings: offerings.offerings
       .filter((o) => !o.archived)
       .map((o) => ({ id: o.id, name: o.nameEn, durationMinutes: o.durationMinutes })),
@@ -79,6 +85,9 @@ export const actions: Actions = {
             archived: false,
             contacts: [],
             attendees: [],
+            // UpdateHousehold leaves these alone; householdReminders is what writes them.
+            firstReminderMinutes: 0,
+            secondReminderMinutes: 0,
           },
         }),
       'That client could not be saved.',
@@ -105,6 +114,8 @@ export const actions: Actions = {
       relationship: RELATIONSHIPS[text(form, 'relationship') === 'self' ? 'self' : 'guardian'].value,
       optedOut: false,
       verified: false,
+      // UpdateContact leaves this alone; contactReminders is what writes it.
+      remindersOff: false,
     };
     if (!contact.name) return fail(400, { error: 'A contact needs a name.' });
     if (!contact.phone && !contact.email) return fail(400, { error: 'A contact needs an email or a phone number.' });
@@ -115,6 +126,34 @@ export const actions: Actions = {
           ? api.roster.updateContact(token, { contact })
           : api.roster.createContact(token, { contact, attends: form.get('attends') === 'on' }),
       'That contact could not be saved.',
+    );
+  },
+  contactReminders: async ({ request, locals }) => {
+    const form = await request.formData();
+    return attempt(
+      () =>
+        api.roster.setContactReminders(locals.accessToken!, {
+          contactId: text(form, 'id'),
+          remindersOff: form.get('off') === 'on',
+        }),
+      "That contact's reminders could not be changed.",
+    );
+  },
+  householdReminders: async ({ request, locals, params }) => {
+    const form = await request.formData();
+    const first = Number(text(form, 'first'));
+    const second = Number(text(form, 'second'));
+    if (!isReminderMinutes(first) || !isReminderMinutes(second)) {
+      return fail(400, { error: 'A reminder goes out between 15 minutes and a week before the lesson.' });
+    }
+    return attempt(
+      () =>
+        api.roster.setHouseholdReminders(locals.accessToken!, {
+          householdId: params.id,
+          firstReminderMinutes: first,
+          secondReminderMinutes: second,
+        }),
+      'Those reminders could not be saved.',
     );
   },
   removeContact: async ({ request, locals }) => {

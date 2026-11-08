@@ -3,6 +3,7 @@ package roster_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/primandproper/fijo/internal/bootstrap"
 	"github.com/primandproper/fijo/internal/domain/roster"
@@ -125,6 +126,37 @@ func TestSQLStoreAgainstPostgres(t *testing.T) {
 				})
 
 				return createErr
+			}))
+		})
+
+		t.Run("a household starts with two reminders and can change them", func(t *testing.T) {
+			read, readErr := store.GetHousehold(ctx, client.Reader(), scope, garcia.ID)
+			must.NoError(t, readErr)
+			test.Eq(t, roster.DefaultFirstReminder, read.FirstReminder)
+			test.Eq(t, roster.DefaultSecondReminder, read.SecondReminder)
+
+			must.NoError(t, client.WithTransaction(ctx, func(tx database.Tx) error {
+				set, setErr := store.SetHouseholdReminders(ctx, tx, scope, garcia.ID, 48*time.Hour, 0)
+				if setErr == nil {
+					test.Eq(t, 48*time.Hour, set.FirstReminder)
+					test.Eq(t, time.Duration(0), set.SecondReminder, test.Sprint("zero is none"))
+					test.SliceNotEmpty(t, set.Contacts, test.Sprint("the household comes back with its people"))
+				}
+
+				return setErr
+			}))
+
+			refusal := client.WithTransaction(ctx, func(tx database.Tx) error {
+				_, setErr := store.SetHouseholdReminders(ctx, tx, scope, garcia.ID, 5*time.Minute, 0)
+
+				return setErr
+			})
+			test.ErrorIs(t, refusal, roster.ErrInvalidReminder)
+
+			must.NoError(t, client.WithTransaction(ctx, func(tx database.Tx) error {
+				_, setErr := store.SetHouseholdReminders(ctx, tx, scope, garcia.ID, roster.DefaultFirstReminder, roster.DefaultSecondReminder)
+
+				return setErr
 			}))
 		})
 

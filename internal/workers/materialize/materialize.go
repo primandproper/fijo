@@ -41,8 +41,9 @@ func New(interval time.Duration, pass Pass, pillars *observability.Pillars) (*sw
 // injector. The worker runs it on an interval; serve runs it on a series edit.
 func Register(i do.Injector) {
 	// The studio's time zone is identity's column, which the schedule's
-	// statements cannot join. This is the seam that answers it.
-	do.Provide(i, func(i do.Injector) (schedule.Zones, error) {
+	// statements cannot join. This is the seam that answers it, and the
+	// reminders read the studio's name through the same one.
+	do.Provide(i, func(i do.Injector) (*studios.Zones, error) {
 		accounts, err := do.Invoke[identity.Store](i)
 		if err != nil {
 			return nil, err
@@ -54,6 +55,10 @@ func Register(i do.Injector) {
 		}
 
 		return studios.NewZones(accounts, client.Reader())
+	})
+
+	do.Provide(i, func(i do.Injector) (schedule.Zones, error) {
+		return do.Invoke[*studios.Zones](i)
 	})
 
 	do.Provide(i, func(i do.Injector) (*schedule.Materializer, error) {

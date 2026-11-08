@@ -12,6 +12,7 @@
     { href: '/clients', label: 'Clients' },
     { href: '/lessons', label: 'Lessons' },
     { href: '/offerings', label: 'Offerings' },
+    { href: '/reminders', label: 'Reminders' },
     { href: '/studio', label: 'Studio' },
     { href: '/account', label: 'Account' },
   ] as const;

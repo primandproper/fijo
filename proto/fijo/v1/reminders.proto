@@ -1,0 +1,88 @@
+// The reminders a studio sends its clients: an email to each contact on a
+// household before each of its lessons, in the contact's language.
+//
+// Reminders are off until the owner turns them on, with an address for
+// clients to write back to. Nothing here sends a client anything but
+// SendTestReminder, which mails a sample to the owner's own address.
+//
+// Every call is the caller's own studio, read off the principal.
+
+syntax = "proto3";
+
+package fijo.v1;
+
+import "fijo/v1/roster.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/primandproper/fijo/internal/grpc/fijopb;fijopb";
+
+service ReminderService {
+  rpc GetReminderSettings(GetReminderSettingsRequest) returns (ReminderSettings);
+  rpc SaveReminderSettings(SaveReminderSettingsRequest) returns (ReminderSettings);
+  rpc SendTestReminder(SendTestReminderRequest) returns (SendTestReminderResponse);
+  rpc ListReminders(ListRemindersRequest) returns (ListRemindersResponse);
+}
+
+message ReminderSettings {
+  bool reminders_on = 1;
+  // Where a client's reply goes, and the address every reminder names for
+  // changing a lesson. Required to turn reminders on.
+  string reply_to = 2;
+  // When reminders were last turned on; a reminder owed before it is not sent.
+  google.protobuf.Timestamp reminders_on_since = 3;
+  // The caller's own email, offered as the reply address when none is saved.
+  string suggested_reply_to = 4;
+}
+
+message GetReminderSettingsRequest {}
+
+message SaveReminderSettingsRequest {
+  bool reminders_on = 1;
+  string reply_to = 2;
+}
+
+message SendTestReminderRequest {
+  Language language = 1;
+}
+
+message SendTestReminderResponse {
+  string sent_to = 1;
+}
+
+message ListRemindersRequest {
+  // Empty for the whole studio.
+  string household_id = 1;
+  // At most 500; 100 when zero.
+  int32 limit = 2;
+}
+
+enum ReminderStatus {
+  REMINDER_STATUS_UNSPECIFIED = 0;
+  REMINDER_STATUS_QUEUED = 1;
+  REMINDER_STATUS_SENT = 2;
+  REMINDER_STATUS_SKIPPED = 3;
+  REMINDER_STATUS_FAILED = 4;
+}
+
+message Reminder {
+  string id = 1;
+  string household_id = 2;
+  string household_name = 3;
+  string contact_id = 4;
+  string contact_name = 5;
+  string to_address = 6;
+  Language language = 7;
+  string subject = 8;
+  string body_html = 9;
+  ReminderStatus status = 10;
+  // Why it was skipped or failed, or the last provider error on one queued.
+  string reason = 11;
+  int32 offset_minutes = 12;
+  google.protobuf.Timestamp lesson_starts_at = 13;
+  google.protobuf.Timestamp created_at = 14;
+  google.protobuf.Timestamp sent_at = 15;
+}
+
+message ListRemindersResponse {
+  repeated Reminder reminders = 1;
+}

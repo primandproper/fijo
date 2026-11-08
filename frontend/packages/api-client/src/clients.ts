@@ -3,7 +3,8 @@
  * credentials — the shape DDB's consumer app uses. The services: platform's sign-in (password
  * login and the refresh exchange), Fijo's owner auth (passkeys, reset, sign-out), Fijo's owners
  * (who am I, my time zone), Fijo's schedule (the grid and the commands that change it), Fijo's
- * roster (the studio's clients) and Fijo's import (bringing clients over from Acuity).
+ * roster (the studio's clients), Fijo's import (bringing clients over from Acuity) and Fijo's
+ * reminders (the switch, the reply address, a test, and what was sent).
  */
 import * as grpc from '@grpc/grpc-js';
 import type { Metadata } from '@grpc/grpc-js';
@@ -82,6 +83,15 @@ import {
   type ImportPreview,
   type PreviewAcuityImportRequest,
 } from './generated/fijo/v1/importing.js';
+import {
+  ReminderServiceClient,
+  type ListRemindersRequest,
+  type ListRemindersResponse,
+  type ReminderSettings,
+  type SaveReminderSettingsRequest,
+  type SendTestReminderRequest,
+  type SendTestReminderResponse,
+} from './generated/fijo/v1/reminders.js';
 
 export interface ClientConfig {
   serverUrl: string;
@@ -122,6 +132,7 @@ export function createClients(config: ClientConfig) {
   const scheduleClient = new ScheduleServiceClient(config.serverUrl, credentials);
   const rosterClient = new RosterServiceClient(config.serverUrl, credentials);
   const importClient = new ImportServiceClient(config.serverUrl, credentials);
+  const reminderClient = new ReminderServiceClient(config.serverUrl, credentials);
 
   // Every schedule call is the caller's own studio, so each is the request and a bearer token.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -141,6 +152,13 @@ export function createClients(config: ClientConfig) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const imp = <Req, Res>(method: (...args: any[]) => grpc.ClientUnaryCall) => {
     const call = promisify<Req, Res>(method.bind(importClient) as Unary<Req, Res>);
+    return (token: string, req: Req): Promise<Res> => call(req, bearer(token));
+  };
+
+  // And the reminders'.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const rem = <Req, Res>(method: (...args: any[]) => grpc.ClientUnaryCall) => {
+    const call = promisify<Req, Res>(method.bind(reminderClient) as Unary<Req, Res>);
     return (token: string, req: Req): Promise<Res> => call(req, bearer(token));
   };
 
@@ -267,6 +285,13 @@ export function createClients(config: ClientConfig) {
       createContact: rost<{ contact: Contact; attends: boolean }, HouseholdResponse>(rosterClient.createContact),
       updateContact: rost<{ contact: Contact }, HouseholdResponse>(rosterClient.updateContact),
       archiveContact: rost<{ id: string }, HouseholdResponse>(rosterClient.archiveContact),
+      setContactReminders: rost<{ contactId: string; remindersOff: boolean }, HouseholdResponse>(
+        rosterClient.setContactReminders,
+      ),
+      setHouseholdReminders: rost<
+        { householdId: string; firstReminderMinutes: number; secondReminderMinutes: number },
+        HouseholdResponse
+      >(rosterClient.setHouseholdReminders),
       createAttendee: rost<{ attendee: Attendee }, HouseholdResponse>(rosterClient.createAttendee),
       updateAttendee: rost<{ attendee: Attendee }, HouseholdResponse>(rosterClient.updateAttendee),
       archiveAttendee: rost<{ id: string }, HouseholdResponse>(rosterClient.archiveAttendee),
@@ -274,6 +299,12 @@ export function createClients(config: ClientConfig) {
     imports: {
       previewAcuity: imp<PreviewAcuityImportRequest, ImportPreview>(importClient.previewAcuityImport),
       applyAcuity: imp<ApplyAcuityImportRequest, ApplyAcuityImportResponse>(importClient.applyAcuityImport),
+    },
+    reminders: {
+      getSettings: rem<object, ReminderSettings>(reminderClient.getReminderSettings),
+      saveSettings: rem<SaveReminderSettingsRequest, ReminderSettings>(reminderClient.saveReminderSettings),
+      sendTest: rem<SendTestReminderRequest, SendTestReminderResponse>(reminderClient.sendTestReminder),
+      list: rem<ListRemindersRequest, ListRemindersResponse>(reminderClient.listReminders),
     },
   };
 }

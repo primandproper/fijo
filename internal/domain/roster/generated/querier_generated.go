@@ -24,6 +24,12 @@ type Querier interface {
 	ListAttendeesForHouseholds(ctx context.Context, db DBTX, arg *ListAttendeesForHouseholdsParams) ([]*RosterAttendees, error)
 	ListContactsForHouseholds(ctx context.Context, db DBTX, arg *ListContactsForHouseholdsParams) ([]*RosterContacts, error)
 	ListHouseholds(ctx context.Context, db DBTX, arg *ListHouseholdsParams) ([]*RosterHouseholds, error)
+	// SetContactReminders is the owner saying a contact gets no reminders, or
+	// gets them again.
+	SetContactReminders(ctx context.Context, db DBTX, arg *SetContactRemindersParams) (*RosterContacts, error)
+	// SetHouseholdReminders rewrites how long before a lesson each of the
+	// household's two reminders goes out. NULL is one it does not want.
+	SetHouseholdReminders(ctx context.Context, db DBTX, arg *SetHouseholdRemindersParams) (*RosterHouseholds, error)
 	// UnlinkContact clears the contact from any attendee that named it, which is
 	// what archiving an adult student's phone leaves behind: still an attendee,
 	// no longer reachable.

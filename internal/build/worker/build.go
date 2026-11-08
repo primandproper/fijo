@@ -7,7 +7,8 @@
 // deployment's decision and not a store's. The session and WebAuthn ceremony
 // stores sweep themselves from their own configs, and phase 1's materializer
 // turns every studio's standing slots into rows out to its horizon. Phase 3's
-// reminder sender joins the runners here.
+// reminders are three more: the planner that writes each reminder as it comes
+// due, the timer worker that delivers it, and the reaper of fired timers.
 package worker
 
 import (
@@ -17,6 +18,7 @@ import (
 	"github.com/primandproper/fijo/internal/database/migrations"
 	"github.com/primandproper/fijo/internal/domain/schedule"
 	"github.com/primandproper/fijo/internal/workers/materialize"
+	"github.com/primandproper/fijo/internal/workers/reminders"
 	"github.com/primandproper/fijo/internal/workers/sweep"
 
 	"github.com/primandproper/platform-go/v15/authentication/passwordreset"
@@ -104,6 +106,7 @@ func BuildInjector(ctx context.Context, cfg *config.Config) (*do.RootScope, erro
 	})
 
 	materialize.Register(i)
+	reminders.Register(i)
 
 	return i, nil
 }
@@ -152,5 +155,12 @@ func NewService(ctx context.Context, cfg *config.Config) (*service.Service, erro
 		return nil, err
 	}
 
-	return service.New(i, service.WithRunners(refreshSweeper, resetSweeper, grid))
+	reminderRunners, err := reminders.Runners(ctx, i, pillars)
+	if err != nil {
+		return nil, err
+	}
+
+	runners := append([]service.Runner{refreshSweeper, resetSweeper, grid}, reminderRunners...)
+
+	return service.New(i, service.WithRunners(runners...))
 }

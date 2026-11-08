@@ -9,7 +9,8 @@ businesses, built on `github.com/primandproper/platform-go/v15` (the domain tier
 sign-in, audit, sessions, rbac, ...) over `github.com/primandproper/primitives-go/v2` (the
 infrastructure tier). Go 1.27. Read `docs/DESIGN.md` first: it holds the settled facts, the domain
 model, what Fijo composes from each tier, and the build order. Phases 0 (scaffold and owner sign-in)
-and 1 (the grid) are done, phase 2 (the roster) is half done, and phases 3–6 are ahead. Since
+and 1 (the grid) are done, phase 2 (the roster) is half done, phase 3 (email reminders) has a
+first pass in, and phases 4–6 are ahead. Since
 2026-11-07 reminders are email first and SMS is "later", and an Acuity CSV import is the cutover
 blocker (design doc, "Email first, and leaving Acuity").
 
@@ -62,7 +63,8 @@ holds, so what authorizes it is the database credential. They register through t
 - `internal/authz/roles/` — the `owner` / `staff` / `service_admin` policy rbac seeds on every
   migration. Fijo's own RPCs are all self-service today and declared `Public` to the enforcer;
   the first RPC that acts on somebody else's row brings the first Fijo permission.
-- `internal/database/migrations/` — one sequence: platform DDL spliced in by version (1–8), Fijo's
+- `internal/database/migrations/` — one sequence: platform DDL spliced in by version (1–8, and timers and metering
+  at 25–26: a platform table added later takes the next free number, never one below the database's), Fijo's
   own files from 20. Cascading FKs onto `identity_users` and the role-name FK onto `authz_roles`
   are added here because the platform packages cannot declare them.
 - `internal/domain/<name>/` — a Store interface, sqlc queries in `sqlc_queries/` rendering a
@@ -71,7 +73,10 @@ holds, so what authorizes it is the database credential. They register through t
   civil `Date`/`ClockTime` types, the `Materializer` that turns rules into rows, and `Commands`,
   the audited acts that write rows and their audit entry on one transaction. `roster` is the
   studio's clients — households, contacts (an email, a phone in E.164, or both; each unique per
-  studio) and attendees — and every series names at least one attendee. Messaging will follow the same outline.
+  studio) and attendees — and every series names at least one attendee. `messaging` is the
+  reminders: a studio's switch and reply address, the reminders written as they come due, their
+  rendering in English and Spanish, and `Reminders`, which plans, delivers (on a platform timer)
+  and meters them.
 - `internal/importing/` — a source-neutral import `Plan` and the `Writer` that writes one on a
   transaction; `internal/importing/acuity/` reads Acuity's CSV exports into a plan. Its headers are
   a guess until a real export arrives: `headers.go` is the one table to correct.
@@ -79,6 +84,8 @@ holds, so what authorizes it is the database credential. They register through t
   the materializer resolves a wall clock in, behind the narrow interface the domain takes.
 - `internal/services/<name>/grpc/` — Fijo's gRPC servers, each with a `Require` declaring its
   policy and a `RegisterOn`. Generated bindings live in `internal/grpc/fijopb` from `proto/fijo/v1`.
+- `internal/workers/reminders/` — the reminder loops `fijo worker` runs: the once-a-minute
+  planner, the timer worker that delivers, and the reaper of fired timers.
 - `internal/workers/sweep/` — a `service.Runner` that calls a function on an interval; despite the
   name it is the generic loop. `internal/workers/materialize/` names the schedule's use of it.
 - `frontend/owner/` — the SvelteKit owner app; `frontend/packages/api-client/` — ts-proto bindings

@@ -35,15 +35,18 @@ type RosterContacts struct {
 	LastUpdatedAt sql.NullTime
 	ArchivedAt    sql.NullTime
 	Email         sql.NullString
+	RemindersOff  bool
 }
 
 type RosterHouseholds struct {
-	ID            string
-	StudioID      string
-	Name          string
-	Language      string
-	Notes         string
-	CreatedAt     time.Time
-	LastUpdatedAt sql.NullTime
-	ArchivedAt    sql.NullTime
+	ID                    string
+	StudioID              string
+	Name                  string
+	Language              string
+	Notes                 string
+	CreatedAt             time.Time
+	LastUpdatedAt         sql.NullTime
+	ArchivedAt            sql.NullTime
+	FirstReminderMinutes  sql.NullInt32
+	SecondReminderMinutes sql.NullInt32
 }

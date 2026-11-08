@@ -279,6 +279,7 @@ Three Fijo-owned domains, each a Store plus Postgres SQL plus mock, DDB-style.
 | Recovery codes (#867), idempotent refresh (#869) | platform-go | already filed | Jeffrey, in parallel |
 | Sign-in door for a proven principal (platform-go#874) | platform-go | `signin.Service.IssueForPrincipal`; passkey logins mint through it | filed in phase 0; `internal/auth/mint` is the candidate |
 | Tenant scope on `service.Transports` (platform-go#875) | platform-go | a `TenantScope` resolver beside `Extractor`, or `callers.Principal.TenantScope()` | filed in phase 0; audit read surface inert until then |
+| Reply-To on outbound email (found 2026-11-08) | primitives-go | `ReplyToAddress`/`ReplyToName` on `email.OutboundEmailMessage`, honoured by each provider (Resend's API has `reply_to`) | additive, not yet made; until then `messaging.send` drops it and every reminder names the owner's address in its body |
 
 ## Build order
 
@@ -449,6 +450,57 @@ standing slot is now somebody's.
 Not done yet in phase 2: the payer on a series, editing attendees on a single
 occurrence (the store has `SetOccurrenceAttendees`; there is no RPC), the
 invite link, and roster audit entries (roster writes record nothing today).
+
+## Phase 3 as built, first pass: the email reminder (2026-11-08)
+
+Reminders go by email, in each contact's language, from the studio's name.
+
+- **When one is owed is never stored ahead of time.** Lessons are cancelled,
+  moved, re-timed and handed to new students by many writes, and a reminder
+  scheduled at booking would have to be found and moved by each of them.
+  Instead a planner in `fijo worker` asks once a minute which reminders are
+  owed now (`messaging.Store.Candidates`, one SQL read over the week ahead,
+  and `Candidate.Owed`), reading the lessons as they are. This departs from
+  the domain model's "keyed into timers at booking"; timers are still used,
+  for delivery.
+- **What is stored is a reminder once it is owed** (`messaging_reminders`,
+  `00027_reminders.sql`): the words as rendered, and a unique key on (lesson,
+  contact, offset) that makes it go once across the fleet. It is written on
+  the same transaction as a platform **timer** (`fijo_reminders` set) that
+  delivers it: the timer's lease, retry and at-least-once firing are the
+  outbox, so Fijo writes none. Delivery holds the row while it calls the
+  provider, re-checks that the reminder is still owed (lesson still
+  scheduled and not started, contact and studio still on) and marks it
+  skipped if not, gives up after five provider refusals, and counts each
+  sent email on the platform's **metering** (`reminder_emails`, per studio
+  per month) in the transaction that marks it sent.
+- **Which reminder is owed** is the latest-firing one that has come due, so a
+  worker down for a day sends the hour-before and not both. None is owed whose
+  instant was before reminders were turned on (so turning them on is not a
+  burst for the day already under way) or before the lesson was booked (a
+  lesson booked this morning gets its hour-before, not a late day-before).
+- **Reminders are off until the owner turns them on**, on the new Reminders
+  page, with a reply address that defaults to their own. Two systems sending
+  reminders on cutover day is the failure to avoid. "Send me a test" mails a
+  sample, in either language, to that address.
+- **Per household**, two reminder times (a day and an hour before by
+  default, each anything from 15 minutes to a week, or none); **per contact**,
+  an owner-set `reminders_off`, kept apart from the SMS-era `opted_out`. Both
+  are separate RPCs (`SetHouseholdReminders`, `SetContactReminders`) so the
+  existing edit forms cannot reset them.
+- **Reply-To is not sent yet** (the gap table above): primitives-go's email
+  message has no field for it. Every reminder names the owner's address in
+  its body as well, which is what a client whose mail program ignores
+  Reply-To needs anyway.
+- **Migrations**: the timer and metering tables are platform DDL spliced in
+  at versions 25 and 26. Numbering them 9 and 10, inside the old platform
+  block, was refused by a database already at 24 as out of order; a platform
+  table added later takes the next free number.
+
+Not done in this pass: the Reply-To primitive; an SMS channel; a reminder's
+lesson changing time in place after its reminder went (the unique key means
+the same offset is not sent again for the new time); and bounce or complaint
+handling from the provider.
 
 ## Repo skeleton (derived from fijo)
 

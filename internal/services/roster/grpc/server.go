@@ -119,6 +119,8 @@ func Require(b *authzgrpc.RequirementsBuilder) *authzgrpc.RequirementsBuilder {
 		fijopb.RosterService_CreateContact_FullMethodName,
 		fijopb.RosterService_UpdateContact_FullMethodName,
 		fijopb.RosterService_ArchiveContact_FullMethodName,
+		fijopb.RosterService_SetContactReminders_FullMethodName,
+		fijopb.RosterService_SetHouseholdReminders_FullMethodName,
 		fijopb.RosterService_CreateAttendee_FullMethodName,
 		fijopb.RosterService_UpdateAttendee_FullMethodName,
 		fijopb.RosterService_ArchiveAttendee_FullMethodName,
@@ -177,6 +179,9 @@ func (s *Server) fail(err error, op observability.Operation, description string)
 	case errors.Is(err, roster.ErrUnreachable):
 		code = codes.InvalidArgument
 		say = "A contact needs an email or a phone number."
+	case errors.Is(err, roster.ErrInvalidReminder):
+		code = codes.InvalidArgument
+		say = "A reminder goes out between 15 minutes and a week before the lesson."
 	case errors.Is(err, roster.ErrInvalidHousehold),
 		errors.Is(err, roster.ErrInvalidContact),
 		errors.Is(err, roster.ErrInvalidAttendee),
@@ -428,6 +433,59 @@ func (s *Server) UpdateContact(ctx context.Context, request *fijopb.UpdateContac
 	return &fijopb.HouseholdResponse{Household: householdToProto(written)}, nil
 }
 
+// SetContactReminders implements fijopb.RosterServiceServer.
+func (s *Server) SetContactReminders(ctx context.Context, request *fijopb.SetContactRemindersRequest) (*fijopb.HouseholdResponse, error) {
+	ctx, op, end := s.begin(ctx)
+	defer end()
+
+	scope, err := s.caller(ctx, op, fijopb.RosterService_SetContactReminders_FullMethodName)
+	if err != nil {
+		return nil, err
+	}
+
+	written, err := s.writeThenRead(ctx, scope, func(tx database.Tx) (string, error) {
+		contact, writeErr := s.store.SetContactReminders(ctx, tx, scope, request.GetContactId(), request.GetRemindersOff())
+		if writeErr != nil {
+			return "", writeErr
+		}
+
+		return contact.HouseholdID, nil
+	})
+	if err != nil {
+		return nil, s.fail(err, op, "setting a contact's reminders")
+	}
+
+	return &fijopb.HouseholdResponse{Household: householdToProto(written)}, nil
+}
+
+// SetHouseholdReminders implements fijopb.RosterServiceServer.
+func (s *Server) SetHouseholdReminders(ctx context.Context, request *fijopb.SetHouseholdRemindersRequest) (*fijopb.HouseholdResponse, error) {
+	ctx, op, end := s.begin(ctx)
+	defer end()
+
+	scope, err := s.caller(ctx, op, fijopb.RosterService_SetHouseholdReminders_FullMethodName)
+	if err != nil {
+		return nil, err
+	}
+
+	written, err := s.writeThenRead(ctx, scope, func(tx database.Tx) (string, error) {
+		household, writeErr := s.store.SetHouseholdReminders(ctx, tx, scope, request.GetHouseholdId(),
+			time.Duration(request.GetFirstReminderMinutes())*time.Minute,
+			time.Duration(request.GetSecondReminderMinutes())*time.Minute,
+		)
+		if writeErr != nil {
+			return "", writeErr
+		}
+
+		return household.ID, nil
+	})
+	if err != nil {
+		return nil, s.fail(err, op, "setting a household's reminders")
+	}
+
+	return &fijopb.HouseholdResponse{Household: householdToProto(written)}, nil
+}
+
 // ArchiveContact implements fijopb.RosterServiceServer.
 func (s *Server) ArchiveContact(ctx context.Context, request *fijopb.ArchiveContactRequest) (*fijopb.HouseholdResponse, error) {
 	ctx, op, end := s.begin(ctx)
@@ -624,6 +682,9 @@ func householdToProto(household *roster.Household) *fijopb.Household {
 		Archived:  household.ArchivedAt != nil,
 		Contacts:  make([]*fijopb.Contact, 0, len(household.Contacts)),
 		Attendees: make([]*fijopb.Attendee, 0, len(household.Attendees)),
+
+		FirstReminderMinutes:  int32(household.FirstReminder / time.Minute),
+		SecondReminderMinutes: int32(household.SecondReminder / time.Minute),
 	}
 
 	for _, contact := range household.Contacts {
@@ -637,6 +698,7 @@ func householdToProto(household *roster.Household) *fijopb.Household {
 			Relationship: relationshipToProto(contact.Relationship),
 			OptedOut:     contact.OptedOut,
 			Verified:     contact.VerifiedAt != nil,
+			RemindersOff: contact.RemindersOff,
 		})
 	}
 

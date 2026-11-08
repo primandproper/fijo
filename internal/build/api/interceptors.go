@@ -10,6 +10,7 @@ import (
 	importinggrpc "github.com/primandproper/fijo/internal/services/importing/grpc"
 	ownerauthgrpc "github.com/primandproper/fijo/internal/services/ownerauth/grpc"
 	ownersgrpc "github.com/primandproper/fijo/internal/services/owners/grpc"
+	remindersgrpc "github.com/primandproper/fijo/internal/services/reminders/grpc"
 	rostergrpc "github.com/primandproper/fijo/internal/services/roster/grpc"
 	schedulegrpc "github.com/primandproper/fijo/internal/services/schedule/grpc"
 
@@ -44,6 +45,7 @@ func Requirements() (*authzgrpc.Requirements, error) {
 	schedulegrpc.Require(b)
 	rostergrpc.Require(b)
 	importinggrpc.Require(b)
+	remindersgrpc.Require(b)
 
 	for _, method := range []string{
 		grpc_health_v1.Health_Check_FullMethodName,

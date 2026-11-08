@@ -61,3 +61,15 @@ WITH archived AS (
 		AND roster_attendees.archived_at IS NULL
 )
 SELECT archived.id FROM archived;
+
+-- SetHouseholdReminders rewrites how long before a lesson each of the
+-- household's two reminders goes out. NULL is one it does not want.
+-- name: SetHouseholdReminders :one
+UPDATE roster_households SET
+	first_reminder_minutes = sqlc.narg(first_reminder_minutes),
+	second_reminder_minutes = sqlc.narg(second_reminder_minutes),
+	last_updated_at = NOW()
+WHERE roster_households.id = sqlc.arg(id)
+	AND roster_households.studio_id = sqlc.arg(studio_id)
+	AND roster_households.archived_at IS NULL
+RETURNING *;

@@ -7,6 +7,7 @@ package generated
 
 import (
 	"context"
+	"database/sql"
 )
 
 const archiveHousehold = `-- name: ArchiveHousehold :one
@@ -59,7 +60,7 @@ INSERT INTO roster_households (
 	$4,
 	$5
 )
-RETURNING id, studio_id, name, language, notes, created_at, last_updated_at, archived_at
+RETURNING id, studio_id, name, language, notes, created_at, last_updated_at, archived_at, first_reminder_minutes, second_reminder_minutes
 `
 
 type CreateHouseholdParams struct {
@@ -88,12 +89,14 @@ func (q *Queries) CreateHousehold(ctx context.Context, db DBTX, arg *CreateHouse
 		&i.CreatedAt,
 		&i.LastUpdatedAt,
 		&i.ArchivedAt,
+		&i.FirstReminderMinutes,
+		&i.SecondReminderMinutes,
 	)
 	return &i, err
 }
 
 const getHousehold = `-- name: GetHousehold :one
-SELECT id, studio_id, name, language, notes, created_at, last_updated_at, archived_at
+SELECT id, studio_id, name, language, notes, created_at, last_updated_at, archived_at, first_reminder_minutes, second_reminder_minutes
 FROM roster_households
 WHERE roster_households.id = $1
 	AND roster_households.studio_id = $2
@@ -117,12 +120,14 @@ func (q *Queries) GetHousehold(ctx context.Context, db DBTX, arg *GetHouseholdPa
 		&i.CreatedAt,
 		&i.LastUpdatedAt,
 		&i.ArchivedAt,
+		&i.FirstReminderMinutes,
+		&i.SecondReminderMinutes,
 	)
 	return &i, err
 }
 
 const listHouseholds = `-- name: ListHouseholds :many
-SELECT id, studio_id, name, language, notes, created_at, last_updated_at, archived_at
+SELECT id, studio_id, name, language, notes, created_at, last_updated_at, archived_at, first_reminder_minutes, second_reminder_minutes
 FROM roster_households
 WHERE roster_households.studio_id = $1
 	AND (roster_households.archived_at IS NULL OR $2::boolean)
@@ -152,6 +157,8 @@ func (q *Queries) ListHouseholds(ctx context.Context, db DBTX, arg *ListHousehol
 			&i.CreatedAt,
 			&i.LastUpdatedAt,
 			&i.ArchivedAt,
+			&i.FirstReminderMinutes,
+			&i.SecondReminderMinutes,
 		); err != nil {
 			return nil, err
 		}
@@ -166,6 +173,49 @@ func (q *Queries) ListHouseholds(ctx context.Context, db DBTX, arg *ListHousehol
 	return items, nil
 }
 
+const setHouseholdReminders = `-- name: SetHouseholdReminders :one
+UPDATE roster_households SET
+	first_reminder_minutes = $1,
+	second_reminder_minutes = $2,
+	last_updated_at = NOW()
+WHERE roster_households.id = $3
+	AND roster_households.studio_id = $4
+	AND roster_households.archived_at IS NULL
+RETURNING id, studio_id, name, language, notes, created_at, last_updated_at, archived_at, first_reminder_minutes, second_reminder_minutes
+`
+
+type SetHouseholdRemindersParams struct {
+	FirstReminderMinutes  sql.NullInt32
+	SecondReminderMinutes sql.NullInt32
+	ID                    string
+	StudioID              string
+}
+
+// SetHouseholdReminders rewrites how long before a lesson each of the
+// household's two reminders goes out. NULL is one it does not want.
+func (q *Queries) SetHouseholdReminders(ctx context.Context, db DBTX, arg *SetHouseholdRemindersParams) (*RosterHouseholds, error) {
+	row := db.QueryRowContext(ctx, setHouseholdReminders,
+		arg.FirstReminderMinutes,
+		arg.SecondReminderMinutes,
+		arg.ID,
+		arg.StudioID,
+	)
+	var i RosterHouseholds
+	err := row.Scan(
+		&i.ID,
+		&i.StudioID,
+		&i.Name,
+		&i.Language,
+		&i.Notes,
+		&i.CreatedAt,
+		&i.LastUpdatedAt,
+		&i.ArchivedAt,
+		&i.FirstReminderMinutes,
+		&i.SecondReminderMinutes,
+	)
+	return &i, err
+}
+
 const updateHousehold = `-- name: UpdateHousehold :one
 UPDATE roster_households SET
 	name = $1,
@@ -175,7 +225,7 @@ UPDATE roster_households SET
 WHERE roster_households.id = $4
 	AND roster_households.studio_id = $5
 	AND roster_households.archived_at IS NULL
-RETURNING id, studio_id, name, language, notes, created_at, last_updated_at, archived_at
+RETURNING id, studio_id, name, language, notes, created_at, last_updated_at, archived_at, first_reminder_minutes, second_reminder_minutes
 `
 
 type UpdateHouseholdParams struct {
@@ -204,6 +254,8 @@ func (q *Queries) UpdateHousehold(ctx context.Context, db DBTX, arg *UpdateHouse
 		&i.CreatedAt,
 		&i.LastUpdatedAt,
 		&i.ArchivedAt,
+		&i.FirstReminderMinutes,
+		&i.SecondReminderMinutes,
 	)
 	return &i, err
 }
