@@ -142,8 +142,10 @@ func (s *Server) ApplyAcuityImport(ctx context.Context, request *fijopb.ApplyAcu
 		return nil, s.fail(err, op, "reading the export")
 	}
 
-	choices := importing.Choices{
+	choices := &importing.Choices{
 		Staff:            []string{caller.UserID()},
+		Actor:            caller.UserID(),
+		Source:           "acuity",
 		SkipHouseholds:   keySet(request.GetSkipHouseholdKeys()),
 		SkipLessons:      keySet(request.GetSkipLessonKeys()),
 		SkipAppointments: keySet(request.GetSkipAppointmentKeys()),

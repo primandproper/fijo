@@ -84,6 +84,7 @@ export const COMMAND_LABELS: Record<string, string> = {
   move_occurrence: 'Moved',
   schedule_make_up: 'Make-up scheduled',
   book_occurrence: 'Booked',
+  import_occurrence: 'Imported',
   reassign_occurrence: 'Reassigned',
   end_series: 'Series ended',
   close_studio: 'Studio closed',

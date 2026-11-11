@@ -490,7 +490,25 @@ func registerDomains(i do.Injector) {
 			return nil, err
 		}
 
-		return roster.NewSQLStore(roster.WithPillars(pillars))
+		// Every roster write records who made it, on its own transaction:
+		// what the owner typed and what an import brought over alike.
+		recorder, err := do.Invoke[audit.Recorder](i)
+		if err != nil {
+			return nil, err
+		}
+
+		hooks, err := roster.NewRecordingHooks(recorder, func(ctx context.Context) string {
+			if caller, ok := principal.FromContext(ctx); ok {
+				return caller.UserID()
+			}
+
+			return ""
+		})
+		if err != nil {
+			return nil, err
+		}
+
+		return roster.NewSQLStore(roster.WithPillars(pillars), roster.WithHooks(hooks))
 	})
 
 	do.Provide(i, func(i do.Injector) (schedule.Store, error) {
@@ -696,7 +714,12 @@ func registerImportServer(i do.Injector) {
 			return nil, err
 		}
 
-		writer, err := importing.NewWriter(rosterStore, scheduleStore, zones, grid)
+		recorder, err := do.Invoke[audit.Recorder](i)
+		if err != nil {
+			return nil, err
+		}
+
+		writer, err := importing.NewWriter(rosterStore, scheduleStore, zones, recorder, grid)
 		if err != nil {
 			return nil, err
 		}

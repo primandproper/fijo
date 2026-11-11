@@ -30,8 +30,6 @@ have to be right on the day he turns off Acuity's booking and reminders.
     the new one, so the owner can untick it.
   - An imported one-off doesn't keep Acuity's price, because an occurrence has
     no price of its own until the money phase (§4).
-  - Nothing the import writes is audited (see §2, roster audit). One-offs
-    booked by hand go through the audited `Book` command; the import's do not.
   - Package balances wait for the money phase (§4) and are typed in until then.
 - **A deployment.** `deploy/environments/` has only `localdev`. Production
   needs somewhere to run `migrate`, `serve` and `worker`, the
@@ -39,19 +37,20 @@ have to be right on the day he turns off Acuity's booking and reminders.
   signing key, Resend token) supplied through `FIJO_*` variables, a sending
   domain for Fijo's mail, and one run of `cmd/tools/bootstrap` for the first
   `service_admin`.
-- **Reminder gaps:**
-  - A lesson whose time changes after its reminder went is not reminded
-    again. The unique key on (lesson, contact, offset) stops the same offset
-    being sent for the new time.
-  - Nothing handles bounces or complaints from the email provider.
+- **Bounces and complaints.** Nothing handles them from the email provider.
 
 ## 2. The rest of the roster (phase 2)
 
 - **The payer on a series.** The payer on an agreement is a contact on the
   household. The money phase's balance ledger and subscriptions need it.
-- **Roster audit entries.** Roster writes (and the import) record nothing.
-  They should go through audited commands as the schedule's do: the rows and
-  the audit entry on one transaction, scoped to the studio.
+- **A client's history on screen.** Roster writes are recorded (through the
+  store's `RecordingHooks`, names, emails, phones and notes as digests), and
+  so are an import's runs and the one-offs it books, but nothing reads them
+  back yet. A household's page would read its own entries and those whose
+  `household_id` metadata names it.
+- **Offerings and series are not audited.** Creating or editing them goes
+  straight to the store, by hand or by import; only the grid's commands, the
+  roster and an import's one-offs and runs record anything.
 - **Attendees on a single occurrence.** The store has
   `SetOccurrenceAttendees`; there is no RPC or UI.
 - **Reassigning staff in the UI.** `ReassignOccurrence` exists; the owner app

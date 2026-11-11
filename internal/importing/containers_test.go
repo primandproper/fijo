@@ -13,7 +13,9 @@ import (
 	"github.com/primandproper/fijo/internal/testutils/pgclient"
 	"github.com/primandproper/fijo/internal/testutils/seed"
 
+	"github.com/primandproper/platform-go/v15/audit"
 	"github.com/primandproper/primitives-go/v2/database"
+	"github.com/primandproper/primitives-go/v2/database/dialect"
 	"github.com/primandproper/primitives-go/v2/tenancy"
 	"github.com/primandproper/primitives-go/v2/testutils/containers/pgtest"
 
@@ -47,7 +49,15 @@ func TestWriterAgainstPostgres(t *testing.T) {
 		})
 		scope := tenancy.Of(studio.Account.ID)
 
-		rosterStore, err := roster.NewSQLStore()
+		recorder, err := audit.NewRecorder(dialect.Postgres)
+		must.NoError(t, err)
+
+		// The roster records its writes as serve's does, the owner read off
+		// the context; here the owner is the only one who ever writes.
+		hooks, err := roster.NewRecordingHooks(recorder, func(context.Context) string { return studio.User.ID })
+		must.NoError(t, err)
+
+		rosterStore, err := roster.NewSQLStore(roster.WithHooks(hooks))
 		must.NoError(t, err)
 
 		scheduleStore, err := schedule.NewSQLStore()
@@ -64,7 +74,7 @@ func TestWriterAgainstPostgres(t *testing.T) {
 		grid, err := schedule.NewMaterializer(client, scheduleStore, zones, schedule.WithClock(func() time.Time { return now }))
 		must.NoError(t, err)
 
-		writer, err := importing.NewWriter(rosterStore, scheduleStore, zones, grid)
+		writer, err := importing.NewWriter(rosterStore, scheduleStore, zones, recorder, grid)
 		must.NoError(t, err)
 
 		// The studio already sells "Piano 30", and already has one of the
@@ -117,7 +127,9 @@ func TestWriterAgainstPostgres(t *testing.T) {
 			must.NoError(t, client.WithTransaction(ctx, func(tx database.Tx) error {
 				var writeErr error
 
-				result, writeErr = writer.Write(ctx, tx, scope, p, importing.Choices{Staff: []string{studio.User.ID}})
+				result, writeErr = writer.Write(ctx, tx, scope, p, &importing.Choices{
+					Staff: []string{studio.User.ID}, Actor: studio.User.ID, Source: "acuity",
+				})
 
 				return writeErr
 			}))
@@ -290,6 +302,54 @@ func TestWriterAgainstPostgres(t *testing.T) {
 
 			test.Eq(t, importing.Result{HouseholdsOnRoster: 3}, write(t, planOf(later)))
 		})
+
+		t.Run("every run, and everything it wrote, is in the studio's audit log", func(t *testing.T) {
+			reader, readerErr := audit.NewReader(dialect.Postgres)
+			must.NoError(t, readerErr)
+
+			entries := func(resourceType string) []*audit.Entry {
+				found, listErr := reader.List(ctx, client.Reader(), scope, &audit.Query{ResourceType: resourceType}, nil)
+				must.NoError(t, listErr)
+
+				return found.Data
+			}
+
+			// Four runs: the first, the one that found nothing, the one that
+			// added, and the last after the owner's cancellation.
+			runs := entries(importing.ResourceImport)
+			must.SliceLen(t, 4, runs)
+
+			added := 0
+
+			for _, run := range runs {
+				test.Eq(t, studio.User.ID, run.Actor.ID)
+				test.Eq(t, "acuity", run.Metadata[importing.KeySource])
+
+				if run.Metadata[importing.KeyAppointmentsWritten] == "1" {
+					added++
+					test.Eq(t, "2", run.Metadata[importing.KeyHouseholdsUpdated])
+				}
+			}
+
+			test.Eq(t, 1, added)
+
+			// The roster's rows, through its hooks: the household typed in at
+			// the start and the two the first run wrote, and every student.
+			test.SliceLen(t, 3, entries(roster.ResourceHousehold))
+			test.SliceLen(t, 4, entries(roster.ResourceAttendee), test.Sprint("Sofía, Ana, Already Here and Mateo"))
+
+			// Ana's one-off says it was imported.
+			oneOffs := 0
+
+			for _, entry := range entries(schedule.ResourceOccurrence) {
+				if entry.Metadata[schedule.KeyCommand] == schedule.CommandImport {
+					oneOffs++
+					test.Eq(t, audit.EventCreated, entry.EventType)
+				}
+			}
+
+			test.Eq(t, 1, oneOffs)
+		})
 	})
 }
 
@@ -310,8 +370,11 @@ func TestWriterSkipsWhatTheOwnerUnticked(t *testing.T) {
 		scheduleStore, err := schedule.NewSQLStore()
 		must.NoError(t, err)
 
+		recorder, err := audit.NewRecorder(dialect.Postgres)
+		must.NoError(t, err)
+
 		writer, err := importing.NewWriter(rosterStore, scheduleStore,
-			schedule.ZoneFunc(func(context.Context, string) (*time.Location, error) { return time.UTC, nil }), nil)
+			schedule.ZoneFunc(func(context.Context, string) (*time.Location, error) { return time.UTC, nil }), recorder, nil)
 		must.NoError(t, err)
 
 		plan, err := acuity.Plan(acuity.Input{
@@ -339,7 +402,7 @@ func TestWriterSkipsWhatTheOwnerUnticked(t *testing.T) {
 		must.NoError(t, client.WithTransaction(ctx, func(tx database.Tx) error {
 			var writeErr error
 
-			result, writeErr = writer.Write(ctx, tx, scope, plan, importing.Choices{
+			result, writeErr = writer.Write(ctx, tx, scope, plan, &importing.Choices{
 				Staff: []string{studio.User.ID}, SkipHouseholds: skipHouseholds, SkipLessons: skipLessons,
 			})
 

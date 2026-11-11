@@ -19,9 +19,11 @@ import (
 	"github.com/primandproper/fijo/internal/testutils/seed"
 	"github.com/primandproper/fijo/internal/workers/reminders"
 
+	"github.com/primandproper/platform-go/v15/audit"
 	"github.com/primandproper/platform-go/v15/metering"
 	"github.com/primandproper/platform-go/v15/timers"
 	"github.com/primandproper/primitives-go/v2/database"
+	"github.com/primandproper/primitives-go/v2/database/dialect"
 	"github.com/primandproper/primitives-go/v2/email"
 	"github.com/primandproper/primitives-go/v2/tenancy"
 	"github.com/primandproper/primitives-go/v2/testutils/containers/pgtest"
@@ -328,7 +330,10 @@ func writeLessons(
 	)
 	must.NoError(t, err)
 
-	writer, err := importing.NewWriter(rosterStore, scheduleStore, zones, grid)
+	recorder, err := audit.NewRecorder(dialect.Postgres)
+	must.NoError(t, err)
+
+	writer, err := importing.NewWriter(rosterStore, scheduleStore, zones, recorder, grid)
 	must.NoError(t, err)
 
 	at := func(when time.Time, minutes int) string {
@@ -353,7 +358,7 @@ func writeLessons(
 
 	// Lucía reads Spanish; the import starts everybody in one language.
 	must.NoError(t, client.WithTransaction(ctx, func(tx database.Tx) error {
-		result, writeErr := writer.Write(ctx, tx, scope, plan, importing.Choices{Staff: []string{staff}})
+		result, writeErr := writer.Write(ctx, tx, scope, plan, &importing.Choices{Staff: []string{staff}})
 		if writeErr != nil {
 			return writeErr
 		}

@@ -72,7 +72,8 @@ holds, so what authorizes it is the database credential. They register through t
   civil `Date`/`ClockTime` types, the `Materializer` that turns rules into rows, and `Commands`,
   the audited acts that write rows and their audit entry on one transaction. `roster` is the
   studio's clients — households, contacts (an email, a phone in E.164, or both; each unique per
-  studio) and attendees — and every series names at least one attendee. `messaging` is the
+  studio) and attendees — and every series names at least one attendee; its store calls `Hooks` on every write,
+  and `RecordingHooks` (wired in `serve`) records each to the audit log with personal fields hashed. `messaging` is the
   reminders: a studio's switch and reply address, the reminders written as they come due, their
   rendering in English and Spanish, and `Reminders`, which plans, delivers (on a platform timer)
   and meters them.

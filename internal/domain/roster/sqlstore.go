@@ -41,6 +41,7 @@ type SQLStore struct {
 	o11y        observability.Observer
 	instruments *metrics.OperationSet
 	querier     generated.Querier
+	hooks       Hooks
 
 	// newID mints an identifier for a row whose caller did not name one.
 	newID func() string
@@ -77,6 +78,7 @@ func NewSQLStore(opts ...Option) (*SQLStore, error) {
 		o11y:        observability.NewObserver(storeName, nil, nil),
 		instruments: instruments,
 		querier:     generated.New(),
+		hooks:       NoopHooks{},
 		newID:       identifiers.New,
 	}
 
@@ -204,7 +206,13 @@ func (s *SQLStore) CreateHousehold(ctx context.Context, tx database.Tx, scope te
 
 	op.Set(keyHousehold, row.ID)
 
-	return householdFromRow(row), nil
+	created := householdFromRow(row)
+
+	if err = s.hooks.AfterCreateHousehold(ctx, tx, scope, created); err != nil {
+		return nil, op.Error(err, "creating a household")
+	}
+
+	return created, nil
 }
 
 // GetHousehold implements Store.
@@ -290,6 +298,11 @@ func (s *SQLStore) UpdateHousehold(ctx context.Context, tx database.Tx, scope te
 		return nil, op.Error(err, "updating a household")
 	}
 
+	before, err := s.querier.GetHousehold(ctx, tx, &generated.GetHouseholdParams{ID: staged.ID, StudioID: studio})
+	if err != nil {
+		return nil, op.Error(notFound(err), "updating a household")
+	}
+
 	row, err := s.querier.UpdateHousehold(ctx, tx, &generated.UpdateHouseholdParams{
 		Name:     staged.Name,
 		Language: string(staged.Language),
@@ -299,6 +312,10 @@ func (s *SQLStore) UpdateHousehold(ctx context.Context, tx database.Tx, scope te
 	})
 	if err != nil {
 		return nil, op.Error(notFound(err), "updating a household")
+	}
+
+	if err = s.hooks.AfterUpdateHousehold(ctx, tx, scope, householdFromRow(before), householdFromRow(row)); err != nil {
+		return nil, op.Error(err, "updating a household")
 	}
 
 	households, err := s.withPeople(ctx, tx, studio, []*generated.RosterHouseholds{row})
@@ -327,6 +344,13 @@ func (s *SQLStore) ArchiveHousehold(ctx context.Context, tx database.Tx, scope t
 
 	if _, err = s.querier.ArchiveHousehold(ctx, tx, &generated.ArchiveHouseholdParams{ID: id, StudioID: studio}); err != nil {
 		return op.Error(notFound(err), "archiving a household")
+	}
+
+	// The household's people are archived by the same statement. The
+	// household's entry is the record of that; one per person would be the
+	// one act written down as several.
+	if err = s.hooks.AfterArchiveHousehold(ctx, tx, scope, id); err != nil {
+		return op.Error(err, "archiving a household")
 	}
 
 	return nil
@@ -394,7 +418,13 @@ func (s *SQLStore) CreateContact(ctx context.Context, tx database.Tx, scope tena
 
 	op.Set(keyContact, row.ID)
 
-	return contactFromRow(row), nil
+	created := contactFromRow(row)
+
+	if err = s.hooks.AfterCreateContact(ctx, tx, scope, created); err != nil {
+		return nil, op.Error(err, "creating a contact")
+	}
+
+	return created, nil
 }
 
 // GetContact implements Store.
@@ -469,7 +499,13 @@ func (s *SQLStore) UpdateContact(ctx context.Context, tx database.Tx, scope tena
 		return nil, op.Error(taken(notFound(err)), "updating a contact")
 	}
 
-	return contactFromRow(row), nil
+	updated := contactFromRow(row)
+
+	if err = s.hooks.AfterUpdateContact(ctx, tx, scope, contactFromRow(existing), updated); err != nil {
+		return nil, op.Error(err, "updating a contact")
+	}
+
+	return updated, nil
 }
 
 // SetHouseholdReminders implements Store.
@@ -491,6 +527,11 @@ func (s *SQLStore) SetHouseholdReminders(ctx context.Context, tx database.Tx, sc
 		return nil, op.Error(ErrInvalidReminder, "setting a household's reminders")
 	}
 
+	before, err := s.querier.GetHousehold(ctx, tx, &generated.GetHouseholdParams{ID: householdID, StudioID: studio})
+	if err != nil {
+		return nil, op.Error(notFound(err), "setting a household's reminders")
+	}
+
 	row, err := s.querier.SetHouseholdReminders(ctx, tx, &generated.SetHouseholdRemindersParams{
 		ID:                    householdID,
 		StudioID:              studio,
@@ -499,6 +540,10 @@ func (s *SQLStore) SetHouseholdReminders(ctx context.Context, tx database.Tx, sc
 	})
 	if err != nil {
 		return nil, op.Error(notFound(err), "setting a household's reminders")
+	}
+
+	if err = s.hooks.AfterUpdateHousehold(ctx, tx, scope, householdFromRow(before), householdFromRow(row)); err != nil {
+		return nil, op.Error(err, "setting a household's reminders")
 	}
 
 	households, err := s.withPeople(ctx, tx, studio, []*generated.RosterHouseholds{row})
@@ -525,6 +570,11 @@ func (s *SQLStore) SetContactReminders(ctx context.Context, tx database.Tx, scop
 		return nil, op.Error(ErrEmptyID, "setting a contact's reminders")
 	}
 
+	before, err := s.querier.GetContact(ctx, tx, &generated.GetContactParams{ID: contactID, StudioID: studio})
+	if err != nil {
+		return nil, op.Error(notFound(err), "setting a contact's reminders")
+	}
+
 	row, err := s.querier.SetContactReminders(ctx, tx, &generated.SetContactRemindersParams{
 		ID:           contactID,
 		StudioID:     studio,
@@ -534,7 +584,13 @@ func (s *SQLStore) SetContactReminders(ctx context.Context, tx database.Tx, scop
 		return nil, op.Error(notFound(err), "setting a contact's reminders")
 	}
 
-	return contactFromRow(row), nil
+	updated := contactFromRow(row)
+
+	if err = s.hooks.AfterUpdateContact(ctx, tx, scope, contactFromRow(before), updated); err != nil {
+		return nil, op.Error(err, "setting a contact's reminders")
+	}
+
+	return updated, nil
 }
 
 // ArchiveContact implements Store.
@@ -553,6 +609,11 @@ func (s *SQLStore) ArchiveContact(ctx context.Context, tx database.Tx, scope ten
 		return op.Error(ErrEmptyID, "archiving a contact")
 	}
 
+	existing, err := s.querier.GetContact(ctx, tx, &generated.GetContactParams{ID: id, StudioID: studio})
+	if err != nil {
+		return op.Error(notFound(err), "archiving a contact")
+	}
+
 	affected, err := s.querier.ArchiveContact(ctx, tx, &generated.ArchiveContactParams{ID: id, StudioID: studio})
 	if err != nil {
 		return op.Error(err, "archiving a contact")
@@ -563,6 +624,10 @@ func (s *SQLStore) ArchiveContact(ctx context.Context, tx database.Tx, scope ten
 	}
 
 	if err = s.querier.UnlinkContact(ctx, tx, &generated.UnlinkContactParams{ContactID: nullString(id), StudioID: studio}); err != nil {
+		return op.Error(err, "archiving a contact")
+	}
+
+	if err = s.hooks.AfterArchiveContact(ctx, tx, scope, contactFromRow(existing)); err != nil {
 		return op.Error(err, "archiving a contact")
 	}
 
@@ -605,7 +670,13 @@ func (s *SQLStore) CreateAttendee(ctx context.Context, tx database.Tx, scope ten
 
 	op.Set(keyAttendee, row.ID)
 
-	return attendeeFromRow(row), nil
+	created := attendeeFromRow(row)
+
+	if err = s.hooks.AfterCreateAttendee(ctx, tx, scope, created); err != nil {
+		return nil, op.Error(err, "creating an attendee")
+	}
+
+	return created, nil
 }
 
 // GetAttendee implements Store.
@@ -677,7 +748,13 @@ func (s *SQLStore) UpdateAttendee(ctx context.Context, tx database.Tx, scope ten
 		return nil, op.Error(notFound(err), "updating an attendee")
 	}
 
-	return attendeeFromRow(row), nil
+	updated := attendeeFromRow(row)
+
+	if err = s.hooks.AfterUpdateAttendee(ctx, tx, scope, attendeeFromRow(existing), updated); err != nil {
+		return nil, op.Error(err, "updating an attendee")
+	}
+
+	return updated, nil
 }
 
 // ArchiveAttendee implements Store.
@@ -696,6 +773,11 @@ func (s *SQLStore) ArchiveAttendee(ctx context.Context, tx database.Tx, scope te
 		return op.Error(ErrEmptyID, "archiving an attendee")
 	}
 
+	existing, err := s.querier.GetAttendee(ctx, tx, &generated.GetAttendeeParams{ID: id, StudioID: studio})
+	if err != nil {
+		return op.Error(notFound(err), "archiving an attendee")
+	}
+
 	affected, err := s.querier.ArchiveAttendee(ctx, tx, &generated.ArchiveAttendeeParams{ID: id, StudioID: studio})
 	if err != nil {
 		return op.Error(err, "archiving an attendee")
@@ -703,6 +785,10 @@ func (s *SQLStore) ArchiveAttendee(ctx context.Context, tx database.Tx, scope te
 
 	if affected == 0 {
 		return op.Error(ErrNotFound, "archiving an attendee")
+	}
+
+	if err = s.hooks.AfterArchiveAttendee(ctx, tx, scope, attendeeFromRow(existing)); err != nil {
+		return op.Error(err, "archiving an attendee")
 	}
 
 	return nil

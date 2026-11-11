@@ -4,15 +4,33 @@ import (
 	"context"
 	"maps"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/primandproper/fijo/internal/domain/roster"
 	"github.com/primandproper/fijo/internal/domain/schedule"
 
+	"github.com/primandproper/platform-go/v15/audit"
 	"github.com/primandproper/primitives-go/v2/database"
 	platformerrors "github.com/primandproper/primitives-go/v2/errors"
+	"github.com/primandproper/primitives-go/v2/identifiers"
 	"github.com/primandproper/primitives-go/v2/tenancy"
+)
+
+// ResourceImport is what the audit entry for a whole import run names. The
+// rows it wrote have their own entries: the roster's through its hooks, a
+// one-off's as the import's own.
+const ResourceImport = "importing.run"
+
+// The metadata keys an import run's entry carries.
+const (
+	KeySource              = "source"
+	KeyHouseholdsWritten   = "households_written"
+	KeyHouseholdsUpdated   = "households_updated"
+	KeyLessonsWritten      = "lessons_written"
+	KeyAppointmentsWritten = "appointments_written"
+	KeyOfferingsWritten    = "offerings_written"
 )
 
 // The refusals.
@@ -20,6 +38,7 @@ var (
 	ErrNilRoster   = platformerrors.Wrap(platformerrors.ErrNilInputParameter, "nil roster store")
 	ErrNilSchedule = platformerrors.Wrap(platformerrors.ErrNilInputParameter, "nil schedule store")
 	ErrNilZones    = platformerrors.Wrap(platformerrors.ErrNilInputParameter, "nil zone lookup")
+	ErrNilRecorder = platformerrors.Wrap(platformerrors.ErrNilInputParameter, "nil audit recorder")
 	ErrNilPlan     = platformerrors.Wrap(platformerrors.ErrNilInputParameter, "nil plan")
 	ErrNoStaff     = platformerrors.New("a lesson needs somebody to teach it")
 )
@@ -35,13 +54,15 @@ type Writer struct {
 	roster   roster.Store
 	schedule schedule.Store
 	zones    schedule.Zones
+	recorder audit.Recorder
 	grid     Grid
 }
 
 // NewWriter builds a writer. The zones say what instant an appointment's wall
-// clock is. grid may be nil, in which case a written series waits for the
+// clock is, and the recorder is where a run and the one-offs it books are
+// recorded. grid may be nil, in which case a written series waits for the
 // materializer's sweep to get its rows.
-func NewWriter(rosterStore roster.Store, scheduleStore schedule.Store, zones schedule.Zones, grid Grid) (*Writer, error) {
+func NewWriter(rosterStore roster.Store, scheduleStore schedule.Store, zones schedule.Zones, recorder audit.Recorder, grid Grid) (*Writer, error) {
 	switch {
 	case rosterStore == nil:
 		return nil, ErrNilRoster
@@ -49,25 +70,22 @@ func NewWriter(rosterStore roster.Store, scheduleStore schedule.Store, zones sch
 		return nil, ErrNilSchedule
 	case zones == nil:
 		return nil, ErrNilZones
+	case recorder == nil:
+		return nil, ErrNilRecorder
 	}
 
-	return &Writer{roster: rosterStore, schedule: scheduleStore, zones: zones, grid: grid}, nil
+	return &Writer{roster: rosterStore, schedule: scheduleStore, zones: zones, recorder: recorder, grid: grid}, nil
 }
 
 // Choices are what the owner decided on the preview.
 type Choices struct {
-	// SkipHouseholds, SkipLessons and SkipAppointments are keys the owner
-	// unticked. Skipping a household skips its lessons and appointments.
 	SkipHouseholds   map[string]bool
 	SkipLessons      map[string]bool
 	SkipAppointments map[string]bool
-
-	// Staff teaches every lesson and appointment written: the owner who ran
-	// the import.
-	Staff []string
-
-	// IncludeInactive writes households with nothing ahead of them too.
-	IncludeInactive bool
+	Actor            string
+	Source           string
+	Staff            []string
+	IncludeInactive  bool
 }
 
 // Result is what a write did.
@@ -372,9 +390,13 @@ func peopleOf(plan *Plan, known *studio) map[string][]string {
 // writes what the choices leave in: each household (or what an existing one
 // is missing), then the lessons and appointments it needs, with the
 // offerings they are sold as.
-func (w *Writer) Write(ctx context.Context, tx database.Tx, scope tenancy.Scope, plan *Plan, choices Choices) (*Result, error) {
+func (w *Writer) Write(ctx context.Context, tx database.Tx, scope tenancy.Scope, plan *Plan, choices *Choices) (*Result, error) {
 	if plan == nil {
 		return nil, ErrNilPlan
+	}
+
+	if choices == nil {
+		choices = &Choices{}
 	}
 
 	known, err := w.annotate(ctx, tx, scope, plan)
@@ -426,15 +448,29 @@ func (w *Writer) Write(ctx context.Context, tx database.Tx, scope tenancy.Scope,
 		}
 	}
 
-	return run.result, nil
+	result := run.result
+
+	if err = run.record(ctx, ResourceImport, identifiers.New(), map[string]string{
+		KeySource:              choices.Source,
+		KeyHouseholdsWritten:   strconv.Itoa(result.HouseholdsWritten),
+		KeyHouseholdsUpdated:   strconv.Itoa(result.HouseholdsUpdated),
+		KeyLessonsWritten:      strconv.Itoa(result.LessonsWritten),
+		KeyAppointmentsWritten: strconv.Itoa(result.AppointmentsWritten),
+		KeyOfferingsWritten:    strconv.Itoa(result.OfferingsWritten),
+	}); err != nil {
+		return nil, platformerrors.Wrap(err, "recording the import")
+	}
+
+	return result, nil
 }
 
 // writing is one Write's state.
 type writing struct {
 	tx database.Tx
 	*Writer
-	known  *studio
-	result *Result
+	known   *studio
+	result  *Result
+	choices *Choices
 
 	// attendees maps a planned attendee's key to their row, written or
 	// already here.
@@ -444,8 +480,7 @@ type writing struct {
 	offerings map[string]*Offering
 	written   map[string]*schedule.Offering
 
-	scope   tenancy.Scope
-	choices Choices
+	scope tenancy.Scope
 }
 
 // household writes one planned household, or what the one already here is
@@ -677,13 +712,45 @@ func (r *writing) appointment(ctx context.Context, appointment *Appointment) err
 		return err
 	}
 
-	if _, err = r.schedule.CreateOccurrence(ctx, r.tx, r.scope, occurrence); err != nil {
+	written, err := r.schedule.CreateOccurrence(ctx, r.tx, r.scope, occurrence)
+	if err != nil {
+		return err
+	}
+
+	// A one-off booked by hand is Book's, and carries its entry; one booked
+	// by an import carries the import's, so its history says where it came
+	// from.
+	if err = r.record(ctx, schedule.ResourceOccurrence, written.ID, map[string]string{
+		schedule.KeyCommand:  schedule.CommandImport,
+		schedule.KeyStartsAt: written.StartsAt.UTC().Format(time.RFC3339),
+		KeySource:            r.choices.Source,
+	}); err != nil {
 		return err
 	}
 
 	r.result.AppointmentsWritten++
 
 	return nil
+}
+
+// record writes one created-entry in the studio's scope, on the import's
+// transaction.
+func (r *writing) record(ctx context.Context, resourceType, id string, metadata map[string]string) error {
+	actor := audit.Actor{ID: r.choices.Actor, Type: audit.ActorUser}
+	if actor.ID == "" {
+		actor = audit.Actor{ID: audit.ActorUnattributed, Type: audit.ActorSystem}
+	}
+
+	maps.DeleteFunc(metadata, func(_, value string) bool { return value == "" })
+
+	return r.recorder.Record(ctx, r.tx, r.scope, &audit.Entry{
+		ID:           identifiers.New(),
+		ResourceType: resourceType,
+		ResourceID:   id,
+		EventType:    audit.EventCreated,
+		Actor:        actor,
+		Metadata:     metadata,
+	})
 }
 
 // offeringFor is the offering a lesson is sold as: the studio's own when the

@@ -46,6 +46,7 @@ const (
 	CommandMove        = "move_occurrence"
 	CommandMakeUp      = "schedule_make_up"
 	CommandBook        = "book_occurrence"
+	CommandImport      = "import_occurrence"
 	CommandReassign    = "reassign_occurrence"
 	CommandEndSeries   = "end_series"
 	CommandCloseStudio = "close_studio"
