@@ -7,12 +7,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 `github.com/primandproper/fijo` — scheduling for one- and two-person recurring-appointment
 businesses, built on `github.com/primandproper/platform-go/v15` (the domain tier: identity,
 sign-in, audit, sessions, rbac, ...) over `github.com/primandproper/primitives-go/v2` (the
-infrastructure tier). Go 1.27. Read `docs/DESIGN.md` first: it holds the settled facts, the domain
-model, what Fijo composes from each tier, and the build order. Phases 0 (scaffold and owner sign-in)
-and 1 (the grid) are done, phase 2 (the roster) is half done, phase 3 (email reminders) has a
-first pass in, and phases 4–6 are ahead. Since
-2026-11-07 reminders are email first and SMS is "later", and an Acuity CSV import is the cutover
-blocker (design doc, "Email first, and leaving Acuity").
+infrastructure tier). Go 1.27. Read `docs/DESIGN.md` first: it lists only what is left to build,
+in order, with the decisions already made about each item; what is built is described by the code
+and its package comments. The scaffold, the grid, most of the roster, the Acuity import and email
+reminders are in. Reminders are email first and SMS is "later", and the cutover off Acuity is the
+next milestone (design doc, §1).
 
 **The reference consumer is `../dinnerdonebetter`.** When you wonder how something is done on this
 stack, read how DDB does it before inventing anything. The two sibling repositories'
@@ -20,8 +19,8 @@ stack, read how DDB does it before inventing anything. The two sibling repositor
 tier rule, store shapes (`Tx` for writes, executor for reads), options seams, error mapping.
 
 **platform-go v15 is frozen.** Anything Fijo needs from the platform is an additive change there or
-a filed issue, never a local fork and never platform code written in this repository. The open
-issues Fijo depends on are listed in the design doc.
+a filed issue, never a local fork and never platform code written in this repository. Platform
+work Fijo is waiting on, or can now adopt, is listed in the design doc.
 
 ## The one binary
 
@@ -58,7 +57,7 @@ holds, so what authorizes it is the database credential. They register through t
   the global directory, `StudioScope()` is Fijo's tenant), `session` (the server-side record behind
   every access token, one per mint), `interceptor` (bearer token → caller in four revocable reads),
   `auditing` (identity + signin hooks recording to the platform audit log, scoped to the studio),
-  `mint` (a sign-in for a passkey-proven user — an extraction candidate, see the design doc),
+  `mint` (a sign-in for a passkey-proven user, to be replaced by `signin.IssueForPrincipal`),
   `passkeyflow`, `resetmail`.
 - `internal/authz/roles/` — the `owner` / `staff` / `service_admin` policy rbac seeds on every
   migration. Fijo's own RPCs are all self-service today and declared `Public` to the enforcer;
