@@ -14,13 +14,24 @@
   const files = $derived(form && 'files' in form ? form.files : null);
   const result = $derived(form && 'result' in form ? form.result : null);
 
+  type Planned = NonNullable<typeof preview>['households'][number];
+
+  // A client already here brings only what they are missing: a contact whose email and phone are both
+  // new, and the lessons and one-offs they have none of. The preview has already left the rest out.
+  function hasNew(h: Planned): boolean {
+    return h.lessons.length + h.appointments.length > 0 || h.contacts.some((c) => !c.onRoster);
+  }
+
   const toAdd = $derived(preview?.households.filter((h) => h.active && !h.onRoster) ?? []);
-  const inactive = $derived(preview?.households.filter((h) => !h.active && !h.onRoster) ?? []);
-  const onRoster = $derived(preview?.households.filter((h) => h.onRoster) ?? []);
-  const lessonCount = $derived(toAdd.reduce((n, h) => n + h.lessons.length, 0));
-  // Only what a lesson being added is sold as: a type whose lessons all belong to existing clients is
-  // never written, so listing it would promise an offering that does not arrive.
-  const used = $derived(new Set(toAdd.flatMap((h) => h.lessons.map((l) => l.offeringKey))));
+  const updates = $derived(preview?.households.filter((h) => h.active && h.onRoster && hasNew(h)) ?? []);
+  const inactive = $derived(preview?.households.filter((h) => !h.active && (!h.onRoster || hasNew(h))) ?? []);
+  const unchanged = $derived(preview?.households.filter((h) => h.onRoster && !hasNew(h)) ?? []);
+  const ticked = $derived([...toAdd, ...updates]);
+  const lessonCount = $derived(ticked.reduce((n, h) => n + h.lessons.length, 0));
+  const oneOffCount = $derived(ticked.reduce((n, h) => n + h.appointments.length, 0));
+  // Only what a lesson being added is sold as: a type whose lessons are all already here is never
+  // written, so listing it would promise an offering that does not arrive.
+  const used = $derived(new Set(ticked.flatMap((h) => [...h.lessons, ...h.appointments].map((l) => l.offeringKey))));
   const offerings = $derived(preview?.offerings.filter((o) => used.has(o.key)) ?? []);
   const unmatched = $derived(preview?.columns.filter((c) => !c.header) ?? []);
   const matched = $derived(preview?.columns.filter((c) => c.header) ?? []);
@@ -47,7 +58,13 @@
       <h2>Done</h2>
       <ul>
         <li>{result.householdsWritten} clients added</li>
+        {#if result.householdsUpdated > 0}
+          <li>{result.householdsUpdated} clients already here brought up to date</li>
+        {/if}
         <li>{result.lessonsWritten} standing lessons added, and on the week view</li>
+        {#if result.appointmentsWritten > 0}
+          <li>{result.appointmentsWritten} one-off lessons booked</li>
+        {/if}
         {#if result.offeringsWritten > 0}
           <li>
             {result.offeringsWritten} new offerings, named after Acuity's appointment types. Give them Spanish names on
@@ -55,7 +72,7 @@
           </li>
         {/if}
         {#if result.householdsOnRoster > 0}
-          <li>{result.householdsOnRoster} were already your clients and were left as they are</li>
+          <li>{result.householdsOnRoster} were already your clients with nothing new, and were left as they are</li>
         {/if}
         {#if result.householdsSkipped > 0}
           <li>{result.householdsSkipped} you left out</li>
@@ -66,7 +83,7 @@
       </p>
       <p class="muted">
         You can run the import again whenever you like, say on the day you switch. Clients already here are recognized
-        by their email or phone and are not added twice.
+        by their email or phone and are not added twice; only lessons Acuity has and Fijo does not are added.
       </p>
     </section>
   {:else if preview && files}
@@ -88,8 +105,10 @@
       <section class="card">
         <h2>What will be added</h2>
         <p>
-          {toAdd.length} clients with lessons coming up, and {lessonCount} standing lessons. Nothing is added until you press
-          the button at the bottom. Untick anything that is wrong; you can fix the rest on each client's page afterwards.
+          {toAdd.length} new clients with lessons coming up{updates.length > 0
+            ? `, ${updates.length} clients already here with something new`
+            : ''}, {lessonCount} standing lessons and {oneOffCount} one-off lessons. Nothing is added until you press the
+          button at the bottom. Untick anything that is wrong; you can fix the rest on each client's page afterwards.
         </p>
         <p class="muted">
           Reminders go to the email or phone shown. Everybody starts in {files.language === 'es'
@@ -113,22 +132,15 @@
         {@render householdCard(household, true)}
       {/each}
 
-      {#if preview.leftovers.length > 0}
-        <section class="card">
-          <h2>Not standing lessons</h2>
-          <p class="muted">
-            These are in Acuity but are not added. Put them on the week view by hand if they should be there.
-          </p>
-          <ul>
-            {#each preview.leftovers as leftover, i (i)}
-              <li>
-                <strong>{leftover.who}</strong>, {leftover.what}
-                <span class="muted">({leftover.dates.map(displayDate).join(', ')})</span>
-                <div class="muted">{leftover.reason}</div>
-              </li>
-            {/each}
-          </ul>
-        </section>
+      {#if updates.length > 0}
+        <h2>Already your clients, with something new</h2>
+        <p class="muted">
+          Recognized by their email or phone. Only what Fijo does not have yet is added; nothing already here is
+          changed.
+        </p>
+        {#each updates as household (household.key)}
+          {@render householdCard(household, true)}
+        {/each}
       {/if}
 
       {#if inactive.length > 0}
@@ -141,13 +153,16 @@
         </details>
       {/if}
 
-      {#if onRoster.length > 0}
+      {#if unchanged.length > 0}
         <details class="card">
-          <summary>{onRoster.length} already your clients</summary>
-          <p class="muted">Their email or phone is already on a client here, so they are left as they are.</p>
+          <summary>{unchanged.length} already your clients, with nothing new</summary>
+          <p class="muted">
+            Their email or phone is already on a client here, and Fijo already has their lessons, so they are left as
+            they are.
+          </p>
           <ul>
-            {#each onRoster as household (household.key)}
-              <li>{household.name}</li>
+            {#each unchanged as household (household.key)}
+              <li>{household.existingName || household.name}</li>
             {/each}
           </ul>
         </details>
@@ -240,15 +255,17 @@
   {/if}
 </div>
 
-{#snippet householdCard(household: NonNullable<typeof preview>['households'][number], checked: boolean)}
+{#snippet householdCard(household: Planned, checked: boolean)}
+  {@const booked = new Set([...household.lessons, ...household.appointments].map((l) => l.who))}
   <section class="card household">
     <input type="hidden" name="householdShown" value={household.key} />
     <label class="check head">
       <input type="checkbox" name="household" value={household.key} {checked} />
-      <strong>{household.name}</strong>
+      <strong>{household.onRoster ? household.existingName : household.name}</strong>
+      {#if household.onRoster}<span class="muted">· already here</span>{/if}
     </label>
     <ul class="people">
-      {#each household.contacts as contact, i (i)}
+      {#each household.contacts.filter((c) => !household.onRoster || !c.onRoster) as contact, i (i)}
         <li>
           {contact.name}
           <span class="muted">
@@ -256,14 +273,19 @@
             {#if contact.email}· {contact.email}{/if}
             {#if contact.phone}· {displayPhone(contact.phone)}{/if}
           </span>
+          {#if household.onRoster}<span class="tag">new contact</span>{/if}
           {#if contact.guessedName}<span class="tag">name guessed</span>{/if}
         </li>
       {/each}
-      {#each household.attendees.filter((name) => !household.contacts.some((c) => c.self && c.name === name)) as name (name)}
-        <li>{name} <span class="muted">· takes lessons</span></li>
+      <!-- On a client already here, only the people being added: a student with something to book. -->
+      {#each household.attendees.filter((a) => !household.contacts.some((c) => c.self && c.name === a.name && !c.onRoster) && (!household.onRoster || (!a.onRoster && booked.has(a.name)))) as attendee (attendee.name)}
+        <li>
+          {attendee.name} <span class="muted">· takes lessons</span>
+          {#if household.onRoster}<span class="tag">new student</span>{/if}
+        </li>
       {/each}
     </ul>
-    {#if household.notes}
+    {#if household.notes && !household.onRoster}
       <p class="muted">{household.notes}</p>
     {/if}
     {#each household.lessons as lesson (lesson.key)}
@@ -277,6 +299,19 @@
           {#each lesson.warnings as warning, i (i)}
             <span class="warning">{warning}</span>
           {/each}
+        </span>
+      </label>
+    {/each}
+    {#each household.appointments as appointment (appointment.key)}
+      <input type="hidden" name="appointmentShown" value={appointment.key} />
+      <label class="check lesson">
+        <input type="checkbox" name="appointment" value={appointment.key} checked />
+        <span>
+          {appointment.who}: {appointment.offering}, one lesson on {displayDate(appointment.on)} at {displayClock(
+            appointment.startMinutes,
+          )}
+          {#if appointment.durationMinutes}<span class="muted">· {appointment.durationMinutes} minutes</span>{/if}
+          <span class="muted reason">{appointment.reason}</span>
         </span>
       </label>
     {/each}
@@ -298,6 +333,10 @@
   .lesson {
     margin-left: 1.75rem;
     align-items: flex-start;
+  }
+  .reason {
+    display: block;
+    font-size: 0.9rem;
   }
   .warning {
     display: block;

@@ -59,18 +59,20 @@ func TestWriterAgainstPostgres(t *testing.T) {
 		// Monday the ninth of November.
 		now := time.Date(2026, time.November, 9, 9, 0, 0, 0, central)
 
-		grid, err := schedule.NewMaterializer(client, scheduleStore,
-			schedule.ZoneFunc(func(context.Context, string) (*time.Location, error) { return central, nil }),
-			schedule.WithClock(func() time.Time { return now }),
-		)
+		zones := schedule.ZoneFunc(func(context.Context, string) (*time.Location, error) { return central, nil })
+
+		grid, err := schedule.NewMaterializer(client, scheduleStore, zones, schedule.WithClock(func() time.Time { return now }))
 		must.NoError(t, err)
 
-		writer, err := importing.NewWriter(rosterStore, scheduleStore, grid)
+		writer, err := importing.NewWriter(rosterStore, scheduleStore, zones, grid)
 		must.NoError(t, err)
 
 		// The studio already sells "Piano 30", and already has one of the
 		// clients, typed in by hand.
-		var piano *schedule.Offering
+		var (
+			piano *schedule.Offering
+			here  *roster.Contact
+		)
 
 		must.NoError(t, client.WithTransaction(ctx, func(tx database.Tx) error {
 			var createErr error
@@ -82,20 +84,20 @@ func TestWriterAgainstPostgres(t *testing.T) {
 				return createErr
 			}
 
-			here, createErr := rosterStore.CreateHousehold(ctx, tx, scope, &roster.Household{Name: "Here", Language: roster.English})
+			household, createErr := rosterStore.CreateHousehold(ctx, tx, scope, &roster.Household{Name: "Here", Language: roster.English})
 			if createErr != nil {
 				return createErr
 			}
 
-			_, createErr = rosterStore.CreateContact(ctx, tx, scope, &roster.Contact{
-				HouseholdID: here.ID, Name: "Already Here", Email: "HERE@example.com",
+			here, createErr = rosterStore.CreateContact(ctx, tx, scope, &roster.Contact{
+				HouseholdID: household.ID, Name: "Already Here", Email: "HERE@example.com",
 				Language: roster.English, Relationship: roster.Self,
 			})
 
 			return createErr
 		}))
 
-		plan := func() *importing.Plan {
+		planOf := func(appointments string) *importing.Plan {
 			p, planErr := acuity.Plan(acuity.Input{
 				Clients: clients, Appointments: appointments,
 				Today: schedule.Today(now, central), Language: roster.Spanish,
@@ -105,16 +107,48 @@ func TestWriterAgainstPostgres(t *testing.T) {
 			return p
 		}
 
+		plan := func() *importing.Plan { return planOf(appointments) }
+
+		write := func(t *testing.T, p *importing.Plan) importing.Result {
+			t.Helper()
+
+			var result *importing.Result
+
+			must.NoError(t, client.WithTransaction(ctx, func(tx database.Tx) error {
+				var writeErr error
+
+				result, writeErr = writer.Write(ctx, tx, scope, p, importing.Choices{Staff: []string{studio.User.ID}})
+
+				return writeErr
+			}))
+
+			return *result
+		}
+
+		householdsByName := func(t *testing.T) map[string]*roster.Household {
+			t.Helper()
+
+			households, listErr := rosterStore.ListHouseholds(ctx, client.Reader(), scope, false)
+			must.NoError(t, listErr)
+
+			byName := map[string]*roster.Household{}
+			for _, h := range households {
+				byName[h.Name] = h
+			}
+
+			return byName
+		}
+
 		t.Run("annotating finds what the studio already has", func(t *testing.T) {
 			p := plan()
 			must.NoError(t, writer.Annotate(ctx, client.Reader(), scope, p))
 
-			onRoster := map[string]bool{}
+			onRoster := map[string]string{}
 			for _, h := range p.Households {
-				onRoster[h.Name] = h.OnRoster
+				onRoster[h.Name] = h.ExistingName
 			}
 
-			test.Eq(t, map[string]bool{"García": false, "Ana Ruiz": false, "Already Here": true}, onRoster)
+			test.Eq(t, map[string]string{"García": "", "Ana Ruiz": "", "Already Here": "Here"}, onRoster)
 
 			existing := map[string]string{}
 			for _, o := range p.Offerings {
@@ -125,27 +159,17 @@ func TestWriterAgainstPostgres(t *testing.T) {
 		})
 
 		t.Run("writing adds the clients, their lessons and their rows", func(t *testing.T) {
-			var result *importing.Result
+			test.Eq(t, importing.Result{HouseholdsWritten: 2, HouseholdsUpdated: 1, OfferingsWritten: 1, LessonsWritten: 3}, write(t, plan()),
+				test.Sprint("the client typed in by hand gets the student and the lesson they were missing"))
 
-			must.NoError(t, client.WithTransaction(ctx, func(tx database.Tx) error {
-				var writeErr error
-
-				result, writeErr = writer.Write(ctx, tx, scope, plan(), importing.Choices{Staff: []string{studio.User.ID}})
-
-				return writeErr
-			}))
-
-			test.Eq(t, importing.Result{HouseholdsWritten: 2, HouseholdsOnRoster: 1, OfferingsWritten: 1, LessonsWritten: 2}, *result)
-
-			households, listErr := rosterStore.ListHouseholds(ctx, client.Reader(), scope, false)
-			must.NoError(t, listErr)
-
-			byName := map[string]*roster.Household{}
-			for _, h := range households {
-				byName[h.Name] = h
-			}
-
+			byName := householdsByName(t)
 			must.MapLen(t, 3, byName)
+
+			existing := byName["Here"]
+			must.SliceLen(t, 1, existing.Contacts, must.Sprint("the contact already here is not written again"))
+			must.SliceLen(t, 1, existing.Attendees)
+			test.Eq(t, here.ID, existing.Attendees[0].ContactID, test.Sprint("the adult student is the contact already here"))
+			test.Eq(t, roster.English, existing.Attendees[0].Language, test.Sprint("added to a household, a person takes its language"))
 
 			garcia := byName["García"]
 			test.Eq(t, roster.Spanish, garcia.Language)
@@ -161,17 +185,17 @@ func TestWriterAgainstPostgres(t *testing.T) {
 
 			series, seriesErr := scheduleStore.ListSeries(ctx, client.Reader(), scope, false)
 			must.NoError(t, seriesErr)
-			must.SliceLen(t, 2, series)
+			must.SliceLen(t, 3, series)
 
 			for _, s := range series {
 				test.Eq(t, []string{studio.User.ID}, s.Staff)
 
-				if s.OfferingID == piano.ID {
+				if s.OfferingID == piano.ID && s.Weekday == time.Tuesday {
 					test.Eq(t, time.Tuesday, s.Weekday)
 					test.Eq(t, schedule.Date{Year: 2026, Month: time.November, Day: 10}, s.StartsOn)
 					must.NotNil(t, s.PriceOverride, must.Sprint("Acuity charged 45 for what the studio lists at 40"))
 					test.Eq(t, int64(4500), *s.PriceOverride)
-				} else {
+				} else if s.OfferingID != piano.ID {
 					test.Nil(t, s.PriceOverride, test.Sprint("a new offering's list price is what Acuity charged"))
 				}
 
@@ -182,17 +206,89 @@ func TestWriterAgainstPostgres(t *testing.T) {
 		})
 
 		t.Run("running it again writes nothing twice", func(t *testing.T) {
-			var result *importing.Result
+			test.Eq(t, importing.Result{HouseholdsOnRoster: 3}, write(t, plan()))
+		})
 
+		// What Acuity booked after the first run: a second standing lesson
+		// for Sofía, a brother on Saturdays, and one extra lesson for Ana.
+		later := appointments +
+			`"November 12, 2026 5:00pm","November 12, 2026 5:30pm",Sofía,García,lucia@example.com,Piano 30,45.00` + "\n" +
+			`"November 19, 2026 5:00pm","November 19, 2026 5:30pm",Sofía,García,lucia@example.com,Piano 30,45.00` + "\n" +
+			`"November 14, 2026 11:00am","November 14, 2026 11:30am",Mateo,García,lucia@example.com,Piano 30,45.00` + "\n" +
+			`"November 21, 2026 11:00am","November 21, 2026 11:30am",Mateo,García,lucia@example.com,Piano 30,45.00` + "\n" +
+			`"November 14, 2026 10:00am","November 14, 2026 10:45am",Ana,Ruiz,ana@example.com,Voice 60,70.00` + "\n"
+
+		t.Run("a re-run previews only what is new", func(t *testing.T) {
+			p := planOf(later)
+			must.NoError(t, writer.Annotate(ctx, client.Reader(), scope, p))
+
+			fresh := map[string]bool{}
+			for _, l := range p.Lessons {
+				fresh[l.AttendeeName+" "+l.Weekday.String()] = !l.OnRoster
+			}
+
+			test.Eq(t, map[string]bool{
+				"Sofía García Tuesday": false, "Sofía García Thursday": true,
+				"Mateo García Saturday": true, "Ana Ruiz Thursday": false, "Already Here Friday": false,
+			}, fresh)
+
+			must.SliceLen(t, 1, p.Appointments)
+			test.False(t, p.Appointments[0].OnRoster)
+
+			for _, h := range p.Households {
+				if h.Name != "García" {
+					continue
+				}
+
+				known := map[string]bool{}
+				for _, a := range h.Attendees {
+					known[a.Name] = a.OnRoster()
+				}
+
+				test.Eq(t, map[string]bool{"Sofía García": true, "Mateo García": false}, known)
+			}
+		})
+
+		t.Run("a re-run adds what Acuity booked since, to the clients already here", func(t *testing.T) {
+			test.Eq(t, importing.Result{HouseholdsUpdated: 2, HouseholdsOnRoster: 1, LessonsWritten: 2, AppointmentsWritten: 1}, write(t, planOf(later)))
+
+			byName := householdsByName(t)
+			must.MapLen(t, 3, byName, must.Sprint("no client written twice"))
+
+			garcia := byName["García"]
+			must.SliceLen(t, 1, garcia.Contacts)
+			must.SliceLen(t, 2, garcia.Attendees, must.Sprint("Mateo joins his sister"))
+
+			// Ana's extra lesson is a one-off at ten on Saturday, as long as
+			// Acuity said.
+			saturday := time.Date(2026, time.November, 14, 0, 0, 0, 0, central)
+
+			booked, listErr := scheduleStore.ListOccurrencesInWindow(ctx, client.Reader(), scope, saturday, saturday.AddDate(0, 0, 1))
+			must.NoError(t, listErr)
+
+			var oneOff *schedule.Occurrence
+
+			for _, o := range booked {
+				if o.SeriesID == "" {
+					oneOff = o
+				}
+			}
+
+			must.NotNil(t, oneOff)
+			test.True(t, oneOff.StartsAt.Equal(time.Date(2026, time.November, 14, 10, 0, 0, 0, central)))
+			test.Eq(t, 45*time.Minute, oneOff.EndsAt.Sub(oneOff.StartsAt))
+			test.Eq(t, []string{byName["Ana Ruiz"].Attendees[0].ID}, oneOff.Attendees)
+			test.Eq(t, []string{studio.User.ID}, oneOff.Staff)
+
+			// The owner cancels it here. Acuity still has it, and the last
+			// run on cutover day must not put it back.
 			must.NoError(t, client.WithTransaction(ctx, func(tx database.Tx) error {
-				var writeErr error
+				_, cancelErr := scheduleStore.CancelOccurrence(ctx, tx, scope, oneOff.ID, schedule.CancelledByHousehold, false, "")
 
-				result, writeErr = writer.Write(ctx, tx, scope, plan(), importing.Choices{Staff: []string{studio.User.ID}})
-
-				return writeErr
+				return cancelErr
 			}))
 
-			test.Eq(t, importing.Result{HouseholdsOnRoster: 3}, *result)
+			test.Eq(t, importing.Result{HouseholdsOnRoster: 3}, write(t, planOf(later)))
 		})
 	})
 }
@@ -214,7 +310,8 @@ func TestWriterSkipsWhatTheOwnerUnticked(t *testing.T) {
 		scheduleStore, err := schedule.NewSQLStore()
 		must.NoError(t, err)
 
-		writer, err := importing.NewWriter(rosterStore, scheduleStore, nil)
+		writer, err := importing.NewWriter(rosterStore, scheduleStore,
+			schedule.ZoneFunc(func(context.Context, string) (*time.Location, error) { return time.UTC, nil }), nil)
 		must.NoError(t, err)
 
 		plan, err := acuity.Plan(acuity.Input{

@@ -42,6 +42,7 @@ service ScheduleService {
   rpc RevertOccurrence(RevertOccurrenceRequest) returns (OccurrenceResponse);
   rpc MoveOccurrence(MoveOccurrenceRequest) returns (OccurrenceResponse);
   rpc ScheduleMakeUp(ScheduleMakeUpRequest) returns (OccurrenceResponse);
+  rpc BookOccurrence(BookOccurrenceRequest) returns (OccurrenceResponse);
   rpc ReassignOccurrence(ReassignOccurrenceRequest) returns (OccurrenceResponse);
 
   // Closing and reopening.
@@ -234,6 +235,20 @@ message ScheduleMakeUpRequest {
   string cancelled_occurrence_id = 1;
   google.protobuf.Timestamp starts_at = 2;
   string reason = 3;
+}
+
+// BookOccurrenceRequest is a one-off: an appointment no standing slot
+// produces, such as a trial lesson or an extra one.
+message BookOccurrenceRequest {
+  string offering_id = 1;
+  google.protobuf.Timestamp starts_at = 2;
+  // Zero is the offering's length.
+  int32 duration_minutes = 3;
+  // Who it is for: roster attendees, at least one.
+  repeated string attendee_ids = 4;
+  // Who teaches it. Empty is the caller.
+  repeated string staff_user_ids = 5;
+  string reason = 6;
 }
 
 message ReassignOccurrenceRequest {

@@ -357,6 +357,59 @@ type Occurrence struct {
 	Attendees []string `json:"attendees"`
 }
 
+// OneOff is an appointment no standing slot produces: what Commands.Book
+// writes, and what an import writes for an appointment that does not repeat.
+type OneOff struct {
+	StartsAt   time.Time
+	OfferingID string
+	Reason     string
+
+	// Staff and Attendees are who teaches it and who it is for; each names at
+	// least one.
+	Staff     []string
+	Attendees []string
+
+	// Duration is how long it runs, in whole minutes. Zero is the offering's
+	// length.
+	Duration time.Duration
+}
+
+// Occurrence is the row the one-off is, sold as offering, which must be the
+// one it names and still on sale.
+func (o *OneOff) Occurrence(offering *Offering) (*Occurrence, error) {
+	switch {
+	case o == nil || offering == nil:
+		return nil, ErrNilInput
+	case offering.ID != o.OfferingID:
+		return nil, platformerrors.Wrap(ErrInvalidOccurrence, "the offering is not the one the appointment names")
+	case offering.ArchivedAt != nil:
+		return nil, platformerrors.Wrap(ErrInvalidOccurrence, "that offering is no longer sold")
+	case o.StartsAt.IsZero():
+		return nil, platformerrors.Wrap(ErrInvalidOccurrence, "an appointment needs a time")
+	case o.Duration < 0 || o.Duration%time.Minute != 0:
+		return nil, platformerrors.Wrap(ErrInvalidOccurrence, "a length is whole minutes")
+	case len(dedupe(o.Attendees)) == 0:
+		return nil, platformerrors.Wrap(ErrInvalidOccurrence, "an appointment is somebody's: name at least one attendee")
+	case len(dedupe(o.Staff)) == 0:
+		return nil, platformerrors.Wrap(ErrInvalidOccurrence, "an appointment needs somebody to teach it")
+	}
+
+	length := o.Duration
+	if length == 0 {
+		length = offering.Duration
+	}
+
+	return &Occurrence{
+		OfferingID: offering.ID,
+		StartsAt:   o.StartsAt,
+		EndsAt:     o.StartsAt.Add(length),
+		State:      StateScheduled,
+		Reason:     o.Reason,
+		Staff:      dedupe(o.Staff),
+		Attendees:  dedupe(o.Attendees),
+	}, nil
+}
+
 // Closure is a date range the studio is shut. The range is inclusive at both
 // ends, which is how a person says "we are closed the twenty-fourth through the
 // twenty-sixth".

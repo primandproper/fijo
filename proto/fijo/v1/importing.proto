@@ -4,9 +4,10 @@
 // and applies. Nothing is kept between the two calls: apply reads the same
 // files again, so every key in a preview comes out the same from the same
 // files, and the skipped keys are what carries the owner's choices across.
-// A client whose email or phone is already on the roster is never written
-// twice, so an import can be run as a trial and again on the day of the
-// switch.
+// A client whose email or phone is already on the roster is matched rather
+// than written twice: only what they are missing (a person, a contact, a
+// lesson, an appointment) is added. So an import can be run as a trial and
+// again on the day of the switch.
 //
 // Every call is the caller's own studio, read off the principal.
 
@@ -39,19 +40,25 @@ message PreviewAcuityImportRequest { AcuityFiles files = 1; }
 message ApplyAcuityImportRequest {
   AcuityFiles files = 1;
   // Keys from the preview the owner unticked. Skipping a household skips its
-  // lessons.
+  // lessons and appointments.
   repeated string skip_household_keys = 2;
   repeated string skip_lesson_keys = 3;
   // Also write clients with no appointment ahead of them.
   bool include_inactive = 4;
+  repeated string skip_appointment_keys = 5;
 }
 
 message ApplyAcuityImportResponse {
+  // New clients.
   int32 households_written = 1;
+  // Clients already here with nothing new in the export.
   int32 households_on_roster = 2;
   int32 households_skipped = 3;
   int32 offerings_written = 4;
   int32 lessons_written = 5;
+  // Clients already here that had something added.
+  int32 households_updated = 6;
+  int32 appointments_written = 7;
 }
 
 message ImportPreview {
@@ -59,8 +66,11 @@ message ImportPreview {
   repeated ImportHousehold households = 2;
   repeated ImportOffering offerings = 3;
   repeated ImportLesson lessons = 4;
-  repeated ImportLeftover leftovers = 5;
+  reserved 5;
+  reserved "leftovers";
   repeated string warnings = 6;
+  // What does not repeat, booked one at a time.
+  repeated ImportAppointment appointments = 7;
 }
 
 // ImportColumn is which header in which file was read as what. header is empty
@@ -81,9 +91,11 @@ message ImportHousehold {
   repeated string warnings = 7;
   // Somebody on it has an appointment ahead.
   bool active = 8;
-  // One of its emails or phones is already on the roster; it will not be
-  // written again.
+  // One of its emails or phones is already on a client here, so it is that
+  // client: only what they are missing is added.
   bool on_roster = 9;
+  string existing_household_id = 10;
+  string existing_household_name = 11;
 }
 
 message ImportContact {
@@ -94,11 +106,15 @@ message ImportContact {
   // The plan made the name up: Acuity had nobody by name for this email or
   // phone.
   bool guessed_name = 5;
+  // The email or phone is already on a client here; not added.
+  bool on_roster = 6;
 }
 
 message ImportAttendee {
   string key = 1;
   string name = 2;
+  // Somebody by this name is already on the client here.
+  bool on_roster = 3;
 }
 
 message ImportOffering {
@@ -128,12 +144,25 @@ message ImportLesson {
   // How many upcoming appointments it was read from.
   int32 seen = 10;
   repeated string warnings = 11;
+  // The client already has a standing lesson at this weekday and time.
+  bool on_roster = 12;
 }
 
-message ImportLeftover {
-  string who = 1;
-  string what = 2;
-  string reason = 3;
-  // YYYY-MM-DD each.
-  repeated string dates = 4;
+// ImportAppointment is one appointment that is not part of a standing lesson,
+// written as a one-off.
+message ImportAppointment {
+  string key = 1;
+  string household_key = 2;
+  string attendee_name = 3;
+  string offering_key = 4;
+  // YYYY-MM-DD.
+  string on = 5;
+  // Minutes after midnight, in the studio's time.
+  int32 start_minutes = 6;
+  // Zero when Acuity did not say; the offering's length is used.
+  int32 duration_minutes = 7;
+  // Why it is not a standing lesson.
+  string reason = 8;
+  // The client already has a lesson at that moment.
+  bool on_roster = 9;
 }

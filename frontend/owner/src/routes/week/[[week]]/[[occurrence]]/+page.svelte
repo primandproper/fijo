@@ -62,6 +62,14 @@
     return placed.map((p) => ({ ...p, of: Math.max(ends.length, 1) }));
   }
 
+  // The one-off booking form, opened from the toolbar and kept open when the booking was refused.
+  let booking = $state(false);
+  $effect(() => {
+    if (form?.bookError) booking = true;
+  });
+  let bookOffering = $state('');
+  const bookLength = $derived(data.bookable.offerings.find((o) => o.id === bookOffering)?.durationMinutes ?? 0);
+
   const sel = $derived(data.selected);
   let panel = $state<'none' | 'cancel' | 'move' | 'makeUp'>('none');
   $effect(() => {
@@ -88,7 +96,73 @@
       </div>
       <h1>Week of {displayDate(data.week)}</h1>
       <span class="muted zone">{zoneName(data.zone)}</span>
+      {#if data.bookable.students.length > 0 && data.bookable.offerings.length > 0}
+        <button type="button" class="secondary" onclick={() => (booking = !booking)}>Book a lesson…</button>
+      {/if}
     </header>
+
+    {#if booking}
+      <form class="card book" method="POST" action="?/book" use:enhance>
+        <h2>Book one lesson</h2>
+        <p class="muted">
+          A lesson that does not repeat: a trial, an extra one. Standing lessons are added from the client's page.
+        </p>
+        {#if form?.bookError}
+          <div class="alert error">{form.bookError}</div>
+        {/if}
+        <div class="row">
+          <div>
+            <label for="book-attendee">For</label>
+            <select id="book-attendee" name="attendee" required>
+              <option value="">Choose a student</option>
+              {#each data.bookable.students as student (student.id)}
+                <option value={student.id}>
+                  {student.name}{student.household && student.household !== student.name
+                    ? ` (${student.household})`
+                    : ''}
+                </option>
+              {/each}
+            </select>
+          </div>
+          <div>
+            <label for="book-offering">What</label>
+            <select id="book-offering" name="offering" bind:value={bookOffering} required>
+              <option value="">Choose a lesson</option>
+              {#each data.bookable.offerings as offering (offering.id)}
+                <option value={offering.id}>{offering.name}</option>
+              {/each}
+            </select>
+          </div>
+        </div>
+        <div class="row three">
+          <div>
+            <label for="book-date">Date</label>
+            <input id="book-date" type="date" name="date" value={data.bookable.date} required />
+          </div>
+          <div>
+            <label for="book-time">Time</label>
+            <input id="book-time" type="time" name="time" required />
+          </div>
+          <div>
+            <label for="book-length">Minutes</label>
+            <input
+              id="book-length"
+              type="number"
+              name="length"
+              min="5"
+              step="5"
+              placeholder={bookLength ? String(bookLength) : ''}
+            />
+          </div>
+        </div>
+        <label for="book-reason">Note (optional)</label>
+        <input id="book-reason" name="reason" />
+        <div class="book-actions">
+          <button type="submit">Book it</button>
+          <button type="button" class="secondary" onclick={() => (booking = false)}>Never mind</button>
+        </div>
+      </form>
+    {/if}
 
     {#if !data.hasOfferings || !data.hasSeries}
       <div class="alert info">
@@ -190,7 +264,8 @@
         {#if sel.state === 'cancelled' && sel.cancelledBy}
           <span class="muted">by {sel.cancelledBy}{sel.insideNotice ? ', late' : ''}</span>
         {/if}
-        {#if sel.oneOff && sel.replaces}<span class="muted">make-up</span>{/if}
+        {#if sel.oneOff && sel.replaces}<span class="muted">make-up</span>
+        {:else if sel.oneOff}<span class="muted">one-off</span>{/if}
       </p>
       {#if sel.reason}<p class="muted">“{sel.reason}”</p>{/if}
 
@@ -572,6 +647,22 @@
   .row {
     display: grid;
     grid-template-columns: 1fr 1fr;
+    gap: var(--space-sm);
+  }
+  .row.three {
+    grid-template-columns: 1fr 1fr 6rem;
+  }
+  .book {
+    padding: var(--space-md);
+    margin-bottom: var(--space-md);
+    max-width: 40rem;
+  }
+  .book h2 {
+    margin: 0 0 var(--space-sm);
+    font-size: 1.1rem;
+  }
+  .book-actions {
+    display: flex;
     gap: var(--space-sm);
   }
   h3 {

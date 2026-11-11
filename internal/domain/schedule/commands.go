@@ -45,6 +45,7 @@ const (
 	CommandRevert      = "revert_occurrence"
 	CommandMove        = "move_occurrence"
 	CommandMakeUp      = "schedule_make_up"
+	CommandBook        = "book_occurrence"
 	CommandReassign    = "reassign_occurrence"
 	CommandEndSeries   = "end_series"
 	CommandCloseStudio = "close_studio"
@@ -318,6 +319,55 @@ func (c *Commands) ScheduleMakeUp(ctx context.Context, scope tenancy.Scope, acto
 	}
 
 	return makeUp, nil
+}
+
+// Book puts an appointment on the grid that no standing slot produces: a
+// trial lesson, an extra one, one a client booked once.
+//
+// Like a make-up it carries no series, so no later edit to a rule sweeps it
+// up, and nothing about the closures stops it: an owner who books a lesson on
+// a day the studio is shut has decided to open for it.
+func (c *Commands) Book(ctx context.Context, scope tenancy.Scope, actor string, oneOff *OneOff) (_ *Occurrence, err error) {
+	ctx, op := c.o11y.Begin(ctx)
+	defer op.End()
+
+	if oneOff == nil {
+		return nil, op.Error(ErrNilInput, "booking an appointment")
+	}
+
+	var booked *Occurrence
+
+	if err = c.client.WithTransaction(ctx, func(tx database.Tx) error {
+		offering, readErr := c.store.GetOffering(ctx, tx, scope, oneOff.OfferingID)
+		if readErr != nil {
+			return readErr
+		}
+
+		occurrence, buildErr := oneOff.Occurrence(offering)
+		if buildErr != nil {
+			return buildErr
+		}
+
+		occurrence.ID = identifiers.New()
+
+		written, createErr := c.store.CreateOccurrence(ctx, tx, scope, occurrence)
+		if createErr != nil {
+			return createErr
+		}
+
+		booked = written
+
+		return c.record(ctx, tx, scope, ResourceOccurrence, written.ID, audit.EventCreated, actor, map[string]string{
+			KeyCommand:  CommandBook,
+			KeyStartsAt: written.StartsAt.UTC().Format(time.RFC3339),
+			KeyStaff:    joinIDs(written.Staff),
+			KeyReason:   written.Reason,
+		})
+	}); err != nil {
+		return nil, op.Error(err, "booking an appointment")
+	}
+
+	return booked, nil
 }
 
 // Reassign changes who is teaching one appointment, and never the series.

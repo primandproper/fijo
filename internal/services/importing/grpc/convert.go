@@ -1,6 +1,8 @@
 package importinggrpc
 
 import (
+	"time"
+
 	"github.com/primandproper/fijo/internal/domain/roster"
 	"github.com/primandproper/fijo/internal/grpc/fijopb"
 	"github.com/primandproper/fijo/internal/importing"
@@ -12,8 +14,9 @@ func previewToProto(plan *importing.Plan) *fijopb.ImportPreview {
 		Households: make([]*fijopb.ImportHousehold, 0, len(plan.Households)),
 		Offerings:  make([]*fijopb.ImportOffering, 0, len(plan.Offerings)),
 		Lessons:    make([]*fijopb.ImportLesson, 0, len(plan.Lessons)),
-		Leftovers:  make([]*fijopb.ImportLeftover, 0, len(plan.Leftovers)),
 		Warnings:   plan.Warnings,
+
+		Appointments: make([]*fijopb.ImportAppointment, 0, len(plan.Appointments)),
 	}
 
 	for _, c := range plan.Columns {
@@ -28,7 +31,10 @@ func previewToProto(plan *importing.Plan) *fijopb.ImportPreview {
 			Notes:    h.Notes,
 			Warnings: h.Warnings,
 			Active:   h.Active,
-			OnRoster: h.OnRoster,
+			OnRoster: h.OnRoster(),
+
+			ExistingHouseholdId:   h.ExistingID,
+			ExistingHouseholdName: h.ExistingName,
 		}
 
 		for _, c := range h.Contacts {
@@ -38,11 +44,12 @@ func previewToProto(plan *importing.Plan) *fijopb.ImportPreview {
 				Phone:        c.Phone,
 				Relationship: relationshipToProto(c.Relationship),
 				GuessedName:  c.GuessedName,
+				OnRoster:     c.OnRoster(),
 			})
 		}
 
 		for _, a := range h.Attendees {
-			household.Attendees = append(household.Attendees, &fijopb.ImportAttendee{Key: a.Key, Name: a.Name})
+			household.Attendees = append(household.Attendees, &fijopb.ImportAttendee{Key: a.Key, Name: a.Name, OnRoster: a.OnRoster()})
 		}
 
 		out.Households = append(out.Households, household)
@@ -71,16 +78,22 @@ func previewToProto(plan *importing.Plan) *fijopb.ImportPreview {
 			Price:         l.Price,
 			Seen:          int32(l.Seen),
 			Warnings:      l.Warnings,
+			OnRoster:      l.OnRoster,
 		})
 	}
 
-	for _, l := range plan.Leftovers {
-		dates := make([]string, 0, len(l.Dates))
-		for _, d := range l.Dates {
-			dates = append(dates, d.String())
-		}
-
-		out.Leftovers = append(out.Leftovers, &fijopb.ImportLeftover{Who: l.Who, What: l.What, Reason: l.Reason, Dates: dates})
+	for _, a := range plan.Appointments {
+		out.Appointments = append(out.Appointments, &fijopb.ImportAppointment{
+			Key:             a.Key,
+			HouseholdKey:    a.HouseholdKey,
+			AttendeeName:    a.AttendeeName,
+			OfferingKey:     a.OfferingKey,
+			On:              a.On.String(),
+			StartMinutes:    int32(a.StartTime.Minutes()),
+			DurationMinutes: int32(a.Duration / time.Minute),
+			Reason:          a.Reason,
+			OnRoster:        a.OnRoster,
+		})
 	}
 
 	return out

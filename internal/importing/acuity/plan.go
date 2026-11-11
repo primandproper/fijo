@@ -15,7 +15,8 @@
 //     names "<household> family" for the owner to correct.
 //   - A person's upcoming appointments of one type, on one weekday at one
 //     time, at one- or two-week spacing, are a standing lesson starting on
-//     the first of them. Anything else is a leftover with its reason.
+//     the first of them. Anything else is booked as one-off appointments,
+//     each with the reason it is not a standing lesson.
 //
 // The headers this reads are a guess until a real export is in hand; see
 // headers.go.
@@ -503,7 +504,7 @@ type slot struct {
 }
 
 // lessons reads each student's upcoming appointments into standing lessons
-// and leftovers, and the lessons' types into offerings.
+// and one-off appointments, and their types into offerings.
 func (p *planner) lessons(plan *importing.Plan) {
 	householdOf := map[string]string{}
 
@@ -541,9 +542,9 @@ func (p *planner) lessons(plan *importing.Plan) {
 
 			kinds[key] = append(kinds[key], bySlot[*s]...)
 
-			lesson, leftover := p.lesson(who, s, bySlot[*s])
-			if leftover != nil {
-				plan.Leftovers = append(plan.Leftovers, leftover)
+			lesson, reason := p.lesson(who, s, bySlot[*s])
+			if lesson == nil {
+				plan.Appointments = append(plan.Appointments, oneOffs(who, s, bySlot[*s], householdOf[attendeeKey(who)], reason)...)
 
 				continue
 			}
@@ -569,7 +570,7 @@ func kindName(kind string) string {
 
 // lesson reads one person's appointments in one slot as a standing lesson, or
 // says why they are not one.
-func (p *planner) lesson(who *person, s *slot, records []*record) (lesson *importing.Lesson, leftover *importing.Leftover) {
+func (p *planner) lesson(who *person, s *slot, records []*record) (lesson *importing.Lesson, notStanding string) {
 	dates := make([]schedule.Date, 0, len(records))
 	for _, r := range records {
 		if !slices.Contains(dates, r.date) {
@@ -579,13 +580,8 @@ func (p *planner) lesson(who *person, s *slot, records []*record) (lesson *impor
 
 	slices.SortFunc(dates, func(a, b schedule.Date) int { return schedule.DaysBetween(b, a) })
 
-	what := fmt.Sprintf("%s, %ss at %s", s.kind, s.weekday, clock12(s.start))
-
 	if len(dates) == 1 {
-		return nil, &importing.Leftover{
-			Who: who.name, What: what, Dates: dates,
-			Reason: "Only one appointment ahead, so it is not clear it repeats. Add it by hand if it does.",
-		}
+		return nil, "Only one appointment ahead, so it is booked on its own. If it repeats, add a standing lesson on the client's page."
 	}
 
 	// Every gap is a whole number of weeks, since every date is on the same
@@ -597,10 +593,7 @@ func (p *planner) lesson(who *person, s *slot, records []*record) (lesson *impor
 
 	weeks := spacing / 7
 	if weeks != 1 && weeks != 2 {
-		return nil, &importing.Leftover{
-			Who: who.name, What: what, Dates: dates,
-			Reason: fmt.Sprintf("These are every %d weeks, and a standing lesson is weekly or every two weeks.", weeks),
-		}
+		return nil, fmt.Sprintf("%s %ss at %s are every %d weeks, and a standing lesson is weekly or every two weeks, so each is booked on its own.", s.kind, s.weekday, clock12(s.start), weeks)
 	}
 
 	lesson = &importing.Lesson{
@@ -621,7 +614,42 @@ func (p *planner) lesson(who *person, s *slot, records []*record) (lesson *impor
 		lesson.Warnings = append(lesson.Warnings, fmt.Sprintf("Acuity has no appointment in %d of the weeks between %s and %s. Fijo will put a lesson in each; cancel the ones that are off.", missing, dates[0], dates[len(dates)-1]))
 	}
 
-	return lesson, nil
+	return lesson, ""
+}
+
+// oneOffs books each of one person's appointments in a slot on its own, one
+// per date.
+func oneOffs(who *person, s *slot, records []*record, householdKey, reason string) []*importing.Appointment {
+	byDate := map[schedule.Date]*record{}
+
+	var dates []schedule.Date
+
+	for _, r := range records {
+		if _, ok := byDate[r.date]; !ok {
+			byDate[r.date] = r
+			dates = append(dates, r.date)
+		}
+	}
+
+	slices.SortFunc(dates, func(a, b schedule.Date) int { return schedule.DaysBetween(b, a) })
+
+	out := make([]*importing.Appointment, 0, len(dates))
+
+	for _, date := range dates {
+		out = append(out, &importing.Appointment{
+			Key:          fmt.Sprintf("x:%s|%s|%s|%d", who.key, strings.ToLower(s.kind), date, s.start.Minutes()),
+			HouseholdKey: householdKey,
+			AttendeeKey:  attendeeKey(who),
+			AttendeeName: who.name,
+			OfferingKey:  "o:" + strings.ToLower(s.kind),
+			Reason:       reason,
+			On:           date,
+			StartTime:    s.start,
+			Duration:     max(byDate[date].duration, 0).Truncate(time.Minute),
+		})
+	}
+
+	return out
 }
 
 // offeringOf is what a type's appointments say it is: the length and price

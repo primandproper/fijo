@@ -2162,6 +2162,95 @@ func (x *ScheduleMakeUpRequest) GetReason() string {
 	return ""
 }
 
+// BookOccurrenceRequest is a one-off: an appointment no standing slot
+// produces, such as a trial lesson or an extra one.
+type BookOccurrenceRequest struct {
+	state      protoimpl.MessageState `protogen:"open.v1"`
+	OfferingId string                 `protobuf:"bytes,1,opt,name=offering_id,json=offeringId,proto3" json:"offering_id,omitempty"`
+	StartsAt   *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=starts_at,json=startsAt,proto3" json:"starts_at,omitempty"`
+	// Zero is the offering's length.
+	DurationMinutes int32 `protobuf:"varint,3,opt,name=duration_minutes,json=durationMinutes,proto3" json:"duration_minutes,omitempty"`
+	// Who it is for: roster attendees, at least one.
+	AttendeeIds []string `protobuf:"bytes,4,rep,name=attendee_ids,json=attendeeIds,proto3" json:"attendee_ids,omitempty"`
+	// Who teaches it. Empty is the caller.
+	StaffUserIds  []string `protobuf:"bytes,5,rep,name=staff_user_ids,json=staffUserIds,proto3" json:"staff_user_ids,omitempty"`
+	Reason        string   `protobuf:"bytes,6,opt,name=reason,proto3" json:"reason,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BookOccurrenceRequest) Reset() {
+	*x = BookOccurrenceRequest{}
+	mi := &file_fijo_v1_schedule_proto_msgTypes[35]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BookOccurrenceRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BookOccurrenceRequest) ProtoMessage() {}
+
+func (x *BookOccurrenceRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_fijo_v1_schedule_proto_msgTypes[35]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BookOccurrenceRequest.ProtoReflect.Descriptor instead.
+func (*BookOccurrenceRequest) Descriptor() ([]byte, []int) {
+	return file_fijo_v1_schedule_proto_rawDescGZIP(), []int{35}
+}
+
+func (x *BookOccurrenceRequest) GetOfferingId() string {
+	if x != nil {
+		return x.OfferingId
+	}
+	return ""
+}
+
+func (x *BookOccurrenceRequest) GetStartsAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.StartsAt
+	}
+	return nil
+}
+
+func (x *BookOccurrenceRequest) GetDurationMinutes() int32 {
+	if x != nil {
+		return x.DurationMinutes
+	}
+	return 0
+}
+
+func (x *BookOccurrenceRequest) GetAttendeeIds() []string {
+	if x != nil {
+		return x.AttendeeIds
+	}
+	return nil
+}
+
+func (x *BookOccurrenceRequest) GetStaffUserIds() []string {
+	if x != nil {
+		return x.StaffUserIds
+	}
+	return nil
+}
+
+func (x *BookOccurrenceRequest) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
 type ReassignOccurrenceRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -2172,7 +2261,7 @@ type ReassignOccurrenceRequest struct {
 
 func (x *ReassignOccurrenceRequest) Reset() {
 	*x = ReassignOccurrenceRequest{}
-	mi := &file_fijo_v1_schedule_proto_msgTypes[35]
+	mi := &file_fijo_v1_schedule_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2184,7 +2273,7 @@ func (x *ReassignOccurrenceRequest) String() string {
 func (*ReassignOccurrenceRequest) ProtoMessage() {}
 
 func (x *ReassignOccurrenceRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_fijo_v1_schedule_proto_msgTypes[35]
+	mi := &file_fijo_v1_schedule_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2197,7 +2286,7 @@ func (x *ReassignOccurrenceRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReassignOccurrenceRequest.ProtoReflect.Descriptor instead.
 func (*ReassignOccurrenceRequest) Descriptor() ([]byte, []int) {
-	return file_fijo_v1_schedule_proto_rawDescGZIP(), []int{35}
+	return file_fijo_v1_schedule_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *ReassignOccurrenceRequest) GetId() string {
@@ -2222,7 +2311,7 @@ type ListClosuresRequest struct {
 
 func (x *ListClosuresRequest) Reset() {
 	*x = ListClosuresRequest{}
-	mi := &file_fijo_v1_schedule_proto_msgTypes[36]
+	mi := &file_fijo_v1_schedule_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2234,7 +2323,7 @@ func (x *ListClosuresRequest) String() string {
 func (*ListClosuresRequest) ProtoMessage() {}
 
 func (x *ListClosuresRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_fijo_v1_schedule_proto_msgTypes[36]
+	mi := &file_fijo_v1_schedule_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2247,7 +2336,7 @@ func (x *ListClosuresRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListClosuresRequest.ProtoReflect.Descriptor instead.
 func (*ListClosuresRequest) Descriptor() ([]byte, []int) {
-	return file_fijo_v1_schedule_proto_rawDescGZIP(), []int{36}
+	return file_fijo_v1_schedule_proto_rawDescGZIP(), []int{37}
 }
 
 type ListClosuresResponse struct {
@@ -2259,7 +2348,7 @@ type ListClosuresResponse struct {
 
 func (x *ListClosuresResponse) Reset() {
 	*x = ListClosuresResponse{}
-	mi := &file_fijo_v1_schedule_proto_msgTypes[37]
+	mi := &file_fijo_v1_schedule_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2271,7 +2360,7 @@ func (x *ListClosuresResponse) String() string {
 func (*ListClosuresResponse) ProtoMessage() {}
 
 func (x *ListClosuresResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_fijo_v1_schedule_proto_msgTypes[37]
+	mi := &file_fijo_v1_schedule_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2284,7 +2373,7 @@ func (x *ListClosuresResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListClosuresResponse.ProtoReflect.Descriptor instead.
 func (*ListClosuresResponse) Descriptor() ([]byte, []int) {
-	return file_fijo_v1_schedule_proto_rawDescGZIP(), []int{37}
+	return file_fijo_v1_schedule_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *ListClosuresResponse) GetClosures() []*Closure {
@@ -2305,7 +2394,7 @@ type CloseStudioRequest struct {
 
 func (x *CloseStudioRequest) Reset() {
 	*x = CloseStudioRequest{}
-	mi := &file_fijo_v1_schedule_proto_msgTypes[38]
+	mi := &file_fijo_v1_schedule_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2317,7 +2406,7 @@ func (x *CloseStudioRequest) String() string {
 func (*CloseStudioRequest) ProtoMessage() {}
 
 func (x *CloseStudioRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_fijo_v1_schedule_proto_msgTypes[38]
+	mi := &file_fijo_v1_schedule_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2330,7 +2419,7 @@ func (x *CloseStudioRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CloseStudioRequest.ProtoReflect.Descriptor instead.
 func (*CloseStudioRequest) Descriptor() ([]byte, []int) {
-	return file_fijo_v1_schedule_proto_rawDescGZIP(), []int{38}
+	return file_fijo_v1_schedule_proto_rawDescGZIP(), []int{39}
 }
 
 func (x *CloseStudioRequest) GetStartsOn() string {
@@ -2363,7 +2452,7 @@ type CloseStudioResponse struct {
 
 func (x *CloseStudioResponse) Reset() {
 	*x = CloseStudioResponse{}
-	mi := &file_fijo_v1_schedule_proto_msgTypes[39]
+	mi := &file_fijo_v1_schedule_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2375,7 +2464,7 @@ func (x *CloseStudioResponse) String() string {
 func (*CloseStudioResponse) ProtoMessage() {}
 
 func (x *CloseStudioResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_fijo_v1_schedule_proto_msgTypes[39]
+	mi := &file_fijo_v1_schedule_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2388,7 +2477,7 @@ func (x *CloseStudioResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CloseStudioResponse.ProtoReflect.Descriptor instead.
 func (*CloseStudioResponse) Descriptor() ([]byte, []int) {
-	return file_fijo_v1_schedule_proto_rawDescGZIP(), []int{39}
+	return file_fijo_v1_schedule_proto_rawDescGZIP(), []int{40}
 }
 
 func (x *CloseStudioResponse) GetClosure() *Closure {
@@ -2407,7 +2496,7 @@ type ReopenStudioRequest struct {
 
 func (x *ReopenStudioRequest) Reset() {
 	*x = ReopenStudioRequest{}
-	mi := &file_fijo_v1_schedule_proto_msgTypes[40]
+	mi := &file_fijo_v1_schedule_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2419,7 +2508,7 @@ func (x *ReopenStudioRequest) String() string {
 func (*ReopenStudioRequest) ProtoMessage() {}
 
 func (x *ReopenStudioRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_fijo_v1_schedule_proto_msgTypes[40]
+	mi := &file_fijo_v1_schedule_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2432,7 +2521,7 @@ func (x *ReopenStudioRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReopenStudioRequest.ProtoReflect.Descriptor instead.
 func (*ReopenStudioRequest) Descriptor() ([]byte, []int) {
-	return file_fijo_v1_schedule_proto_rawDescGZIP(), []int{40}
+	return file_fijo_v1_schedule_proto_rawDescGZIP(), []int{41}
 }
 
 func (x *ReopenStudioRequest) GetId() string {
@@ -2450,7 +2539,7 @@ type ReopenStudioResponse struct {
 
 func (x *ReopenStudioResponse) Reset() {
 	*x = ReopenStudioResponse{}
-	mi := &file_fijo_v1_schedule_proto_msgTypes[41]
+	mi := &file_fijo_v1_schedule_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2462,7 +2551,7 @@ func (x *ReopenStudioResponse) String() string {
 func (*ReopenStudioResponse) ProtoMessage() {}
 
 func (x *ReopenStudioResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_fijo_v1_schedule_proto_msgTypes[41]
+	mi := &file_fijo_v1_schedule_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2475,7 +2564,7 @@ func (x *ReopenStudioResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReopenStudioResponse.ProtoReflect.Descriptor instead.
 func (*ReopenStudioResponse) Descriptor() ([]byte, []int) {
-	return file_fijo_v1_schedule_proto_rawDescGZIP(), []int{41}
+	return file_fijo_v1_schedule_proto_rawDescGZIP(), []int{42}
 }
 
 type ListHistoryRequest struct {
@@ -2490,7 +2579,7 @@ type ListHistoryRequest struct {
 
 func (x *ListHistoryRequest) Reset() {
 	*x = ListHistoryRequest{}
-	mi := &file_fijo_v1_schedule_proto_msgTypes[42]
+	mi := &file_fijo_v1_schedule_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2502,7 +2591,7 @@ func (x *ListHistoryRequest) String() string {
 func (*ListHistoryRequest) ProtoMessage() {}
 
 func (x *ListHistoryRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_fijo_v1_schedule_proto_msgTypes[42]
+	mi := &file_fijo_v1_schedule_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2515,7 +2604,7 @@ func (x *ListHistoryRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListHistoryRequest.ProtoReflect.Descriptor instead.
 func (*ListHistoryRequest) Descriptor() ([]byte, []int) {
-	return file_fijo_v1_schedule_proto_rawDescGZIP(), []int{42}
+	return file_fijo_v1_schedule_proto_rawDescGZIP(), []int{43}
 }
 
 func (x *ListHistoryRequest) GetResourceType() string {
@@ -2548,7 +2637,7 @@ type ListHistoryResponse struct {
 
 func (x *ListHistoryResponse) Reset() {
 	*x = ListHistoryResponse{}
-	mi := &file_fijo_v1_schedule_proto_msgTypes[43]
+	mi := &file_fijo_v1_schedule_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2560,7 +2649,7 @@ func (x *ListHistoryResponse) String() string {
 func (*ListHistoryResponse) ProtoMessage() {}
 
 func (x *ListHistoryResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_fijo_v1_schedule_proto_msgTypes[43]
+	mi := &file_fijo_v1_schedule_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2573,7 +2662,7 @@ func (x *ListHistoryResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListHistoryResponse.ProtoReflect.Descriptor instead.
 func (*ListHistoryResponse) Descriptor() ([]byte, []int) {
-	return file_fijo_v1_schedule_proto_rawDescGZIP(), []int{43}
+	return file_fijo_v1_schedule_proto_rawDescGZIP(), []int{44}
 }
 
 func (x *ListHistoryResponse) GetEntries() []*HistoryEntry {
@@ -2725,7 +2814,15 @@ const file_fijo_v1_schedule_proto_rawDesc = "" +
 	"\x15ScheduleMakeUpRequest\x126\n" +
 	"\x17cancelled_occurrence_id\x18\x01 \x01(\tR\x15cancelledOccurrenceId\x127\n" +
 	"\tstarts_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\bstartsAt\x12\x16\n" +
-	"\x06reason\x18\x03 \x01(\tR\x06reason\"Q\n" +
+	"\x06reason\x18\x03 \x01(\tR\x06reason\"\xfd\x01\n" +
+	"\x15BookOccurrenceRequest\x12\x1f\n" +
+	"\voffering_id\x18\x01 \x01(\tR\n" +
+	"offeringId\x127\n" +
+	"\tstarts_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\bstartsAt\x12)\n" +
+	"\x10duration_minutes\x18\x03 \x01(\x05R\x0fdurationMinutes\x12!\n" +
+	"\fattendee_ids\x18\x04 \x03(\tR\vattendeeIds\x12$\n" +
+	"\x0estaff_user_ids\x18\x05 \x03(\tR\fstaffUserIds\x12\x16\n" +
+	"\x06reason\x18\x06 \x01(\tR\x06reason\"Q\n" +
 	"\x19ReassignOccurrenceRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12$\n" +
 	"\x0estaff_user_ids\x18\x02 \x03(\tR\fstaffUserIds\"\x15\n" +
@@ -2764,7 +2861,7 @@ const file_fijo_v1_schedule_proto_rawDesc = "" +
 	"\x15CANCELLER_UNSPECIFIED\x10\x00\x12\x17\n" +
 	"\x13CANCELLER_HOUSEHOLD\x10\x01\x12\x14\n" +
 	"\x10CANCELLER_STUDIO\x10\x02\x12\x15\n" +
-	"\x11CANCELLER_CLOSURE\x10\x032\x8f\x0e\n" +
+	"\x11CANCELLER_CLOSURE\x10\x032\xde\x0e\n" +
 	"\x0fScheduleService\x12`\n" +
 	"\x13GetScheduleSettings\x12#.fijo.v1.GetScheduleSettingsRequest\x1a$.fijo.v1.GetScheduleSettingsResponse\x12`\n" +
 	"\x13SetScheduleSettings\x12#.fijo.v1.SetScheduleSettingsRequest\x1a$.fijo.v1.SetScheduleSettingsResponse\x12N\n" +
@@ -2783,7 +2880,8 @@ const file_fijo_v1_schedule_proto_rawDesc = "" +
 	"\x10NoShowOccurrence\x12 .fijo.v1.NoShowOccurrenceRequest\x1a\x1b.fijo.v1.OccurrenceResponse\x12Q\n" +
 	"\x10RevertOccurrence\x12 .fijo.v1.RevertOccurrenceRequest\x1a\x1b.fijo.v1.OccurrenceResponse\x12M\n" +
 	"\x0eMoveOccurrence\x12\x1e.fijo.v1.MoveOccurrenceRequest\x1a\x1b.fijo.v1.OccurrenceResponse\x12M\n" +
-	"\x0eScheduleMakeUp\x12\x1e.fijo.v1.ScheduleMakeUpRequest\x1a\x1b.fijo.v1.OccurrenceResponse\x12U\n" +
+	"\x0eScheduleMakeUp\x12\x1e.fijo.v1.ScheduleMakeUpRequest\x1a\x1b.fijo.v1.OccurrenceResponse\x12M\n" +
+	"\x0eBookOccurrence\x12\x1e.fijo.v1.BookOccurrenceRequest\x1a\x1b.fijo.v1.OccurrenceResponse\x12U\n" +
 	"\x12ReassignOccurrence\x12\".fijo.v1.ReassignOccurrenceRequest\x1a\x1b.fijo.v1.OccurrenceResponse\x12K\n" +
 	"\fListClosures\x12\x1c.fijo.v1.ListClosuresRequest\x1a\x1d.fijo.v1.ListClosuresResponse\x12H\n" +
 	"\vCloseStudio\x12\x1b.fijo.v1.CloseStudioRequest\x1a\x1c.fijo.v1.CloseStudioResponse\x12K\n" +
@@ -2803,7 +2901,7 @@ func file_fijo_v1_schedule_proto_rawDescGZIP() []byte {
 }
 
 var file_fijo_v1_schedule_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_fijo_v1_schedule_proto_msgTypes = make([]protoimpl.MessageInfo, 45)
+var file_fijo_v1_schedule_proto_msgTypes = make([]protoimpl.MessageInfo, 46)
 var file_fijo_v1_schedule_proto_goTypes = []any{
 	(OfferingKind)(0),                   // 0: fijo.v1.OfferingKind
 	(OccurrenceState)(0),                // 1: fijo.v1.OccurrenceState
@@ -2843,26 +2941,27 @@ var file_fijo_v1_schedule_proto_goTypes = []any{
 	(*RevertOccurrenceRequest)(nil),     // 35: fijo.v1.RevertOccurrenceRequest
 	(*MoveOccurrenceRequest)(nil),       // 36: fijo.v1.MoveOccurrenceRequest
 	(*ScheduleMakeUpRequest)(nil),       // 37: fijo.v1.ScheduleMakeUpRequest
-	(*ReassignOccurrenceRequest)(nil),   // 38: fijo.v1.ReassignOccurrenceRequest
-	(*ListClosuresRequest)(nil),         // 39: fijo.v1.ListClosuresRequest
-	(*ListClosuresResponse)(nil),        // 40: fijo.v1.ListClosuresResponse
-	(*CloseStudioRequest)(nil),          // 41: fijo.v1.CloseStudioRequest
-	(*CloseStudioResponse)(nil),         // 42: fijo.v1.CloseStudioResponse
-	(*ReopenStudioRequest)(nil),         // 43: fijo.v1.ReopenStudioRequest
-	(*ReopenStudioResponse)(nil),        // 44: fijo.v1.ReopenStudioResponse
-	(*ListHistoryRequest)(nil),          // 45: fijo.v1.ListHistoryRequest
-	(*ListHistoryResponse)(nil),         // 46: fijo.v1.ListHistoryResponse
-	nil,                                 // 47: fijo.v1.HistoryEntry.MetadataEntry
-	(*timestamppb.Timestamp)(nil),       // 48: google.protobuf.Timestamp
+	(*BookOccurrenceRequest)(nil),       // 38: fijo.v1.BookOccurrenceRequest
+	(*ReassignOccurrenceRequest)(nil),   // 39: fijo.v1.ReassignOccurrenceRequest
+	(*ListClosuresRequest)(nil),         // 40: fijo.v1.ListClosuresRequest
+	(*ListClosuresResponse)(nil),        // 41: fijo.v1.ListClosuresResponse
+	(*CloseStudioRequest)(nil),          // 42: fijo.v1.CloseStudioRequest
+	(*CloseStudioResponse)(nil),         // 43: fijo.v1.CloseStudioResponse
+	(*ReopenStudioRequest)(nil),         // 44: fijo.v1.ReopenStudioRequest
+	(*ReopenStudioResponse)(nil),        // 45: fijo.v1.ReopenStudioResponse
+	(*ListHistoryRequest)(nil),          // 46: fijo.v1.ListHistoryRequest
+	(*ListHistoryResponse)(nil),         // 47: fijo.v1.ListHistoryResponse
+	nil,                                 // 48: fijo.v1.HistoryEntry.MetadataEntry
+	(*timestamppb.Timestamp)(nil),       // 49: google.protobuf.Timestamp
 }
 var file_fijo_v1_schedule_proto_depIdxs = []int32{
 	0,  // 0: fijo.v1.Offering.kind:type_name -> fijo.v1.OfferingKind
-	48, // 1: fijo.v1.Occurrence.starts_at:type_name -> google.protobuf.Timestamp
-	48, // 2: fijo.v1.Occurrence.ends_at:type_name -> google.protobuf.Timestamp
+	49, // 1: fijo.v1.Occurrence.starts_at:type_name -> google.protobuf.Timestamp
+	49, // 2: fijo.v1.Occurrence.ends_at:type_name -> google.protobuf.Timestamp
 	1,  // 3: fijo.v1.Occurrence.state:type_name -> fijo.v1.OccurrenceState
 	2,  // 4: fijo.v1.Occurrence.cancelled_by:type_name -> fijo.v1.Canceller
-	48, // 5: fijo.v1.HistoryEntry.occurred_at:type_name -> google.protobuf.Timestamp
-	47, // 6: fijo.v1.HistoryEntry.metadata:type_name -> fijo.v1.HistoryEntry.MetadataEntry
+	49, // 5: fijo.v1.HistoryEntry.occurred_at:type_name -> google.protobuf.Timestamp
+	48, // 6: fijo.v1.HistoryEntry.metadata:type_name -> fijo.v1.HistoryEntry.MetadataEntry
 	3,  // 7: fijo.v1.GetScheduleSettingsResponse.settings:type_name -> fijo.v1.ScheduleSettings
 	3,  // 8: fijo.v1.SetScheduleSettingsRequest.settings:type_name -> fijo.v1.ScheduleSettings
 	3,  // 9: fijo.v1.SetScheduleSettingsResponse.settings:type_name -> fijo.v1.ScheduleSettings
@@ -2877,65 +2976,68 @@ var file_fijo_v1_schedule_proto_depIdxs = []int32{
 	5,  // 18: fijo.v1.UpdateSeriesRequest.series:type_name -> fijo.v1.Series
 	5,  // 19: fijo.v1.UpdateSeriesResponse.series:type_name -> fijo.v1.Series
 	5,  // 20: fijo.v1.EndSeriesResponse.series:type_name -> fijo.v1.Series
-	48, // 21: fijo.v1.ListOccurrencesRequest.from:type_name -> google.protobuf.Timestamp
-	48, // 22: fijo.v1.ListOccurrencesRequest.until:type_name -> google.protobuf.Timestamp
+	49, // 21: fijo.v1.ListOccurrencesRequest.from:type_name -> google.protobuf.Timestamp
+	49, // 22: fijo.v1.ListOccurrencesRequest.until:type_name -> google.protobuf.Timestamp
 	6,  // 23: fijo.v1.ListOccurrencesResponse.occurrences:type_name -> fijo.v1.Occurrence
 	6,  // 24: fijo.v1.OccurrenceResponse.occurrence:type_name -> fijo.v1.Occurrence
 	2,  // 25: fijo.v1.CancelOccurrenceRequest.cancelled_by:type_name -> fijo.v1.Canceller
-	48, // 26: fijo.v1.MoveOccurrenceRequest.starts_at:type_name -> google.protobuf.Timestamp
-	48, // 27: fijo.v1.ScheduleMakeUpRequest.starts_at:type_name -> google.protobuf.Timestamp
-	7,  // 28: fijo.v1.ListClosuresResponse.closures:type_name -> fijo.v1.Closure
-	7,  // 29: fijo.v1.CloseStudioResponse.closure:type_name -> fijo.v1.Closure
-	8,  // 30: fijo.v1.ListHistoryResponse.entries:type_name -> fijo.v1.HistoryEntry
-	9,  // 31: fijo.v1.ScheduleService.GetScheduleSettings:input_type -> fijo.v1.GetScheduleSettingsRequest
-	11, // 32: fijo.v1.ScheduleService.SetScheduleSettings:input_type -> fijo.v1.SetScheduleSettingsRequest
-	13, // 33: fijo.v1.ScheduleService.ListOfferings:input_type -> fijo.v1.ListOfferingsRequest
-	15, // 34: fijo.v1.ScheduleService.CreateOffering:input_type -> fijo.v1.CreateOfferingRequest
-	17, // 35: fijo.v1.ScheduleService.UpdateOffering:input_type -> fijo.v1.UpdateOfferingRequest
-	19, // 36: fijo.v1.ScheduleService.ArchiveOffering:input_type -> fijo.v1.ArchiveOfferingRequest
-	21, // 37: fijo.v1.ScheduleService.ListSeries:input_type -> fijo.v1.ListSeriesRequest
-	23, // 38: fijo.v1.ScheduleService.CreateSeries:input_type -> fijo.v1.CreateSeriesRequest
-	25, // 39: fijo.v1.ScheduleService.UpdateSeries:input_type -> fijo.v1.UpdateSeriesRequest
-	27, // 40: fijo.v1.ScheduleService.EndSeries:input_type -> fijo.v1.EndSeriesRequest
-	29, // 41: fijo.v1.ScheduleService.ListOccurrences:input_type -> fijo.v1.ListOccurrencesRequest
-	32, // 42: fijo.v1.ScheduleService.CancelOccurrence:input_type -> fijo.v1.CancelOccurrenceRequest
-	33, // 43: fijo.v1.ScheduleService.CompleteOccurrence:input_type -> fijo.v1.CompleteOccurrenceRequest
-	34, // 44: fijo.v1.ScheduleService.NoShowOccurrence:input_type -> fijo.v1.NoShowOccurrenceRequest
-	35, // 45: fijo.v1.ScheduleService.RevertOccurrence:input_type -> fijo.v1.RevertOccurrenceRequest
-	36, // 46: fijo.v1.ScheduleService.MoveOccurrence:input_type -> fijo.v1.MoveOccurrenceRequest
-	37, // 47: fijo.v1.ScheduleService.ScheduleMakeUp:input_type -> fijo.v1.ScheduleMakeUpRequest
-	38, // 48: fijo.v1.ScheduleService.ReassignOccurrence:input_type -> fijo.v1.ReassignOccurrenceRequest
-	39, // 49: fijo.v1.ScheduleService.ListClosures:input_type -> fijo.v1.ListClosuresRequest
-	41, // 50: fijo.v1.ScheduleService.CloseStudio:input_type -> fijo.v1.CloseStudioRequest
-	43, // 51: fijo.v1.ScheduleService.ReopenStudio:input_type -> fijo.v1.ReopenStudioRequest
-	45, // 52: fijo.v1.ScheduleService.ListHistory:input_type -> fijo.v1.ListHistoryRequest
-	10, // 53: fijo.v1.ScheduleService.GetScheduleSettings:output_type -> fijo.v1.GetScheduleSettingsResponse
-	12, // 54: fijo.v1.ScheduleService.SetScheduleSettings:output_type -> fijo.v1.SetScheduleSettingsResponse
-	14, // 55: fijo.v1.ScheduleService.ListOfferings:output_type -> fijo.v1.ListOfferingsResponse
-	16, // 56: fijo.v1.ScheduleService.CreateOffering:output_type -> fijo.v1.CreateOfferingResponse
-	18, // 57: fijo.v1.ScheduleService.UpdateOffering:output_type -> fijo.v1.UpdateOfferingResponse
-	20, // 58: fijo.v1.ScheduleService.ArchiveOffering:output_type -> fijo.v1.ArchiveOfferingResponse
-	22, // 59: fijo.v1.ScheduleService.ListSeries:output_type -> fijo.v1.ListSeriesResponse
-	24, // 60: fijo.v1.ScheduleService.CreateSeries:output_type -> fijo.v1.CreateSeriesResponse
-	26, // 61: fijo.v1.ScheduleService.UpdateSeries:output_type -> fijo.v1.UpdateSeriesResponse
-	28, // 62: fijo.v1.ScheduleService.EndSeries:output_type -> fijo.v1.EndSeriesResponse
-	30, // 63: fijo.v1.ScheduleService.ListOccurrences:output_type -> fijo.v1.ListOccurrencesResponse
-	31, // 64: fijo.v1.ScheduleService.CancelOccurrence:output_type -> fijo.v1.OccurrenceResponse
-	31, // 65: fijo.v1.ScheduleService.CompleteOccurrence:output_type -> fijo.v1.OccurrenceResponse
-	31, // 66: fijo.v1.ScheduleService.NoShowOccurrence:output_type -> fijo.v1.OccurrenceResponse
-	31, // 67: fijo.v1.ScheduleService.RevertOccurrence:output_type -> fijo.v1.OccurrenceResponse
-	31, // 68: fijo.v1.ScheduleService.MoveOccurrence:output_type -> fijo.v1.OccurrenceResponse
-	31, // 69: fijo.v1.ScheduleService.ScheduleMakeUp:output_type -> fijo.v1.OccurrenceResponse
-	31, // 70: fijo.v1.ScheduleService.ReassignOccurrence:output_type -> fijo.v1.OccurrenceResponse
-	40, // 71: fijo.v1.ScheduleService.ListClosures:output_type -> fijo.v1.ListClosuresResponse
-	42, // 72: fijo.v1.ScheduleService.CloseStudio:output_type -> fijo.v1.CloseStudioResponse
-	44, // 73: fijo.v1.ScheduleService.ReopenStudio:output_type -> fijo.v1.ReopenStudioResponse
-	46, // 74: fijo.v1.ScheduleService.ListHistory:output_type -> fijo.v1.ListHistoryResponse
-	53, // [53:75] is the sub-list for method output_type
-	31, // [31:53] is the sub-list for method input_type
-	31, // [31:31] is the sub-list for extension type_name
-	31, // [31:31] is the sub-list for extension extendee
-	0,  // [0:31] is the sub-list for field type_name
+	49, // 26: fijo.v1.MoveOccurrenceRequest.starts_at:type_name -> google.protobuf.Timestamp
+	49, // 27: fijo.v1.ScheduleMakeUpRequest.starts_at:type_name -> google.protobuf.Timestamp
+	49, // 28: fijo.v1.BookOccurrenceRequest.starts_at:type_name -> google.protobuf.Timestamp
+	7,  // 29: fijo.v1.ListClosuresResponse.closures:type_name -> fijo.v1.Closure
+	7,  // 30: fijo.v1.CloseStudioResponse.closure:type_name -> fijo.v1.Closure
+	8,  // 31: fijo.v1.ListHistoryResponse.entries:type_name -> fijo.v1.HistoryEntry
+	9,  // 32: fijo.v1.ScheduleService.GetScheduleSettings:input_type -> fijo.v1.GetScheduleSettingsRequest
+	11, // 33: fijo.v1.ScheduleService.SetScheduleSettings:input_type -> fijo.v1.SetScheduleSettingsRequest
+	13, // 34: fijo.v1.ScheduleService.ListOfferings:input_type -> fijo.v1.ListOfferingsRequest
+	15, // 35: fijo.v1.ScheduleService.CreateOffering:input_type -> fijo.v1.CreateOfferingRequest
+	17, // 36: fijo.v1.ScheduleService.UpdateOffering:input_type -> fijo.v1.UpdateOfferingRequest
+	19, // 37: fijo.v1.ScheduleService.ArchiveOffering:input_type -> fijo.v1.ArchiveOfferingRequest
+	21, // 38: fijo.v1.ScheduleService.ListSeries:input_type -> fijo.v1.ListSeriesRequest
+	23, // 39: fijo.v1.ScheduleService.CreateSeries:input_type -> fijo.v1.CreateSeriesRequest
+	25, // 40: fijo.v1.ScheduleService.UpdateSeries:input_type -> fijo.v1.UpdateSeriesRequest
+	27, // 41: fijo.v1.ScheduleService.EndSeries:input_type -> fijo.v1.EndSeriesRequest
+	29, // 42: fijo.v1.ScheduleService.ListOccurrences:input_type -> fijo.v1.ListOccurrencesRequest
+	32, // 43: fijo.v1.ScheduleService.CancelOccurrence:input_type -> fijo.v1.CancelOccurrenceRequest
+	33, // 44: fijo.v1.ScheduleService.CompleteOccurrence:input_type -> fijo.v1.CompleteOccurrenceRequest
+	34, // 45: fijo.v1.ScheduleService.NoShowOccurrence:input_type -> fijo.v1.NoShowOccurrenceRequest
+	35, // 46: fijo.v1.ScheduleService.RevertOccurrence:input_type -> fijo.v1.RevertOccurrenceRequest
+	36, // 47: fijo.v1.ScheduleService.MoveOccurrence:input_type -> fijo.v1.MoveOccurrenceRequest
+	37, // 48: fijo.v1.ScheduleService.ScheduleMakeUp:input_type -> fijo.v1.ScheduleMakeUpRequest
+	38, // 49: fijo.v1.ScheduleService.BookOccurrence:input_type -> fijo.v1.BookOccurrenceRequest
+	39, // 50: fijo.v1.ScheduleService.ReassignOccurrence:input_type -> fijo.v1.ReassignOccurrenceRequest
+	40, // 51: fijo.v1.ScheduleService.ListClosures:input_type -> fijo.v1.ListClosuresRequest
+	42, // 52: fijo.v1.ScheduleService.CloseStudio:input_type -> fijo.v1.CloseStudioRequest
+	44, // 53: fijo.v1.ScheduleService.ReopenStudio:input_type -> fijo.v1.ReopenStudioRequest
+	46, // 54: fijo.v1.ScheduleService.ListHistory:input_type -> fijo.v1.ListHistoryRequest
+	10, // 55: fijo.v1.ScheduleService.GetScheduleSettings:output_type -> fijo.v1.GetScheduleSettingsResponse
+	12, // 56: fijo.v1.ScheduleService.SetScheduleSettings:output_type -> fijo.v1.SetScheduleSettingsResponse
+	14, // 57: fijo.v1.ScheduleService.ListOfferings:output_type -> fijo.v1.ListOfferingsResponse
+	16, // 58: fijo.v1.ScheduleService.CreateOffering:output_type -> fijo.v1.CreateOfferingResponse
+	18, // 59: fijo.v1.ScheduleService.UpdateOffering:output_type -> fijo.v1.UpdateOfferingResponse
+	20, // 60: fijo.v1.ScheduleService.ArchiveOffering:output_type -> fijo.v1.ArchiveOfferingResponse
+	22, // 61: fijo.v1.ScheduleService.ListSeries:output_type -> fijo.v1.ListSeriesResponse
+	24, // 62: fijo.v1.ScheduleService.CreateSeries:output_type -> fijo.v1.CreateSeriesResponse
+	26, // 63: fijo.v1.ScheduleService.UpdateSeries:output_type -> fijo.v1.UpdateSeriesResponse
+	28, // 64: fijo.v1.ScheduleService.EndSeries:output_type -> fijo.v1.EndSeriesResponse
+	30, // 65: fijo.v1.ScheduleService.ListOccurrences:output_type -> fijo.v1.ListOccurrencesResponse
+	31, // 66: fijo.v1.ScheduleService.CancelOccurrence:output_type -> fijo.v1.OccurrenceResponse
+	31, // 67: fijo.v1.ScheduleService.CompleteOccurrence:output_type -> fijo.v1.OccurrenceResponse
+	31, // 68: fijo.v1.ScheduleService.NoShowOccurrence:output_type -> fijo.v1.OccurrenceResponse
+	31, // 69: fijo.v1.ScheduleService.RevertOccurrence:output_type -> fijo.v1.OccurrenceResponse
+	31, // 70: fijo.v1.ScheduleService.MoveOccurrence:output_type -> fijo.v1.OccurrenceResponse
+	31, // 71: fijo.v1.ScheduleService.ScheduleMakeUp:output_type -> fijo.v1.OccurrenceResponse
+	31, // 72: fijo.v1.ScheduleService.BookOccurrence:output_type -> fijo.v1.OccurrenceResponse
+	31, // 73: fijo.v1.ScheduleService.ReassignOccurrence:output_type -> fijo.v1.OccurrenceResponse
+	41, // 74: fijo.v1.ScheduleService.ListClosures:output_type -> fijo.v1.ListClosuresResponse
+	43, // 75: fijo.v1.ScheduleService.CloseStudio:output_type -> fijo.v1.CloseStudioResponse
+	45, // 76: fijo.v1.ScheduleService.ReopenStudio:output_type -> fijo.v1.ReopenStudioResponse
+	47, // 77: fijo.v1.ScheduleService.ListHistory:output_type -> fijo.v1.ListHistoryResponse
+	55, // [55:78] is the sub-list for method output_type
+	32, // [32:55] is the sub-list for method input_type
+	32, // [32:32] is the sub-list for extension type_name
+	32, // [32:32] is the sub-list for extension extendee
+	0,  // [0:32] is the sub-list for field type_name
 }
 
 func init() { file_fijo_v1_schedule_proto_init() }
@@ -2951,7 +3053,7 @@ func file_fijo_v1_schedule_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_fijo_v1_schedule_proto_rawDesc), len(file_fijo_v1_schedule_proto_rawDesc)),
 			NumEnums:      3,
-			NumMessages:   45,
+			NumMessages:   46,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

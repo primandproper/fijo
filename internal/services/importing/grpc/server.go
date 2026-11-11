@@ -1,5 +1,5 @@
 // Package importinggrpc serves fijo.v1.ImportService: bringing a studio's
-// clients and standing lessons over from Acuity.
+// clients, standing lessons and one-off appointments over from Acuity.
 //
 // Like the roster's and the schedule's servers, every method is public to the
 // enforcer and runs under the caller's own studio. Preview reads; apply writes
@@ -143,10 +143,11 @@ func (s *Server) ApplyAcuityImport(ctx context.Context, request *fijopb.ApplyAcu
 	}
 
 	choices := importing.Choices{
-		Staff:           []string{caller.UserID()},
-		SkipHouseholds:  keySet(request.GetSkipHouseholdKeys()),
-		SkipLessons:     keySet(request.GetSkipLessonKeys()),
-		IncludeInactive: request.GetIncludeInactive(),
+		Staff:            []string{caller.UserID()},
+		SkipHouseholds:   keySet(request.GetSkipHouseholdKeys()),
+		SkipLessons:      keySet(request.GetSkipLessonKeys()),
+		SkipAppointments: keySet(request.GetSkipAppointmentKeys()),
+		IncludeInactive:  request.GetIncludeInactive(),
 	}
 
 	var result *importing.Result
@@ -162,11 +163,13 @@ func (s *Server) ApplyAcuityImport(ctx context.Context, request *fijopb.ApplyAcu
 	}
 
 	return &fijopb.ApplyAcuityImportResponse{
-		HouseholdsWritten:  int32(result.HouseholdsWritten),
-		HouseholdsOnRoster: int32(result.HouseholdsOnRoster),
-		HouseholdsSkipped:  int32(result.HouseholdsSkipped),
-		OfferingsWritten:   int32(result.OfferingsWritten),
-		LessonsWritten:     int32(result.LessonsWritten),
+		HouseholdsWritten:   int32(result.HouseholdsWritten),
+		HouseholdsUpdated:   int32(result.HouseholdsUpdated),
+		HouseholdsOnRoster:  int32(result.HouseholdsOnRoster),
+		HouseholdsSkipped:   int32(result.HouseholdsSkipped),
+		OfferingsWritten:    int32(result.OfferingsWritten),
+		LessonsWritten:      int32(result.LessonsWritten),
+		AppointmentsWritten: int32(result.AppointmentsWritten),
 	}, nil
 }
 

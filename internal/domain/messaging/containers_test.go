@@ -321,13 +321,14 @@ func writeLessons(
 ) {
 	t.Helper()
 
-	grid, err := schedule.NewMaterializer(client, scheduleStore,
-		schedule.ZoneFunc(func(context.Context, string) (*time.Location, error) { return central, nil }),
+	zones := schedule.ZoneFunc(func(context.Context, string) (*time.Location, error) { return central, nil })
+
+	grid, err := schedule.NewMaterializer(client, scheduleStore, zones,
 		schedule.WithClock(func() time.Time { return realNow }),
 	)
 	must.NoError(t, err)
 
-	writer, err := importing.NewWriter(rosterStore, scheduleStore, grid)
+	writer, err := importing.NewWriter(rosterStore, scheduleStore, zones, grid)
 	must.NoError(t, err)
 
 	at := func(when time.Time, minutes int) string {

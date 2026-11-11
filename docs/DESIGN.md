@@ -24,13 +24,14 @@ have to be right on the day he turns off Acuity's booking and reminders.
   read as what, and its warnings name every column that was not read.
 - **Import gaps:**
   - Two different people who share a name become one person.
-  - A re-run skips any client already on the roster entirely, so a lesson
-    added in Acuity after the trial run, for a client who already exists, is
-    not picked up. The re-run on cutover day has to bring it over, matching on
-    email (or phone) rather than writing duplicates.
-  - One-off appointments are listed rather than written. That needs a one-off
-    RPC: an occurrence with no series, which the schema already allows.
-  - Nothing the import writes is audited (see §2, roster audit).
+  - A re-run matches a client's standing lesson by weekday and time. If Acuity
+    has moved a client's standing time since the last run, the new time is
+    added and the old lesson stays until the owner ends it. The preview shows
+    the new one, so the owner can untick it.
+  - An imported one-off doesn't keep Acuity's price, because an occurrence has
+    no price of its own until the money phase (§4).
+  - Nothing the import writes is audited (see §2, roster audit). One-offs
+    booked by hand go through the audited `Book` command; the import's do not.
   - Package balances wait for the money phase (§4) and are typed in until then.
 - **A deployment.** `deploy/environments/` has only `localdev`. Production
   needs somewhere to run `migrate`, `serve` and `worker`, the

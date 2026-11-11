@@ -691,12 +691,12 @@ func registerImportServer(i do.Injector) {
 			return nil, err
 		}
 
-		writer, err := importing.NewWriter(rosterStore, scheduleStore, grid)
+		zones, err := do.Invoke[schedule.Zones](i)
 		if err != nil {
 			return nil, err
 		}
 
-		zones, err := do.Invoke[schedule.Zones](i)
+		writer, err := importing.NewWriter(rosterStore, scheduleStore, zones, grid)
 		if err != nil {
 			return nil, err
 		}

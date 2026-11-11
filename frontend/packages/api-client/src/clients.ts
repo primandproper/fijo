@@ -262,6 +262,17 @@ export function createClients(config: ClientConfig) {
       scheduleMakeUp: sched<{ cancelledOccurrenceId: string; startsAt: Date; reason: string }, OccurrenceResponse>(
         scheduleClient.scheduleMakeUp,
       ),
+      bookOccurrence: sched<
+        {
+          offeringId: string;
+          startsAt: Date;
+          durationMinutes: number;
+          attendeeIds: string[];
+          staffUserIds: string[];
+          reason: string;
+        },
+        OccurrenceResponse
+      >(scheduleClient.bookOccurrence),
       reassignOccurrence: sched<{ id: string; staffUserIds: string[] }, OccurrenceResponse>(
         scheduleClient.reassignOccurrence,
       ),

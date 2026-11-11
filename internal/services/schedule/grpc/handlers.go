@@ -455,6 +455,40 @@ func (s *Server) ScheduleMakeUp(ctx context.Context, request *fijopb.ScheduleMak
 	return &fijopb.OccurrenceResponse{Occurrence: occurrenceToProto(makeUp)}, nil
 }
 
+// BookOccurrence implements fijopb.ScheduleServiceServer.
+func (s *Server) BookOccurrence(ctx context.Context, request *fijopb.BookOccurrenceRequest) (*fijopb.OccurrenceResponse, error) {
+	ctx, op, end := s.begin(ctx)
+	defer end()
+
+	caller, scope, err := s.caller(ctx, op, fijopb.ScheduleService_BookOccurrence_FullMethodName)
+	if err != nil {
+		return nil, err
+	}
+
+	if request.GetStartsAt() == nil {
+		return nil, s.fail(platformerrors.Wrap(schedule.ErrInvalidOccurrence, "an appointment names a time"), op, "booking an appointment")
+	}
+
+	staff := request.GetStaffUserIds()
+	if len(staff) == 0 {
+		staff = []string{caller.UserID()}
+	}
+
+	booked, err := s.commands.Book(ctx, scope, caller.UserID(), &schedule.OneOff{
+		OfferingID: request.GetOfferingId(),
+		StartsAt:   request.GetStartsAt().AsTime(),
+		Duration:   time.Duration(request.GetDurationMinutes()) * time.Minute,
+		Staff:      staff,
+		Attendees:  request.GetAttendeeIds(),
+		Reason:     request.GetReason(),
+	})
+	if err != nil {
+		return nil, s.fail(err, op, "booking an appointment")
+	}
+
+	return &fijopb.OccurrenceResponse{Occurrence: occurrenceToProto(booked)}, nil
+}
+
 // ReassignOccurrence implements fijopb.ScheduleServiceServer.
 func (s *Server) ReassignOccurrence(ctx context.Context, request *fijopb.ReassignOccurrenceRequest) (*fijopb.OccurrenceResponse, error) {
 	ctx, op, end := s.begin(ctx)

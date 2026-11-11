@@ -80,6 +80,15 @@ export const load: PageServerLoad = async ({ locals, params }) => {
     historyError,
     hasOfferings: offerings.offerings.some((o) => !o.archived),
     hasSeries: series.series.length > 0,
+    // What a one-off can be booked as, and for whom.
+    bookable: {
+      offerings: offerings.offerings
+        .filter((o) => !o.archived)
+        .map((o) => ({ id: o.id, name: o.nameEn, durationMinutes: o.durationMinutes })),
+      students: roster.students.map((s) => ({ id: s.id, name: s.name, household: s.household })),
+      // The day the form opens on: today when it is in the week shown, else the week's Monday.
+      date: today >= week && today < addDays(week, 7) ? today : week,
+    },
   };
 };
 
@@ -192,6 +201,36 @@ export const actions: Actions = {
       return fail(400, { error: messageOf(err, 'That lesson could not be moved.') });
     }
     return landOn(token, movedId, startsAt);
+  },
+  book: async ({ request, locals }) => {
+    const token = locals.accessToken!;
+    const form = await request.formData();
+    const attendeeId = field(form, 'attendee');
+    const offeringId = field(form, 'offering');
+    const length = field(form, 'length');
+    const durationMinutes = length === '' ? 0 : Number(length);
+    if (!attendeeId) return fail(400, { bookError: 'Choose who the lesson is for.' });
+    if (!offeringId) return fail(400, { bookError: 'Choose what the lesson is.' });
+    if (!Number.isInteger(durationMinutes) || durationMinutes < 0) {
+      return fail(400, { bookError: 'Give the length in whole minutes, or leave it empty.' });
+    }
+    const startsAt = await typedInstant(token, form);
+    if (!startsAt) return fail(400, { bookError: 'Give a date and a time for the lesson.' });
+    let bookedId = '';
+    try {
+      const res = await api.schedule.bookOccurrence(token, {
+        offeringId,
+        startsAt,
+        durationMinutes,
+        attendeeIds: [attendeeId],
+        staffUserIds: [],
+        reason: field(form, 'reason'),
+      });
+      bookedId = res.occurrence?.id ?? '';
+    } catch (err) {
+      return fail(400, { bookError: messageOf(err, 'The lesson could not be booked.') });
+    }
+    return landOn(token, bookedId, startsAt);
   },
   makeUp: async ({ request, locals }) => {
     const token = locals.accessToken!;

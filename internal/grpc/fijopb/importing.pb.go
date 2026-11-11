@@ -4,9 +4,10 @@
 // and applies. Nothing is kept between the two calls: apply reads the same
 // files again, so every key in a preview comes out the same from the same
 // files, and the skipped keys are what carries the owner's choices across.
-// A client whose email or phone is already on the roster is never written
-// twice, so an import can be run as a trial and again on the day of the
-// switch.
+// A client whose email or phone is already on the roster is matched rather
+// than written twice: only what they are missing (a person, a contact, a
+// lesson, an appointment) is added. So an import can be run as a trial and
+// again on the day of the switch.
 //
 // Every call is the caller's own studio, read off the principal.
 
@@ -147,13 +148,14 @@ type ApplyAcuityImportRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	Files *AcuityFiles           `protobuf:"bytes,1,opt,name=files,proto3" json:"files,omitempty"`
 	// Keys from the preview the owner unticked. Skipping a household skips its
-	// lessons.
+	// lessons and appointments.
 	SkipHouseholdKeys []string `protobuf:"bytes,2,rep,name=skip_household_keys,json=skipHouseholdKeys,proto3" json:"skip_household_keys,omitempty"`
 	SkipLessonKeys    []string `protobuf:"bytes,3,rep,name=skip_lesson_keys,json=skipLessonKeys,proto3" json:"skip_lesson_keys,omitempty"`
 	// Also write clients with no appointment ahead of them.
-	IncludeInactive bool `protobuf:"varint,4,opt,name=include_inactive,json=includeInactive,proto3" json:"include_inactive,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	IncludeInactive     bool     `protobuf:"varint,4,opt,name=include_inactive,json=includeInactive,proto3" json:"include_inactive,omitempty"`
+	SkipAppointmentKeys []string `protobuf:"bytes,5,rep,name=skip_appointment_keys,json=skipAppointmentKeys,proto3" json:"skip_appointment_keys,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *ApplyAcuityImportRequest) Reset() {
@@ -214,15 +216,27 @@ func (x *ApplyAcuityImportRequest) GetIncludeInactive() bool {
 	return false
 }
 
+func (x *ApplyAcuityImportRequest) GetSkipAppointmentKeys() []string {
+	if x != nil {
+		return x.SkipAppointmentKeys
+	}
+	return nil
+}
+
 type ApplyAcuityImportResponse struct {
-	state              protoimpl.MessageState `protogen:"open.v1"`
-	HouseholdsWritten  int32                  `protobuf:"varint,1,opt,name=households_written,json=householdsWritten,proto3" json:"households_written,omitempty"`
-	HouseholdsOnRoster int32                  `protobuf:"varint,2,opt,name=households_on_roster,json=householdsOnRoster,proto3" json:"households_on_roster,omitempty"`
-	HouseholdsSkipped  int32                  `protobuf:"varint,3,opt,name=households_skipped,json=householdsSkipped,proto3" json:"households_skipped,omitempty"`
-	OfferingsWritten   int32                  `protobuf:"varint,4,opt,name=offerings_written,json=offeringsWritten,proto3" json:"offerings_written,omitempty"`
-	LessonsWritten     int32                  `protobuf:"varint,5,opt,name=lessons_written,json=lessonsWritten,proto3" json:"lessons_written,omitempty"`
-	unknownFields      protoimpl.UnknownFields
-	sizeCache          protoimpl.SizeCache
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// New clients.
+	HouseholdsWritten int32 `protobuf:"varint,1,opt,name=households_written,json=householdsWritten,proto3" json:"households_written,omitempty"`
+	// Clients already here with nothing new in the export.
+	HouseholdsOnRoster int32 `protobuf:"varint,2,opt,name=households_on_roster,json=householdsOnRoster,proto3" json:"households_on_roster,omitempty"`
+	HouseholdsSkipped  int32 `protobuf:"varint,3,opt,name=households_skipped,json=householdsSkipped,proto3" json:"households_skipped,omitempty"`
+	OfferingsWritten   int32 `protobuf:"varint,4,opt,name=offerings_written,json=offeringsWritten,proto3" json:"offerings_written,omitempty"`
+	LessonsWritten     int32 `protobuf:"varint,5,opt,name=lessons_written,json=lessonsWritten,proto3" json:"lessons_written,omitempty"`
+	// Clients already here that had something added.
+	HouseholdsUpdated   int32 `protobuf:"varint,6,opt,name=households_updated,json=householdsUpdated,proto3" json:"households_updated,omitempty"`
+	AppointmentsWritten int32 `protobuf:"varint,7,opt,name=appointments_written,json=appointmentsWritten,proto3" json:"appointments_written,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *ApplyAcuityImportResponse) Reset() {
@@ -290,14 +304,29 @@ func (x *ApplyAcuityImportResponse) GetLessonsWritten() int32 {
 	return 0
 }
 
+func (x *ApplyAcuityImportResponse) GetHouseholdsUpdated() int32 {
+	if x != nil {
+		return x.HouseholdsUpdated
+	}
+	return 0
+}
+
+func (x *ApplyAcuityImportResponse) GetAppointmentsWritten() int32 {
+	if x != nil {
+		return x.AppointmentsWritten
+	}
+	return 0
+}
+
 type ImportPreview struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Columns       []*ImportColumn        `protobuf:"bytes,1,rep,name=columns,proto3" json:"columns,omitempty"`
-	Households    []*ImportHousehold     `protobuf:"bytes,2,rep,name=households,proto3" json:"households,omitempty"`
-	Offerings     []*ImportOffering      `protobuf:"bytes,3,rep,name=offerings,proto3" json:"offerings,omitempty"`
-	Lessons       []*ImportLesson        `protobuf:"bytes,4,rep,name=lessons,proto3" json:"lessons,omitempty"`
-	Leftovers     []*ImportLeftover      `protobuf:"bytes,5,rep,name=leftovers,proto3" json:"leftovers,omitempty"`
-	Warnings      []string               `protobuf:"bytes,6,rep,name=warnings,proto3" json:"warnings,omitempty"`
+	state      protoimpl.MessageState `protogen:"open.v1"`
+	Columns    []*ImportColumn        `protobuf:"bytes,1,rep,name=columns,proto3" json:"columns,omitempty"`
+	Households []*ImportHousehold     `protobuf:"bytes,2,rep,name=households,proto3" json:"households,omitempty"`
+	Offerings  []*ImportOffering      `protobuf:"bytes,3,rep,name=offerings,proto3" json:"offerings,omitempty"`
+	Lessons    []*ImportLesson        `protobuf:"bytes,4,rep,name=lessons,proto3" json:"lessons,omitempty"`
+	Warnings   []string               `protobuf:"bytes,6,rep,name=warnings,proto3" json:"warnings,omitempty"`
+	// What does not repeat, booked one at a time.
+	Appointments  []*ImportAppointment `protobuf:"bytes,7,rep,name=appointments,proto3" json:"appointments,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -360,16 +389,16 @@ func (x *ImportPreview) GetLessons() []*ImportLesson {
 	return nil
 }
 
-func (x *ImportPreview) GetLeftovers() []*ImportLeftover {
+func (x *ImportPreview) GetWarnings() []string {
 	if x != nil {
-		return x.Leftovers
+		return x.Warnings
 	}
 	return nil
 }
 
-func (x *ImportPreview) GetWarnings() []string {
+func (x *ImportPreview) GetAppointments() []*ImportAppointment {
 	if x != nil {
-		return x.Warnings
+		return x.Appointments
 	}
 	return nil
 }
@@ -447,11 +476,13 @@ type ImportHousehold struct {
 	Warnings  []string               `protobuf:"bytes,7,rep,name=warnings,proto3" json:"warnings,omitempty"`
 	// Somebody on it has an appointment ahead.
 	Active bool `protobuf:"varint,8,opt,name=active,proto3" json:"active,omitempty"`
-	// One of its emails or phones is already on the roster; it will not be
-	// written again.
-	OnRoster      bool `protobuf:"varint,9,opt,name=on_roster,json=onRoster,proto3" json:"on_roster,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	// One of its emails or phones is already on a client here, so it is that
+	// client: only what they are missing is added.
+	OnRoster              bool   `protobuf:"varint,9,opt,name=on_roster,json=onRoster,proto3" json:"on_roster,omitempty"`
+	ExistingHouseholdId   string `protobuf:"bytes,10,opt,name=existing_household_id,json=existingHouseholdId,proto3" json:"existing_household_id,omitempty"`
+	ExistingHouseholdName string `protobuf:"bytes,11,opt,name=existing_household_name,json=existingHouseholdName,proto3" json:"existing_household_name,omitempty"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
 }
 
 func (x *ImportHousehold) Reset() {
@@ -547,6 +578,20 @@ func (x *ImportHousehold) GetOnRoster() bool {
 	return false
 }
 
+func (x *ImportHousehold) GetExistingHouseholdId() string {
+	if x != nil {
+		return x.ExistingHouseholdId
+	}
+	return ""
+}
+
+func (x *ImportHousehold) GetExistingHouseholdName() string {
+	if x != nil {
+		return x.ExistingHouseholdName
+	}
+	return ""
+}
+
 type ImportContact struct {
 	state        protoimpl.MessageState `protogen:"open.v1"`
 	Name         string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
@@ -555,7 +600,9 @@ type ImportContact struct {
 	Relationship Relationship           `protobuf:"varint,4,opt,name=relationship,proto3,enum=fijo.v1.Relationship" json:"relationship,omitempty"`
 	// The plan made the name up: Acuity had nobody by name for this email or
 	// phone.
-	GuessedName   bool `protobuf:"varint,5,opt,name=guessed_name,json=guessedName,proto3" json:"guessed_name,omitempty"`
+	GuessedName bool `protobuf:"varint,5,opt,name=guessed_name,json=guessedName,proto3" json:"guessed_name,omitempty"`
+	// The email or phone is already on a client here; not added.
+	OnRoster      bool `protobuf:"varint,6,opt,name=on_roster,json=onRoster,proto3" json:"on_roster,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -625,10 +672,19 @@ func (x *ImportContact) GetGuessedName() bool {
 	return false
 }
 
+func (x *ImportContact) GetOnRoster() bool {
+	if x != nil {
+		return x.OnRoster
+	}
+	return false
+}
+
 type ImportAttendee struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Key           string                 `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
-	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Key   string                 `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
+	Name  string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	// Somebody by this name is already on the client here.
+	OnRoster      bool `protobuf:"varint,3,opt,name=on_roster,json=onRoster,proto3" json:"on_roster,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -675,6 +731,13 @@ func (x *ImportAttendee) GetName() string {
 		return x.Name
 	}
 	return ""
+}
+
+func (x *ImportAttendee) GetOnRoster() bool {
+	if x != nil {
+		return x.OnRoster
+	}
+	return false
 }
 
 type ImportOffering struct {
@@ -771,8 +834,10 @@ type ImportLesson struct {
 	// In cents; -1 when Acuity did not say.
 	Price int64 `protobuf:"varint,9,opt,name=price,proto3" json:"price,omitempty"`
 	// How many upcoming appointments it was read from.
-	Seen          int32    `protobuf:"varint,10,opt,name=seen,proto3" json:"seen,omitempty"`
-	Warnings      []string `protobuf:"bytes,11,rep,name=warnings,proto3" json:"warnings,omitempty"`
+	Seen     int32    `protobuf:"varint,10,opt,name=seen,proto3" json:"seen,omitempty"`
+	Warnings []string `protobuf:"bytes,11,rep,name=warnings,proto3" json:"warnings,omitempty"`
+	// The client already has a standing lesson at this weekday and time.
+	OnRoster      bool `protobuf:"varint,12,opt,name=on_roster,json=onRoster,proto3" json:"on_roster,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -884,31 +949,49 @@ func (x *ImportLesson) GetWarnings() []string {
 	return nil
 }
 
-type ImportLeftover struct {
-	state  protoimpl.MessageState `protogen:"open.v1"`
-	Who    string                 `protobuf:"bytes,1,opt,name=who,proto3" json:"who,omitempty"`
-	What   string                 `protobuf:"bytes,2,opt,name=what,proto3" json:"what,omitempty"`
-	Reason string                 `protobuf:"bytes,3,opt,name=reason,proto3" json:"reason,omitempty"`
-	// YYYY-MM-DD each.
-	Dates         []string `protobuf:"bytes,4,rep,name=dates,proto3" json:"dates,omitempty"`
+func (x *ImportLesson) GetOnRoster() bool {
+	if x != nil {
+		return x.OnRoster
+	}
+	return false
+}
+
+// ImportAppointment is one appointment that is not part of a standing lesson,
+// written as a one-off.
+type ImportAppointment struct {
+	state        protoimpl.MessageState `protogen:"open.v1"`
+	Key          string                 `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
+	HouseholdKey string                 `protobuf:"bytes,2,opt,name=household_key,json=householdKey,proto3" json:"household_key,omitempty"`
+	AttendeeName string                 `protobuf:"bytes,3,opt,name=attendee_name,json=attendeeName,proto3" json:"attendee_name,omitempty"`
+	OfferingKey  string                 `protobuf:"bytes,4,opt,name=offering_key,json=offeringKey,proto3" json:"offering_key,omitempty"`
+	// YYYY-MM-DD.
+	On string `protobuf:"bytes,5,opt,name=on,proto3" json:"on,omitempty"`
+	// Minutes after midnight, in the studio's time.
+	StartMinutes int32 `protobuf:"varint,6,opt,name=start_minutes,json=startMinutes,proto3" json:"start_minutes,omitempty"`
+	// Zero when Acuity did not say; the offering's length is used.
+	DurationMinutes int32 `protobuf:"varint,7,opt,name=duration_minutes,json=durationMinutes,proto3" json:"duration_minutes,omitempty"`
+	// Why it is not a standing lesson.
+	Reason string `protobuf:"bytes,8,opt,name=reason,proto3" json:"reason,omitempty"`
+	// The client already has a lesson at that moment.
+	OnRoster      bool `protobuf:"varint,9,opt,name=on_roster,json=onRoster,proto3" json:"on_roster,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *ImportLeftover) Reset() {
-	*x = ImportLeftover{}
+func (x *ImportAppointment) Reset() {
+	*x = ImportAppointment{}
 	mi := &file_fijo_v1_importing_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *ImportLeftover) String() string {
+func (x *ImportAppointment) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ImportLeftover) ProtoMessage() {}
+func (*ImportAppointment) ProtoMessage() {}
 
-func (x *ImportLeftover) ProtoReflect() protoreflect.Message {
+func (x *ImportAppointment) ProtoReflect() protoreflect.Message {
 	mi := &file_fijo_v1_importing_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -920,37 +1003,72 @@ func (x *ImportLeftover) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ImportLeftover.ProtoReflect.Descriptor instead.
-func (*ImportLeftover) Descriptor() ([]byte, []int) {
+// Deprecated: Use ImportAppointment.ProtoReflect.Descriptor instead.
+func (*ImportAppointment) Descriptor() ([]byte, []int) {
 	return file_fijo_v1_importing_proto_rawDescGZIP(), []int{11}
 }
 
-func (x *ImportLeftover) GetWho() string {
+func (x *ImportAppointment) GetKey() string {
 	if x != nil {
-		return x.Who
+		return x.Key
 	}
 	return ""
 }
 
-func (x *ImportLeftover) GetWhat() string {
+func (x *ImportAppointment) GetHouseholdKey() string {
 	if x != nil {
-		return x.What
+		return x.HouseholdKey
 	}
 	return ""
 }
 
-func (x *ImportLeftover) GetReason() string {
+func (x *ImportAppointment) GetAttendeeName() string {
+	if x != nil {
+		return x.AttendeeName
+	}
+	return ""
+}
+
+func (x *ImportAppointment) GetOfferingKey() string {
+	if x != nil {
+		return x.OfferingKey
+	}
+	return ""
+}
+
+func (x *ImportAppointment) GetOn() string {
+	if x != nil {
+		return x.On
+	}
+	return ""
+}
+
+func (x *ImportAppointment) GetStartMinutes() int32 {
+	if x != nil {
+		return x.StartMinutes
+	}
+	return 0
+}
+
+func (x *ImportAppointment) GetDurationMinutes() int32 {
+	if x != nil {
+		return x.DurationMinutes
+	}
+	return 0
+}
+
+func (x *ImportAppointment) GetReason() string {
 	if x != nil {
 		return x.Reason
 	}
 	return ""
 }
 
-func (x *ImportLeftover) GetDates() []string {
+func (x *ImportAppointment) GetOnRoster() bool {
 	if x != nil {
-		return x.Dates
+		return x.OnRoster
 	}
-	return nil
+	return false
 }
 
 var File_fijo_v1_importing_proto protoreflect.FileDescriptor
@@ -964,31 +1082,34 @@ const file_fijo_v1_importing_proto_rawDesc = "" +
 	"\x10appointments_csv\x18\x02 \x01(\tR\x0fappointmentsCsv\x12-\n" +
 	"\blanguage\x18\x03 \x01(\x0e2\x11.fijo.v1.LanguageR\blanguage\"H\n" +
 	"\x1aPreviewAcuityImportRequest\x12*\n" +
-	"\x05files\x18\x01 \x01(\v2\x14.fijo.v1.AcuityFilesR\x05files\"\xcb\x01\n" +
+	"\x05files\x18\x01 \x01(\v2\x14.fijo.v1.AcuityFilesR\x05files\"\xff\x01\n" +
 	"\x18ApplyAcuityImportRequest\x12*\n" +
 	"\x05files\x18\x01 \x01(\v2\x14.fijo.v1.AcuityFilesR\x05files\x12.\n" +
 	"\x13skip_household_keys\x18\x02 \x03(\tR\x11skipHouseholdKeys\x12(\n" +
 	"\x10skip_lesson_keys\x18\x03 \x03(\tR\x0eskipLessonKeys\x12)\n" +
-	"\x10include_inactive\x18\x04 \x01(\bR\x0fincludeInactive\"\x81\x02\n" +
+	"\x10include_inactive\x18\x04 \x01(\bR\x0fincludeInactive\x122\n" +
+	"\x15skip_appointment_keys\x18\x05 \x03(\tR\x13skipAppointmentKeys\"\xe3\x02\n" +
 	"\x19ApplyAcuityImportResponse\x12-\n" +
 	"\x12households_written\x18\x01 \x01(\x05R\x11householdsWritten\x120\n" +
 	"\x14households_on_roster\x18\x02 \x01(\x05R\x12householdsOnRoster\x12-\n" +
 	"\x12households_skipped\x18\x03 \x01(\x05R\x11householdsSkipped\x12+\n" +
 	"\x11offerings_written\x18\x04 \x01(\x05R\x10offeringsWritten\x12'\n" +
-	"\x0flessons_written\x18\x05 \x01(\x05R\x0elessonsWritten\"\xb5\x02\n" +
+	"\x0flessons_written\x18\x05 \x01(\x05R\x0elessonsWritten\x12-\n" +
+	"\x12households_updated\x18\x06 \x01(\x05R\x11householdsUpdated\x121\n" +
+	"\x14appointments_written\x18\a \x01(\x05R\x13appointmentsWritten\"\xcf\x02\n" +
 	"\rImportPreview\x12/\n" +
 	"\acolumns\x18\x01 \x03(\v2\x15.fijo.v1.ImportColumnR\acolumns\x128\n" +
 	"\n" +
 	"households\x18\x02 \x03(\v2\x18.fijo.v1.ImportHouseholdR\n" +
 	"households\x125\n" +
 	"\tofferings\x18\x03 \x03(\v2\x17.fijo.v1.ImportOfferingR\tofferings\x12/\n" +
-	"\alessons\x18\x04 \x03(\v2\x15.fijo.v1.ImportLessonR\alessons\x125\n" +
-	"\tleftovers\x18\x05 \x03(\v2\x17.fijo.v1.ImportLeftoverR\tleftovers\x12\x1a\n" +
-	"\bwarnings\x18\x06 \x03(\tR\bwarnings\"P\n" +
+	"\alessons\x18\x04 \x03(\v2\x15.fijo.v1.ImportLessonR\alessons\x12\x1a\n" +
+	"\bwarnings\x18\x06 \x03(\tR\bwarnings\x12>\n" +
+	"\fappointments\x18\a \x03(\v2\x1a.fijo.v1.ImportAppointmentR\fappointmentsJ\x04\b\x05\x10\x06R\tleftovers\"P\n" +
 	"\fImportColumn\x12\x12\n" +
 	"\x04file\x18\x01 \x01(\tR\x04file\x12\x14\n" +
 	"\x05field\x18\x02 \x01(\tR\x05field\x12\x16\n" +
-	"\x06header\x18\x03 \x01(\tR\x06header\"\xb8\x02\n" +
+	"\x06header\x18\x03 \x01(\tR\x06header\"\xa4\x03\n" +
 	"\x0fImportHousehold\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12-\n" +
@@ -998,23 +1119,28 @@ const file_fijo_v1_importing_proto_rawDesc = "" +
 	"\tattendees\x18\x06 \x03(\v2\x17.fijo.v1.ImportAttendeeR\tattendees\x12\x1a\n" +
 	"\bwarnings\x18\a \x03(\tR\bwarnings\x12\x16\n" +
 	"\x06active\x18\b \x01(\bR\x06active\x12\x1b\n" +
-	"\ton_roster\x18\t \x01(\bR\bonRoster\"\xad\x01\n" +
+	"\ton_roster\x18\t \x01(\bR\bonRoster\x122\n" +
+	"\x15existing_household_id\x18\n" +
+	" \x01(\tR\x13existingHouseholdId\x126\n" +
+	"\x17existing_household_name\x18\v \x01(\tR\x15existingHouseholdName\"\xca\x01\n" +
 	"\rImportContact\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x14\n" +
 	"\x05email\x18\x02 \x01(\tR\x05email\x12\x14\n" +
 	"\x05phone\x18\x03 \x01(\tR\x05phone\x129\n" +
 	"\frelationship\x18\x04 \x01(\x0e2\x15.fijo.v1.RelationshipR\frelationship\x12!\n" +
-	"\fguessed_name\x18\x05 \x01(\bR\vguessedName\"6\n" +
+	"\fguessed_name\x18\x05 \x01(\bR\vguessedName\x12\x1b\n" +
+	"\ton_roster\x18\x06 \x01(\bR\bonRoster\"S\n" +
 	"\x0eImportAttendee\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x12\n" +
-	"\x04name\x18\x02 \x01(\tR\x04name\"\xb2\x01\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1b\n" +
+	"\ton_roster\x18\x03 \x01(\bR\bonRoster\"\xb2\x01\n" +
 	"\x0eImportOffering\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12)\n" +
 	"\x10duration_minutes\x18\x03 \x01(\x05R\x0fdurationMinutes\x12\x1d\n" +
 	"\n" +
 	"list_price\x18\x04 \x01(\x03R\tlistPrice\x120\n" +
-	"\x14existing_offering_id\x18\x05 \x01(\tR\x12existingOfferingId\"\xd6\x02\n" +
+	"\x14existing_offering_id\x18\x05 \x01(\tR\x12existingOfferingId\"\xf3\x02\n" +
 	"\fImportLesson\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12#\n" +
 	"\rhousehold_key\x18\x02 \x01(\tR\fhouseholdKey\x12#\n" +
@@ -1027,12 +1153,18 @@ const file_fijo_v1_importing_proto_rawDesc = "" +
 	"\x05price\x18\t \x01(\x03R\x05price\x12\x12\n" +
 	"\x04seen\x18\n" +
 	" \x01(\x05R\x04seen\x12\x1a\n" +
-	"\bwarnings\x18\v \x03(\tR\bwarnings\"d\n" +
-	"\x0eImportLeftover\x12\x10\n" +
-	"\x03who\x18\x01 \x01(\tR\x03who\x12\x12\n" +
-	"\x04what\x18\x02 \x01(\tR\x04what\x12\x16\n" +
-	"\x06reason\x18\x03 \x01(\tR\x06reason\x12\x14\n" +
-	"\x05dates\x18\x04 \x03(\tR\x05dates2\xbf\x01\n" +
+	"\bwarnings\x18\v \x03(\tR\bwarnings\x12\x1b\n" +
+	"\ton_roster\x18\f \x01(\bR\bonRoster\"\xa7\x02\n" +
+	"\x11ImportAppointment\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12#\n" +
+	"\rhousehold_key\x18\x02 \x01(\tR\fhouseholdKey\x12#\n" +
+	"\rattendee_name\x18\x03 \x01(\tR\fattendeeName\x12!\n" +
+	"\foffering_key\x18\x04 \x01(\tR\vofferingKey\x12\x0e\n" +
+	"\x02on\x18\x05 \x01(\tR\x02on\x12#\n" +
+	"\rstart_minutes\x18\x06 \x01(\x05R\fstartMinutes\x12)\n" +
+	"\x10duration_minutes\x18\a \x01(\x05R\x0fdurationMinutes\x12\x16\n" +
+	"\x06reason\x18\b \x01(\tR\x06reason\x12\x1b\n" +
+	"\ton_roster\x18\t \x01(\bR\bonRoster2\xbf\x01\n" +
 	"\rImportService\x12R\n" +
 	"\x13PreviewAcuityImport\x12#.fijo.v1.PreviewAcuityImportRequest\x1a\x16.fijo.v1.ImportPreview\x12Z\n" +
 	"\x11ApplyAcuityImport\x12!.fijo.v1.ApplyAcuityImportRequest\x1a\".fijo.v1.ApplyAcuityImportResponseB;Z9github.com/primandproper/fijo/internal/grpc/fijopb;fijopbb\x06proto3"
@@ -1062,7 +1194,7 @@ var file_fijo_v1_importing_proto_goTypes = []any{
 	(*ImportAttendee)(nil),             // 8: fijo.v1.ImportAttendee
 	(*ImportOffering)(nil),             // 9: fijo.v1.ImportOffering
 	(*ImportLesson)(nil),               // 10: fijo.v1.ImportLesson
-	(*ImportLeftover)(nil),             // 11: fijo.v1.ImportLeftover
+	(*ImportAppointment)(nil),          // 11: fijo.v1.ImportAppointment
 	(Language)(0),                      // 12: fijo.v1.Language
 	(Relationship)(0),                  // 13: fijo.v1.Relationship
 }
@@ -1074,7 +1206,7 @@ var file_fijo_v1_importing_proto_depIdxs = []int32{
 	6,  // 4: fijo.v1.ImportPreview.households:type_name -> fijo.v1.ImportHousehold
 	9,  // 5: fijo.v1.ImportPreview.offerings:type_name -> fijo.v1.ImportOffering
 	10, // 6: fijo.v1.ImportPreview.lessons:type_name -> fijo.v1.ImportLesson
-	11, // 7: fijo.v1.ImportPreview.leftovers:type_name -> fijo.v1.ImportLeftover
+	11, // 7: fijo.v1.ImportPreview.appointments:type_name -> fijo.v1.ImportAppointment
 	12, // 8: fijo.v1.ImportHousehold.language:type_name -> fijo.v1.Language
 	7,  // 9: fijo.v1.ImportHousehold.contacts:type_name -> fijo.v1.ImportContact
 	8,  // 10: fijo.v1.ImportHousehold.attendees:type_name -> fijo.v1.ImportAttendee

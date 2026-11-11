@@ -52,20 +52,26 @@ export interface ApplyAcuityImportRequest {
     | undefined;
   /**
    * Keys from the preview the owner unticked. Skipping a household skips its
-   * lessons.
+   * lessons and appointments.
    */
   skipHouseholdKeys: string[];
   skipLessonKeys: string[];
   /** Also write clients with no appointment ahead of them. */
   includeInactive: boolean;
+  skipAppointmentKeys: string[];
 }
 
 export interface ApplyAcuityImportResponse {
+  /** New clients. */
   householdsWritten: number;
+  /** Clients already here with nothing new in the export. */
   householdsOnRoster: number;
   householdsSkipped: number;
   offeringsWritten: number;
   lessonsWritten: number;
+  /** Clients already here that had something added. */
+  householdsUpdated: number;
+  appointmentsWritten: number;
 }
 
 export interface ImportPreview {
@@ -73,8 +79,9 @@ export interface ImportPreview {
   households: ImportHousehold[];
   offerings: ImportOffering[];
   lessons: ImportLesson[];
-  leftovers: ImportLeftover[];
   warnings: string[];
+  /** What does not repeat, booked one at a time. */
+  appointments: ImportAppointment[];
 }
 
 /**
@@ -98,10 +105,12 @@ export interface ImportHousehold {
   /** Somebody on it has an appointment ahead. */
   active: boolean;
   /**
-   * One of its emails or phones is already on the roster; it will not be
-   * written again.
+   * One of its emails or phones is already on a client here, so it is that
+   * client: only what they are missing is added.
    */
   onRoster: boolean;
+  existingHouseholdId: string;
+  existingHouseholdName: string;
 }
 
 export interface ImportContact {
@@ -114,11 +123,15 @@ export interface ImportContact {
    * phone.
    */
   guessedName: boolean;
+  /** The email or phone is already on a client here; not added. */
+  onRoster: boolean;
 }
 
 export interface ImportAttendee {
   key: string;
   name: string;
+  /** Somebody by this name is already on the client here. */
+  onRoster: boolean;
 }
 
 export interface ImportOffering {
@@ -148,14 +161,29 @@ export interface ImportLesson {
   /** How many upcoming appointments it was read from. */
   seen: number;
   warnings: string[];
+  /** The client already has a standing lesson at this weekday and time. */
+  onRoster: boolean;
 }
 
-export interface ImportLeftover {
-  who: string;
-  what: string;
+/**
+ * ImportAppointment is one appointment that is not part of a standing lesson,
+ * written as a one-off.
+ */
+export interface ImportAppointment {
+  key: string;
+  householdKey: string;
+  attendeeName: string;
+  offeringKey: string;
+  /** YYYY-MM-DD. */
+  on: string;
+  /** Minutes after midnight, in the studio's time. */
+  startMinutes: number;
+  /** Zero when Acuity did not say; the offering's length is used. */
+  durationMinutes: number;
+  /** Why it is not a standing lesson. */
   reason: string;
-  /** YYYY-MM-DD each. */
-  dates: string[];
+  /** The client already has a lesson at that moment. */
+  onRoster: boolean;
 }
 
 function createBaseAcuityFiles(): AcuityFiles {
@@ -319,7 +347,13 @@ export const PreviewAcuityImportRequest: MessageFns<PreviewAcuityImportRequest> 
 };
 
 function createBaseApplyAcuityImportRequest(): ApplyAcuityImportRequest {
-  return { files: undefined, skipHouseholdKeys: [], skipLessonKeys: [], includeInactive: false };
+  return {
+    files: undefined,
+    skipHouseholdKeys: [],
+    skipLessonKeys: [],
+    includeInactive: false,
+    skipAppointmentKeys: [],
+  };
 }
 
 export const ApplyAcuityImportRequest: MessageFns<ApplyAcuityImportRequest> = {
@@ -335,6 +369,9 @@ export const ApplyAcuityImportRequest: MessageFns<ApplyAcuityImportRequest> = {
     }
     if (message.includeInactive !== false) {
       writer.uint32(32).bool(message.includeInactive);
+    }
+    for (const v of message.skipAppointmentKeys) {
+      writer.uint32(42).string(v!);
     }
     return writer;
   },
@@ -378,6 +415,14 @@ export const ApplyAcuityImportRequest: MessageFns<ApplyAcuityImportRequest> = {
           message.includeInactive = reader.bool();
           continue;
         }
+        case 5: {
+          if (tag !== 42) {
+            break;
+          }
+
+          message.skipAppointmentKeys.push(reader.string());
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -405,6 +450,11 @@ export const ApplyAcuityImportRequest: MessageFns<ApplyAcuityImportRequest> = {
         : isSet(object.include_inactive)
         ? globalThis.Boolean(object.include_inactive)
         : false,
+      skipAppointmentKeys: globalThis.Array.isArray(object?.skipAppointmentKeys)
+        ? object.skipAppointmentKeys.map((e: any) => globalThis.String(e))
+        : globalThis.Array.isArray(object?.skip_appointment_keys)
+        ? object.skip_appointment_keys.map((e: any) => globalThis.String(e))
+        : [],
     };
   },
 
@@ -422,6 +472,9 @@ export const ApplyAcuityImportRequest: MessageFns<ApplyAcuityImportRequest> = {
     if (message.includeInactive !== false) {
       obj.includeInactive = message.includeInactive;
     }
+    if (message.skipAppointmentKeys?.length) {
+      obj.skipAppointmentKeys = message.skipAppointmentKeys;
+    }
     return obj;
   },
 
@@ -436,12 +489,21 @@ export const ApplyAcuityImportRequest: MessageFns<ApplyAcuityImportRequest> = {
     message.skipHouseholdKeys = object.skipHouseholdKeys?.map((e) => e) || [];
     message.skipLessonKeys = object.skipLessonKeys?.map((e) => e) || [];
     message.includeInactive = object.includeInactive ?? false;
+    message.skipAppointmentKeys = object.skipAppointmentKeys?.map((e) => e) || [];
     return message;
   },
 };
 
 function createBaseApplyAcuityImportResponse(): ApplyAcuityImportResponse {
-  return { householdsWritten: 0, householdsOnRoster: 0, householdsSkipped: 0, offeringsWritten: 0, lessonsWritten: 0 };
+  return {
+    householdsWritten: 0,
+    householdsOnRoster: 0,
+    householdsSkipped: 0,
+    offeringsWritten: 0,
+    lessonsWritten: 0,
+    householdsUpdated: 0,
+    appointmentsWritten: 0,
+  };
 }
 
 export const ApplyAcuityImportResponse: MessageFns<ApplyAcuityImportResponse> = {
@@ -460,6 +522,12 @@ export const ApplyAcuityImportResponse: MessageFns<ApplyAcuityImportResponse> = 
     }
     if (message.lessonsWritten !== 0) {
       writer.uint32(40).int32(message.lessonsWritten);
+    }
+    if (message.householdsUpdated !== 0) {
+      writer.uint32(48).int32(message.householdsUpdated);
+    }
+    if (message.appointmentsWritten !== 0) {
+      writer.uint32(56).int32(message.appointmentsWritten);
     }
     return writer;
   },
@@ -511,6 +579,22 @@ export const ApplyAcuityImportResponse: MessageFns<ApplyAcuityImportResponse> = 
           message.lessonsWritten = reader.int32();
           continue;
         }
+        case 6: {
+          if (tag !== 48) {
+            break;
+          }
+
+          message.householdsUpdated = reader.int32();
+          continue;
+        }
+        case 7: {
+          if (tag !== 56) {
+            break;
+          }
+
+          message.appointmentsWritten = reader.int32();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -547,6 +631,16 @@ export const ApplyAcuityImportResponse: MessageFns<ApplyAcuityImportResponse> = 
         : isSet(object.lessons_written)
         ? globalThis.Number(object.lessons_written)
         : 0,
+      householdsUpdated: isSet(object.householdsUpdated)
+        ? globalThis.Number(object.householdsUpdated)
+        : isSet(object.households_updated)
+        ? globalThis.Number(object.households_updated)
+        : 0,
+      appointmentsWritten: isSet(object.appointmentsWritten)
+        ? globalThis.Number(object.appointmentsWritten)
+        : isSet(object.appointments_written)
+        ? globalThis.Number(object.appointments_written)
+        : 0,
     };
   },
 
@@ -567,6 +661,12 @@ export const ApplyAcuityImportResponse: MessageFns<ApplyAcuityImportResponse> = 
     if (message.lessonsWritten !== 0) {
       obj.lessonsWritten = Math.round(message.lessonsWritten);
     }
+    if (message.householdsUpdated !== 0) {
+      obj.householdsUpdated = Math.round(message.householdsUpdated);
+    }
+    if (message.appointmentsWritten !== 0) {
+      obj.appointmentsWritten = Math.round(message.appointmentsWritten);
+    }
     return obj;
   },
 
@@ -580,12 +680,14 @@ export const ApplyAcuityImportResponse: MessageFns<ApplyAcuityImportResponse> = 
     message.householdsSkipped = object.householdsSkipped ?? 0;
     message.offeringsWritten = object.offeringsWritten ?? 0;
     message.lessonsWritten = object.lessonsWritten ?? 0;
+    message.householdsUpdated = object.householdsUpdated ?? 0;
+    message.appointmentsWritten = object.appointmentsWritten ?? 0;
     return message;
   },
 };
 
 function createBaseImportPreview(): ImportPreview {
-  return { columns: [], households: [], offerings: [], lessons: [], leftovers: [], warnings: [] };
+  return { columns: [], households: [], offerings: [], lessons: [], warnings: [], appointments: [] };
 }
 
 export const ImportPreview: MessageFns<ImportPreview> = {
@@ -602,11 +704,11 @@ export const ImportPreview: MessageFns<ImportPreview> = {
     for (const v of message.lessons) {
       ImportLesson.encode(v!, writer.uint32(34).fork()).join();
     }
-    for (const v of message.leftovers) {
-      ImportLeftover.encode(v!, writer.uint32(42).fork()).join();
-    }
     for (const v of message.warnings) {
       writer.uint32(50).string(v!);
+    }
+    for (const v of message.appointments) {
+      ImportAppointment.encode(v!, writer.uint32(58).fork()).join();
     }
     return writer;
   },
@@ -650,20 +752,20 @@ export const ImportPreview: MessageFns<ImportPreview> = {
           message.lessons.push(ImportLesson.decode(reader, reader.uint32()));
           continue;
         }
-        case 5: {
-          if (tag !== 42) {
-            break;
-          }
-
-          message.leftovers.push(ImportLeftover.decode(reader, reader.uint32()));
-          continue;
-        }
         case 6: {
           if (tag !== 50) {
             break;
           }
 
           message.warnings.push(reader.string());
+          continue;
+        }
+        case 7: {
+          if (tag !== 58) {
+            break;
+          }
+
+          message.appointments.push(ImportAppointment.decode(reader, reader.uint32()));
           continue;
         }
       }
@@ -689,10 +791,10 @@ export const ImportPreview: MessageFns<ImportPreview> = {
       lessons: globalThis.Array.isArray(object?.lessons)
         ? object.lessons.map((e: any) => ImportLesson.fromJSON(e))
         : [],
-      leftovers: globalThis.Array.isArray(object?.leftovers)
-        ? object.leftovers.map((e: any) => ImportLeftover.fromJSON(e))
-        : [],
       warnings: globalThis.Array.isArray(object?.warnings) ? object.warnings.map((e: any) => globalThis.String(e)) : [],
+      appointments: globalThis.Array.isArray(object?.appointments)
+        ? object.appointments.map((e: any) => ImportAppointment.fromJSON(e))
+        : [],
     };
   },
 
@@ -710,11 +812,11 @@ export const ImportPreview: MessageFns<ImportPreview> = {
     if (message.lessons?.length) {
       obj.lessons = message.lessons.map((e) => ImportLesson.toJSON(e));
     }
-    if (message.leftovers?.length) {
-      obj.leftovers = message.leftovers.map((e) => ImportLeftover.toJSON(e));
-    }
     if (message.warnings?.length) {
       obj.warnings = message.warnings;
+    }
+    if (message.appointments?.length) {
+      obj.appointments = message.appointments.map((e) => ImportAppointment.toJSON(e));
     }
     return obj;
   },
@@ -728,8 +830,8 @@ export const ImportPreview: MessageFns<ImportPreview> = {
     message.households = object.households?.map((e) => ImportHousehold.fromPartial(e)) || [];
     message.offerings = object.offerings?.map((e) => ImportOffering.fromPartial(e)) || [];
     message.lessons = object.lessons?.map((e) => ImportLesson.fromPartial(e)) || [];
-    message.leftovers = object.leftovers?.map((e) => ImportLeftover.fromPartial(e)) || [];
     message.warnings = object.warnings?.map((e) => e) || [];
+    message.appointments = object.appointments?.map((e) => ImportAppointment.fromPartial(e)) || [];
     return message;
   },
 };
@@ -837,6 +939,8 @@ function createBaseImportHousehold(): ImportHousehold {
     warnings: [],
     active: false,
     onRoster: false,
+    existingHouseholdId: "",
+    existingHouseholdName: "",
   };
 }
 
@@ -868,6 +972,12 @@ export const ImportHousehold: MessageFns<ImportHousehold> = {
     }
     if (message.onRoster !== false) {
       writer.uint32(72).bool(message.onRoster);
+    }
+    if (message.existingHouseholdId !== "") {
+      writer.uint32(82).string(message.existingHouseholdId);
+    }
+    if (message.existingHouseholdName !== "") {
+      writer.uint32(90).string(message.existingHouseholdName);
     }
     return writer;
   },
@@ -951,6 +1061,22 @@ export const ImportHousehold: MessageFns<ImportHousehold> = {
           message.onRoster = reader.bool();
           continue;
         }
+        case 10: {
+          if (tag !== 82) {
+            break;
+          }
+
+          message.existingHouseholdId = reader.string();
+          continue;
+        }
+        case 11: {
+          if (tag !== 90) {
+            break;
+          }
+
+          message.existingHouseholdName = reader.string();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -979,6 +1105,16 @@ export const ImportHousehold: MessageFns<ImportHousehold> = {
         : isSet(object.on_roster)
         ? globalThis.Boolean(object.on_roster)
         : false,
+      existingHouseholdId: isSet(object.existingHouseholdId)
+        ? globalThis.String(object.existingHouseholdId)
+        : isSet(object.existing_household_id)
+        ? globalThis.String(object.existing_household_id)
+        : "",
+      existingHouseholdName: isSet(object.existingHouseholdName)
+        ? globalThis.String(object.existingHouseholdName)
+        : isSet(object.existing_household_name)
+        ? globalThis.String(object.existing_household_name)
+        : "",
     };
   },
 
@@ -1011,6 +1147,12 @@ export const ImportHousehold: MessageFns<ImportHousehold> = {
     if (message.onRoster !== false) {
       obj.onRoster = message.onRoster;
     }
+    if (message.existingHouseholdId !== "") {
+      obj.existingHouseholdId = message.existingHouseholdId;
+    }
+    if (message.existingHouseholdName !== "") {
+      obj.existingHouseholdName = message.existingHouseholdName;
+    }
     return obj;
   },
 
@@ -1028,12 +1170,14 @@ export const ImportHousehold: MessageFns<ImportHousehold> = {
     message.warnings = object.warnings?.map((e) => e) || [];
     message.active = object.active ?? false;
     message.onRoster = object.onRoster ?? false;
+    message.existingHouseholdId = object.existingHouseholdId ?? "";
+    message.existingHouseholdName = object.existingHouseholdName ?? "";
     return message;
   },
 };
 
 function createBaseImportContact(): ImportContact {
-  return { name: "", email: "", phone: "", relationship: 0, guessedName: false };
+  return { name: "", email: "", phone: "", relationship: 0, guessedName: false, onRoster: false };
 }
 
 export const ImportContact: MessageFns<ImportContact> = {
@@ -1052,6 +1196,9 @@ export const ImportContact: MessageFns<ImportContact> = {
     }
     if (message.guessedName !== false) {
       writer.uint32(40).bool(message.guessedName);
+    }
+    if (message.onRoster !== false) {
+      writer.uint32(48).bool(message.onRoster);
     }
     return writer;
   },
@@ -1103,6 +1250,14 @@ export const ImportContact: MessageFns<ImportContact> = {
           message.guessedName = reader.bool();
           continue;
         }
+        case 6: {
+          if (tag !== 48) {
+            break;
+          }
+
+          message.onRoster = reader.bool();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -1122,6 +1277,11 @@ export const ImportContact: MessageFns<ImportContact> = {
         ? globalThis.Boolean(object.guessedName)
         : isSet(object.guessed_name)
         ? globalThis.Boolean(object.guessed_name)
+        : false,
+      onRoster: isSet(object.onRoster)
+        ? globalThis.Boolean(object.onRoster)
+        : isSet(object.on_roster)
+        ? globalThis.Boolean(object.on_roster)
         : false,
     };
   },
@@ -1143,6 +1303,9 @@ export const ImportContact: MessageFns<ImportContact> = {
     if (message.guessedName !== false) {
       obj.guessedName = message.guessedName;
     }
+    if (message.onRoster !== false) {
+      obj.onRoster = message.onRoster;
+    }
     return obj;
   },
 
@@ -1156,12 +1319,13 @@ export const ImportContact: MessageFns<ImportContact> = {
     message.phone = object.phone ?? "";
     message.relationship = object.relationship ?? 0;
     message.guessedName = object.guessedName ?? false;
+    message.onRoster = object.onRoster ?? false;
     return message;
   },
 };
 
 function createBaseImportAttendee(): ImportAttendee {
-  return { key: "", name: "" };
+  return { key: "", name: "", onRoster: false };
 }
 
 export const ImportAttendee: MessageFns<ImportAttendee> = {
@@ -1171,6 +1335,9 @@ export const ImportAttendee: MessageFns<ImportAttendee> = {
     }
     if (message.name !== "") {
       writer.uint32(18).string(message.name);
+    }
+    if (message.onRoster !== false) {
+      writer.uint32(24).bool(message.onRoster);
     }
     return writer;
   },
@@ -1198,6 +1365,14 @@ export const ImportAttendee: MessageFns<ImportAttendee> = {
           message.name = reader.string();
           continue;
         }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
+
+          message.onRoster = reader.bool();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -1211,6 +1386,11 @@ export const ImportAttendee: MessageFns<ImportAttendee> = {
     return {
       key: isSet(object.key) ? globalThis.String(object.key) : "",
       name: isSet(object.name) ? globalThis.String(object.name) : "",
+      onRoster: isSet(object.onRoster)
+        ? globalThis.Boolean(object.onRoster)
+        : isSet(object.on_roster)
+        ? globalThis.Boolean(object.on_roster)
+        : false,
     };
   },
 
@@ -1222,6 +1402,9 @@ export const ImportAttendee: MessageFns<ImportAttendee> = {
     if (message.name !== "") {
       obj.name = message.name;
     }
+    if (message.onRoster !== false) {
+      obj.onRoster = message.onRoster;
+    }
     return obj;
   },
 
@@ -1232,6 +1415,7 @@ export const ImportAttendee: MessageFns<ImportAttendee> = {
     const message = createBaseImportAttendee();
     message.key = object.key ?? "";
     message.name = object.name ?? "";
+    message.onRoster = object.onRoster ?? false;
     return message;
   },
 };
@@ -1385,6 +1569,7 @@ function createBaseImportLesson(): ImportLesson {
     price: 0,
     seen: 0,
     warnings: [],
+    onRoster: false,
   };
 }
 
@@ -1422,6 +1607,9 @@ export const ImportLesson: MessageFns<ImportLesson> = {
     }
     for (const v of message.warnings) {
       writer.uint32(90).string(v!);
+    }
+    if (message.onRoster !== false) {
+      writer.uint32(96).bool(message.onRoster);
     }
     return writer;
   },
@@ -1521,6 +1709,14 @@ export const ImportLesson: MessageFns<ImportLesson> = {
           message.warnings.push(reader.string());
           continue;
         }
+        case 12: {
+          if (tag !== 96) {
+            break;
+          }
+
+          message.onRoster = reader.bool();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -1569,6 +1765,11 @@ export const ImportLesson: MessageFns<ImportLesson> = {
       warnings: globalThis.Array.isArray(object?.warnings)
         ? object.warnings.map((e: any) => globalThis.String(e))
         : [],
+      onRoster: isSet(object.onRoster)
+        ? globalThis.Boolean(object.onRoster)
+        : isSet(object.on_roster)
+        ? globalThis.Boolean(object.on_roster)
+        : false,
     };
   },
 
@@ -1607,6 +1808,9 @@ export const ImportLesson: MessageFns<ImportLesson> = {
     if (message.warnings?.length) {
       obj.warnings = message.warnings;
     }
+    if (message.onRoster !== false) {
+      obj.onRoster = message.onRoster;
+    }
     return obj;
   },
 
@@ -1626,35 +1830,61 @@ export const ImportLesson: MessageFns<ImportLesson> = {
     message.price = object.price ?? 0;
     message.seen = object.seen ?? 0;
     message.warnings = object.warnings?.map((e) => e) || [];
+    message.onRoster = object.onRoster ?? false;
     return message;
   },
 };
 
-function createBaseImportLeftover(): ImportLeftover {
-  return { who: "", what: "", reason: "", dates: [] };
+function createBaseImportAppointment(): ImportAppointment {
+  return {
+    key: "",
+    householdKey: "",
+    attendeeName: "",
+    offeringKey: "",
+    on: "",
+    startMinutes: 0,
+    durationMinutes: 0,
+    reason: "",
+    onRoster: false,
+  };
 }
 
-export const ImportLeftover: MessageFns<ImportLeftover> = {
-  encode(message: ImportLeftover, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.who !== "") {
-      writer.uint32(10).string(message.who);
+export const ImportAppointment: MessageFns<ImportAppointment> = {
+  encode(message: ImportAppointment, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.key !== "") {
+      writer.uint32(10).string(message.key);
     }
-    if (message.what !== "") {
-      writer.uint32(18).string(message.what);
+    if (message.householdKey !== "") {
+      writer.uint32(18).string(message.householdKey);
+    }
+    if (message.attendeeName !== "") {
+      writer.uint32(26).string(message.attendeeName);
+    }
+    if (message.offeringKey !== "") {
+      writer.uint32(34).string(message.offeringKey);
+    }
+    if (message.on !== "") {
+      writer.uint32(42).string(message.on);
+    }
+    if (message.startMinutes !== 0) {
+      writer.uint32(48).int32(message.startMinutes);
+    }
+    if (message.durationMinutes !== 0) {
+      writer.uint32(56).int32(message.durationMinutes);
     }
     if (message.reason !== "") {
-      writer.uint32(26).string(message.reason);
+      writer.uint32(66).string(message.reason);
     }
-    for (const v of message.dates) {
-      writer.uint32(34).string(v!);
+    if (message.onRoster !== false) {
+      writer.uint32(72).bool(message.onRoster);
     }
     return writer;
   },
 
-  decode(input: BinaryReader | Uint8Array, length?: number): ImportLeftover {
+  decode(input: BinaryReader | Uint8Array, length?: number): ImportAppointment {
     const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
     const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseImportLeftover();
+    const message = createBaseImportAppointment();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
@@ -1663,7 +1893,7 @@ export const ImportLeftover: MessageFns<ImportLeftover> = {
             break;
           }
 
-          message.who = reader.string();
+          message.key = reader.string();
           continue;
         }
         case 2: {
@@ -1671,7 +1901,7 @@ export const ImportLeftover: MessageFns<ImportLeftover> = {
             break;
           }
 
-          message.what = reader.string();
+          message.householdKey = reader.string();
           continue;
         }
         case 3: {
@@ -1679,7 +1909,7 @@ export const ImportLeftover: MessageFns<ImportLeftover> = {
             break;
           }
 
-          message.reason = reader.string();
+          message.attendeeName = reader.string();
           continue;
         }
         case 4: {
@@ -1687,7 +1917,47 @@ export const ImportLeftover: MessageFns<ImportLeftover> = {
             break;
           }
 
-          message.dates.push(reader.string());
+          message.offeringKey = reader.string();
+          continue;
+        }
+        case 5: {
+          if (tag !== 42) {
+            break;
+          }
+
+          message.on = reader.string();
+          continue;
+        }
+        case 6: {
+          if (tag !== 48) {
+            break;
+          }
+
+          message.startMinutes = reader.int32();
+          continue;
+        }
+        case 7: {
+          if (tag !== 56) {
+            break;
+          }
+
+          message.durationMinutes = reader.int32();
+          continue;
+        }
+        case 8: {
+          if (tag !== 66) {
+            break;
+          }
+
+          message.reason = reader.string();
+          continue;
+        }
+        case 9: {
+          if (tag !== 72) {
+            break;
+          }
+
+          message.onRoster = reader.bool();
           continue;
         }
       }
@@ -1699,41 +1969,90 @@ export const ImportLeftover: MessageFns<ImportLeftover> = {
     return message;
   },
 
-  fromJSON(object: any): ImportLeftover {
+  fromJSON(object: any): ImportAppointment {
     return {
-      who: isSet(object.who) ? globalThis.String(object.who) : "",
-      what: isSet(object.what) ? globalThis.String(object.what) : "",
+      key: isSet(object.key) ? globalThis.String(object.key) : "",
+      householdKey: isSet(object.householdKey)
+        ? globalThis.String(object.householdKey)
+        : isSet(object.household_key)
+        ? globalThis.String(object.household_key)
+        : "",
+      attendeeName: isSet(object.attendeeName)
+        ? globalThis.String(object.attendeeName)
+        : isSet(object.attendee_name)
+        ? globalThis.String(object.attendee_name)
+        : "",
+      offeringKey: isSet(object.offeringKey)
+        ? globalThis.String(object.offeringKey)
+        : isSet(object.offering_key)
+        ? globalThis.String(object.offering_key)
+        : "",
+      on: isSet(object.on) ? globalThis.String(object.on) : "",
+      startMinutes: isSet(object.startMinutes)
+        ? globalThis.Number(object.startMinutes)
+        : isSet(object.start_minutes)
+        ? globalThis.Number(object.start_minutes)
+        : 0,
+      durationMinutes: isSet(object.durationMinutes)
+        ? globalThis.Number(object.durationMinutes)
+        : isSet(object.duration_minutes)
+        ? globalThis.Number(object.duration_minutes)
+        : 0,
       reason: isSet(object.reason) ? globalThis.String(object.reason) : "",
-      dates: globalThis.Array.isArray(object?.dates) ? object.dates.map((e: any) => globalThis.String(e)) : [],
+      onRoster: isSet(object.onRoster)
+        ? globalThis.Boolean(object.onRoster)
+        : isSet(object.on_roster)
+        ? globalThis.Boolean(object.on_roster)
+        : false,
     };
   },
 
-  toJSON(message: ImportLeftover): unknown {
+  toJSON(message: ImportAppointment): unknown {
     const obj: any = {};
-    if (message.who !== "") {
-      obj.who = message.who;
+    if (message.key !== "") {
+      obj.key = message.key;
     }
-    if (message.what !== "") {
-      obj.what = message.what;
+    if (message.householdKey !== "") {
+      obj.householdKey = message.householdKey;
+    }
+    if (message.attendeeName !== "") {
+      obj.attendeeName = message.attendeeName;
+    }
+    if (message.offeringKey !== "") {
+      obj.offeringKey = message.offeringKey;
+    }
+    if (message.on !== "") {
+      obj.on = message.on;
+    }
+    if (message.startMinutes !== 0) {
+      obj.startMinutes = Math.round(message.startMinutes);
+    }
+    if (message.durationMinutes !== 0) {
+      obj.durationMinutes = Math.round(message.durationMinutes);
     }
     if (message.reason !== "") {
       obj.reason = message.reason;
     }
-    if (message.dates?.length) {
-      obj.dates = message.dates;
+    if (message.onRoster !== false) {
+      obj.onRoster = message.onRoster;
     }
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<ImportLeftover>, I>>(base?: I): ImportLeftover {
-    return ImportLeftover.fromPartial(base ?? ({} as any));
+  create<I extends Exact<DeepPartial<ImportAppointment>, I>>(base?: I): ImportAppointment {
+    return ImportAppointment.fromPartial(base ?? ({} as any));
   },
-  fromPartial<I extends Exact<DeepPartial<ImportLeftover>, I>>(object: I): ImportLeftover {
-    const message = createBaseImportLeftover();
-    message.who = object.who ?? "";
-    message.what = object.what ?? "";
+  fromPartial<I extends Exact<DeepPartial<ImportAppointment>, I>>(object: I): ImportAppointment {
+    const message = createBaseImportAppointment();
+    message.key = object.key ?? "";
+    message.householdKey = object.householdKey ?? "";
+    message.attendeeName = object.attendeeName ?? "";
+    message.offeringKey = object.offeringKey ?? "";
+    message.on = object.on ?? "";
+    message.startMinutes = object.startMinutes ?? 0;
+    message.durationMinutes = object.durationMinutes ?? 0;
     message.reason = object.reason ?? "";
-    message.dates = object.dates?.map((e) => e) || [];
+    message.onRoster = object.onRoster ?? false;
     return message;
   },
 };

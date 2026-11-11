@@ -245,6 +245,60 @@ func TestCommandsAgainstPostgres(t *testing.T) {
 			test.SliceEmpty(t, later)
 		})
 
+		t.Run("booking a one-off puts a lesson on the grid that no rule owns", func(t *testing.T) {
+			startsAt := time.Date(2026, time.March, 12, 17, 0, 0, 0, central)
+
+			booked, bookErr := commands.Book(ctx, scope, actor, &schedule.OneOff{
+				OfferingID: offering.ID, StartsAt: startsAt,
+				Staff: []string{actor}, Attendees: []string{sofia}, Reason: "a trial of the longer lesson",
+				Duration: 45 * time.Minute,
+			})
+			must.NoError(t, bookErr)
+
+			test.Eq(t, "", booked.SeriesID)
+			test.Eq(t, schedule.StateScheduled, booked.State)
+			test.Eq(t, 45*time.Minute, booked.EndsAt.Sub(booked.StartsAt), test.Sprint("its own length beats the offering's"))
+			test.Eq(t, []string{sofia}, booked.Attendees)
+
+			// The materializer leaves it where it is.
+			_, runErr := materializer.RunOnce(ctx)
+			must.NoError(t, runErr)
+
+			thursday := occurrencesOn(t, time.March, 12)
+			must.Len(t, 1, thursday)
+			test.Eq(t, booked.ID, thursday[0].ID)
+
+			entries, listErr := mustReader(t).List(ctx, client.Reader(), scope, &audit.Query{
+				ResourceType: schedule.ResourceOccurrence,
+				ResourceID:   booked.ID,
+			}, nil)
+			must.NoError(t, listErr)
+			must.Len(t, 1, entries.Data)
+			test.Eq(t, schedule.CommandBook, entries.Data[0].Metadata[schedule.KeyCommand])
+			test.Eq(t, audit.EventCreated, entries.Data[0].EventType)
+		})
+
+		t.Run("booking refuses what is nobody's or nobody's to sell", func(t *testing.T) {
+			startsAt := time.Date(2026, time.March, 13, 17, 0, 0, 0, central)
+
+			_, bookErr := commands.Book(ctx, scope, actor, &schedule.OneOff{
+				OfferingID: offering.ID, StartsAt: startsAt, Staff: []string{actor},
+			})
+			test.ErrorIs(t, bookErr, schedule.ErrInvalidOccurrence, test.Sprint("no attendee"))
+
+			_, bookErr = commands.Book(ctx, scope, actor, &schedule.OneOff{
+				OfferingID: offering.ID, StartsAt: startsAt, Staff: []string{actor}, Attendees: []string{"nobody-here"},
+			})
+			test.ErrorIs(t, bookErr, schedule.ErrInvalidOccurrence, test.Sprint("an attendee not on the roster"))
+
+			_, bookErr = commands.Book(ctx, scope, actor, &schedule.OneOff{
+				OfferingID: "not-an-offering", StartsAt: startsAt, Staff: []string{actor}, Attendees: []string{sofia},
+			})
+			test.ErrorIs(t, bookErr, schedule.ErrNotFound)
+
+			test.SliceEmpty(t, occurrencesOn(t, time.March, 13), test.Sprint("a refused booking writes nothing"))
+		})
+
 		t.Run("every command left an entry in the studio's scope", func(t *testing.T) {
 			reader, readerErr := audit.NewReader(dialect.Postgres)
 			must.NoError(t, readerErr)
@@ -271,4 +325,13 @@ func TestCommandsAgainstPostgres(t *testing.T) {
 			test.True(t, found, test.Sprint("no entry named the cancel command"))
 		})
 	})
+}
+
+func mustReader(t *testing.T) audit.Reader {
+	t.Helper()
+
+	reader, err := audit.NewReader(dialect.Postgres)
+	must.NoError(t, err)
+
+	return reader
 }

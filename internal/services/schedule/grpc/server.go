@@ -196,6 +196,7 @@ func Require(b *authzgrpc.RequirementsBuilder) *authzgrpc.RequirementsBuilder {
 		fijopb.ScheduleService_RevertOccurrence_FullMethodName,
 		fijopb.ScheduleService_MoveOccurrence_FullMethodName,
 		fijopb.ScheduleService_ScheduleMakeUp_FullMethodName,
+		fijopb.ScheduleService_BookOccurrence_FullMethodName,
 		fijopb.ScheduleService_ReassignOccurrence_FullMethodName,
 		fijopb.ScheduleService_ListClosures_FullMethodName,
 		fijopb.ScheduleService_CloseStudio_FullMethodName,

@@ -46,6 +46,7 @@ const (
 	ScheduleService_RevertOccurrence_FullMethodName    = "/fijo.v1.ScheduleService/RevertOccurrence"
 	ScheduleService_MoveOccurrence_FullMethodName      = "/fijo.v1.ScheduleService/MoveOccurrence"
 	ScheduleService_ScheduleMakeUp_FullMethodName      = "/fijo.v1.ScheduleService/ScheduleMakeUp"
+	ScheduleService_BookOccurrence_FullMethodName      = "/fijo.v1.ScheduleService/BookOccurrence"
 	ScheduleService_ReassignOccurrence_FullMethodName  = "/fijo.v1.ScheduleService/ReassignOccurrence"
 	ScheduleService_ListClosures_FullMethodName        = "/fijo.v1.ScheduleService/ListClosures"
 	ScheduleService_CloseStudio_FullMethodName         = "/fijo.v1.ScheduleService/CloseStudio"
@@ -79,6 +80,7 @@ type ScheduleServiceClient interface {
 	RevertOccurrence(ctx context.Context, in *RevertOccurrenceRequest, opts ...grpc.CallOption) (*OccurrenceResponse, error)
 	MoveOccurrence(ctx context.Context, in *MoveOccurrenceRequest, opts ...grpc.CallOption) (*OccurrenceResponse, error)
 	ScheduleMakeUp(ctx context.Context, in *ScheduleMakeUpRequest, opts ...grpc.CallOption) (*OccurrenceResponse, error)
+	BookOccurrence(ctx context.Context, in *BookOccurrenceRequest, opts ...grpc.CallOption) (*OccurrenceResponse, error)
 	ReassignOccurrence(ctx context.Context, in *ReassignOccurrenceRequest, opts ...grpc.CallOption) (*OccurrenceResponse, error)
 	// Closing and reopening.
 	ListClosures(ctx context.Context, in *ListClosuresRequest, opts ...grpc.CallOption) (*ListClosuresResponse, error)
@@ -266,6 +268,16 @@ func (c *scheduleServiceClient) ScheduleMakeUp(ctx context.Context, in *Schedule
 	return out, nil
 }
 
+func (c *scheduleServiceClient) BookOccurrence(ctx context.Context, in *BookOccurrenceRequest, opts ...grpc.CallOption) (*OccurrenceResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(OccurrenceResponse)
+	err := c.cc.Invoke(ctx, ScheduleService_BookOccurrence_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *scheduleServiceClient) ReassignOccurrence(ctx context.Context, in *ReassignOccurrenceRequest, opts ...grpc.CallOption) (*OccurrenceResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(OccurrenceResponse)
@@ -342,6 +354,7 @@ type ScheduleServiceServer interface {
 	RevertOccurrence(context.Context, *RevertOccurrenceRequest) (*OccurrenceResponse, error)
 	MoveOccurrence(context.Context, *MoveOccurrenceRequest) (*OccurrenceResponse, error)
 	ScheduleMakeUp(context.Context, *ScheduleMakeUpRequest) (*OccurrenceResponse, error)
+	BookOccurrence(context.Context, *BookOccurrenceRequest) (*OccurrenceResponse, error)
 	ReassignOccurrence(context.Context, *ReassignOccurrenceRequest) (*OccurrenceResponse, error)
 	// Closing and reopening.
 	ListClosures(context.Context, *ListClosuresRequest) (*ListClosuresResponse, error)
@@ -409,6 +422,9 @@ func (UnimplementedScheduleServiceServer) MoveOccurrence(context.Context, *MoveO
 }
 func (UnimplementedScheduleServiceServer) ScheduleMakeUp(context.Context, *ScheduleMakeUpRequest) (*OccurrenceResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ScheduleMakeUp not implemented")
+}
+func (UnimplementedScheduleServiceServer) BookOccurrence(context.Context, *BookOccurrenceRequest) (*OccurrenceResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method BookOccurrence not implemented")
 }
 func (UnimplementedScheduleServiceServer) ReassignOccurrence(context.Context, *ReassignOccurrenceRequest) (*OccurrenceResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ReassignOccurrence not implemented")
@@ -752,6 +768,24 @@ func _ScheduleService_ScheduleMakeUp_Handler(srv interface{}, ctx context.Contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ScheduleService_BookOccurrence_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(BookOccurrenceRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ScheduleServiceServer).BookOccurrence(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ScheduleService_BookOccurrence_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ScheduleServiceServer).BookOccurrence(ctx, req.(*BookOccurrenceRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ScheduleService_ReassignOccurrence_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ReassignOccurrenceRequest)
 	if err := dec(in); err != nil {
@@ -916,6 +950,10 @@ var ScheduleService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ScheduleMakeUp",
 			Handler:    _ScheduleService_ScheduleMakeUp_Handler,
+		},
+		{
+			MethodName: "BookOccurrence",
+			Handler:    _ScheduleService_BookOccurrence_Handler,
 		},
 		{
 			MethodName: "ReassignOccurrence",

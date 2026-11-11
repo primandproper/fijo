@@ -26,13 +26,15 @@ function filesOf(form: FormData, clientsCsv: string, appointmentsCsv: string) {
   };
 }
 
-/** The preview as the page draws it: plain data, with each lesson's offering resolved. */
+/**
+ * The preview as the page draws it: plain data, with each lesson's offering resolved, and each
+ * household carrying its lessons and one-offs. A client already here carries only what is new.
+ */
 function shapePreview(p: ImportPreview) {
   const offerings = Object.fromEntries(p.offerings.map((o) => [o.key, o]));
   return {
     columns: p.columns,
     warnings: p.warnings,
-    leftovers: p.leftovers,
     offerings: p.offerings.map((o) => ({
       key: o.key,
       name: o.name,
@@ -46,6 +48,7 @@ function shapePreview(p: ImportPreview) {
       notes: h.notes,
       active: h.active,
       onRoster: h.onRoster,
+      existingName: h.existingHouseholdName,
       warnings: h.warnings,
       contacts: h.contacts.map((c) => ({
         name: c.name,
@@ -53,10 +56,11 @@ function shapePreview(p: ImportPreview) {
         phone: c.phone,
         self: c.relationship === 2,
         guessedName: c.guessedName,
+        onRoster: c.onRoster,
       })),
-      attendees: h.attendees.map((a) => a.name),
+      attendees: h.attendees.map((a) => ({ name: a.name, onRoster: a.onRoster })),
       lessons: p.lessons
-        .filter((l) => l.householdKey === h.key)
+        .filter((l) => l.householdKey === h.key && !l.onRoster)
         .map((l) => ({
           key: l.key,
           who: l.attendeeName,
@@ -69,6 +73,18 @@ function shapePreview(p: ImportPreview) {
           price: Number(l.price),
           seen: l.seen,
           warnings: l.warnings,
+        })),
+      appointments: p.appointments
+        .filter((a) => a.householdKey === h.key && !a.onRoster)
+        .map((a) => ({
+          key: a.key,
+          who: a.attendeeName,
+          offeringKey: a.offeringKey,
+          offering: offerings[a.offeringKey]?.name ?? '',
+          on: a.on,
+          startMinutes: a.startMinutes,
+          durationMinutes: a.durationMinutes || offerings[a.offeringKey]?.durationMinutes || 0,
+          reason: a.reason,
         })),
     })),
   };
@@ -106,12 +122,14 @@ export const actions: Actions = {
     const shown = (name: string) => form.getAll(name).map(String);
     const households = kept('household');
     const lessons = kept('lesson');
+    const appointments = kept('appointment');
 
     try {
       const result = await api.imports.applyAcuity(locals.accessToken!, {
         files: files.wire,
         skipHouseholdKeys: shown('householdShown').filter((key) => !households.has(key)),
         skipLessonKeys: shown('lessonShown').filter((key) => !lessons.has(key)),
+        skipAppointmentKeys: shown('appointmentShown').filter((key) => !appointments.has(key)),
         // Which inactive clients come along is decided by their own boxes, so the switch is always on.
         includeInactive: true,
       });

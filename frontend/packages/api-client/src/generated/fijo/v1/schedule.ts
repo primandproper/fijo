@@ -389,6 +389,24 @@ export interface ScheduleMakeUpRequest {
   reason: string;
 }
 
+/**
+ * BookOccurrenceRequest is a one-off: an appointment no standing slot
+ * produces, such as a trial lesson or an extra one.
+ */
+export interface BookOccurrenceRequest {
+  offeringId: string;
+  startsAt:
+    | Date
+    | undefined;
+  /** Zero is the offering's length. */
+  durationMinutes: number;
+  /** Who it is for: roster attendees, at least one. */
+  attendeeIds: string[];
+  /** Who teaches it. Empty is the caller. */
+  staffUserIds: string[];
+  reason: string;
+}
+
 export interface ReassignOccurrenceRequest {
   id: string;
   staffUserIds: string[];
@@ -3651,6 +3669,166 @@ export const ScheduleMakeUpRequest: MessageFns<ScheduleMakeUpRequest> = {
   },
 };
 
+function createBaseBookOccurrenceRequest(): BookOccurrenceRequest {
+  return { offeringId: "", startsAt: undefined, durationMinutes: 0, attendeeIds: [], staffUserIds: [], reason: "" };
+}
+
+export const BookOccurrenceRequest: MessageFns<BookOccurrenceRequest> = {
+  encode(message: BookOccurrenceRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.offeringId !== "") {
+      writer.uint32(10).string(message.offeringId);
+    }
+    if (message.startsAt !== undefined) {
+      Timestamp.encode(toTimestamp(message.startsAt), writer.uint32(18).fork()).join();
+    }
+    if (message.durationMinutes !== 0) {
+      writer.uint32(24).int32(message.durationMinutes);
+    }
+    for (const v of message.attendeeIds) {
+      writer.uint32(34).string(v!);
+    }
+    for (const v of message.staffUserIds) {
+      writer.uint32(42).string(v!);
+    }
+    if (message.reason !== "") {
+      writer.uint32(50).string(message.reason);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): BookOccurrenceRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseBookOccurrenceRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.offeringId = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.startsAt = fromTimestamp(Timestamp.decode(reader, reader.uint32()));
+          continue;
+        }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
+
+          message.durationMinutes = reader.int32();
+          continue;
+        }
+        case 4: {
+          if (tag !== 34) {
+            break;
+          }
+
+          message.attendeeIds.push(reader.string());
+          continue;
+        }
+        case 5: {
+          if (tag !== 42) {
+            break;
+          }
+
+          message.staffUserIds.push(reader.string());
+          continue;
+        }
+        case 6: {
+          if (tag !== 50) {
+            break;
+          }
+
+          message.reason = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): BookOccurrenceRequest {
+    return {
+      offeringId: isSet(object.offeringId)
+        ? globalThis.String(object.offeringId)
+        : isSet(object.offering_id)
+        ? globalThis.String(object.offering_id)
+        : "",
+      startsAt: isSet(object.startsAt)
+        ? fromJsonTimestamp(object.startsAt)
+        : isSet(object.starts_at)
+        ? fromJsonTimestamp(object.starts_at)
+        : undefined,
+      durationMinutes: isSet(object.durationMinutes)
+        ? globalThis.Number(object.durationMinutes)
+        : isSet(object.duration_minutes)
+        ? globalThis.Number(object.duration_minutes)
+        : 0,
+      attendeeIds: globalThis.Array.isArray(object?.attendeeIds)
+        ? object.attendeeIds.map((e: any) => globalThis.String(e))
+        : globalThis.Array.isArray(object?.attendee_ids)
+        ? object.attendee_ids.map((e: any) => globalThis.String(e))
+        : [],
+      staffUserIds: globalThis.Array.isArray(object?.staffUserIds)
+        ? object.staffUserIds.map((e: any) => globalThis.String(e))
+        : globalThis.Array.isArray(object?.staff_user_ids)
+        ? object.staff_user_ids.map((e: any) => globalThis.String(e))
+        : [],
+      reason: isSet(object.reason) ? globalThis.String(object.reason) : "",
+    };
+  },
+
+  toJSON(message: BookOccurrenceRequest): unknown {
+    const obj: any = {};
+    if (message.offeringId !== "") {
+      obj.offeringId = message.offeringId;
+    }
+    if (message.startsAt !== undefined) {
+      obj.startsAt = message.startsAt.toISOString();
+    }
+    if (message.durationMinutes !== 0) {
+      obj.durationMinutes = Math.round(message.durationMinutes);
+    }
+    if (message.attendeeIds?.length) {
+      obj.attendeeIds = message.attendeeIds;
+    }
+    if (message.staffUserIds?.length) {
+      obj.staffUserIds = message.staffUserIds;
+    }
+    if (message.reason !== "") {
+      obj.reason = message.reason;
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<BookOccurrenceRequest>, I>>(base?: I): BookOccurrenceRequest {
+    return BookOccurrenceRequest.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<BookOccurrenceRequest>, I>>(object: I): BookOccurrenceRequest {
+    const message = createBaseBookOccurrenceRequest();
+    message.offeringId = object.offeringId ?? "";
+    message.startsAt = object.startsAt ?? undefined;
+    message.durationMinutes = object.durationMinutes ?? 0;
+    message.attendeeIds = object.attendeeIds?.map((e) => e) || [];
+    message.staffUserIds = object.staffUserIds?.map((e) => e) || [];
+    message.reason = object.reason ?? "";
+    return message;
+  },
+};
+
 function createBaseReassignOccurrenceRequest(): ReassignOccurrenceRequest {
   return { id: "", staffUserIds: [] };
 }
@@ -4438,6 +4616,16 @@ export const ScheduleServiceService = {
     responseSerialize: (value: OccurrenceResponse): Buffer => Buffer.from(OccurrenceResponse.encode(value).finish()),
     responseDeserialize: (value: Buffer): OccurrenceResponse => OccurrenceResponse.decode(value),
   },
+  bookOccurrence: {
+    path: "/fijo.v1.ScheduleService/BookOccurrence" as const,
+    requestStream: false as const,
+    responseStream: false as const,
+    requestSerialize: (value: BookOccurrenceRequest): Buffer =>
+      Buffer.from(BookOccurrenceRequest.encode(value).finish()),
+    requestDeserialize: (value: Buffer): BookOccurrenceRequest => BookOccurrenceRequest.decode(value),
+    responseSerialize: (value: OccurrenceResponse): Buffer => Buffer.from(OccurrenceResponse.encode(value).finish()),
+    responseDeserialize: (value: Buffer): OccurrenceResponse => OccurrenceResponse.decode(value),
+  },
   reassignOccurrence: {
     path: "/fijo.v1.ScheduleService/ReassignOccurrence" as const,
     requestStream: false as const,
@@ -4513,6 +4701,7 @@ export interface ScheduleServiceServer extends UntypedServiceImplementation {
   revertOccurrence: handleUnaryCall<RevertOccurrenceRequest, OccurrenceResponse>;
   moveOccurrence: handleUnaryCall<MoveOccurrenceRequest, OccurrenceResponse>;
   scheduleMakeUp: handleUnaryCall<ScheduleMakeUpRequest, OccurrenceResponse>;
+  bookOccurrence: handleUnaryCall<BookOccurrenceRequest, OccurrenceResponse>;
   reassignOccurrence: handleUnaryCall<ReassignOccurrenceRequest, OccurrenceResponse>;
   /** Closing and reopening. */
   listClosures: handleUnaryCall<ListClosuresRequest, ListClosuresResponse>;
@@ -4779,6 +4968,21 @@ export interface ScheduleServiceClient extends Client {
   ): ClientUnaryCall;
   scheduleMakeUp(
     request: ScheduleMakeUpRequest,
+    metadata: Metadata,
+    options: Partial<CallOptions>,
+    callback: (error: ServiceError | null, response: OccurrenceResponse) => void,
+  ): ClientUnaryCall;
+  bookOccurrence(
+    request: BookOccurrenceRequest,
+    callback: (error: ServiceError | null, response: OccurrenceResponse) => void,
+  ): ClientUnaryCall;
+  bookOccurrence(
+    request: BookOccurrenceRequest,
+    metadata: Metadata,
+    callback: (error: ServiceError | null, response: OccurrenceResponse) => void,
+  ): ClientUnaryCall;
+  bookOccurrence(
+    request: BookOccurrenceRequest,
     metadata: Metadata,
     options: Partial<CallOptions>,
     callback: (error: ServiceError | null, response: OccurrenceResponse) => void,

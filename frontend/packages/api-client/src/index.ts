@@ -28,7 +28,7 @@ export type {
   ImportContact,
   ImportLesson,
   ImportOffering,
-  ImportLeftover,
+  ImportAppointment,
   ImportColumn,
   ApplyAcuityImportResponse,
 } from './generated/fijo/v1/importing.js';

@@ -4,9 +4,10 @@
 // and applies. Nothing is kept between the two calls: apply reads the same
 // files again, so every key in a preview comes out the same from the same
 // files, and the skipped keys are what carries the owner's choices across.
-// A client whose email or phone is already on the roster is never written
-// twice, so an import can be run as a trial and again on the day of the
-// switch.
+// A client whose email or phone is already on the roster is matched rather
+// than written twice: only what they are missing (a person, a contact, a
+// lesson, an appointment) is added. So an import can be run as a trial and
+// again on the day of the switch.
 //
 // Every call is the caller's own studio, read off the principal.
 

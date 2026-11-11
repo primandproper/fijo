@@ -124,12 +124,17 @@ func TestPlan(t *testing.T) {
 		test.Eq(t, schedule.ClockTime{Hour: 10}, lily.StartTime)
 	})
 
-	t.Run("a single appointment is a leftover", func(t *testing.T) {
+	t.Run("a single appointment is booked on its own", func(t *testing.T) {
 		t.Parallel()
 
-		must.SliceLen(t, 1, plan.Leftovers)
-		test.Eq(t, "Ben Ortiz", plan.Leftovers[0].Who)
-		test.StrContains(t, plan.Leftovers[0].What, "Fridays at 3:00 pm")
+		must.SliceLen(t, 1, plan.Appointments)
+
+		ben := plan.Appointments[0]
+		test.Eq(t, "Ben Ortiz", ben.AttendeeName)
+		test.Eq(t, time.Friday, ben.On.Weekday())
+		test.Eq(t, schedule.ClockTime{Hour: 15}, ben.StartTime)
+		test.StrContains(t, ben.Reason, "Only one appointment ahead")
+		test.NotEq(t, "", ben.HouseholdKey, test.Sprint("a one-off belongs to a household like a lesson does"))
 	})
 
 	t.Run("each type is an offering with the length and price most had", func(t *testing.T) {
@@ -233,7 +238,7 @@ func TestPlanNamesAParentAcuityNeverMet(t *testing.T) {
 	test.Eq(t, defaultLength, plan.Offerings[0].Duration, test.Sprint("no end time and no duration"))
 }
 
-func TestPlanLeavesMonthlyOut(t *testing.T) {
+func TestPlanBooksMonthlyOneAtATime(t *testing.T) {
 	t.Parallel()
 
 	report := "Start Time,Name\n" +
@@ -244,8 +249,12 @@ func TestPlanLeavesMonthlyOut(t *testing.T) {
 	must.NoError(t, err)
 
 	test.SliceEmpty(t, plan.Lessons)
-	must.SliceLen(t, 1, plan.Leftovers)
-	test.StrContains(t, plan.Leftovers[0].Reason, "every 4 weeks")
+	must.SliceLen(t, 2, plan.Appointments, must.Sprint("every one of them is booked on its own"))
+	test.NotEq(t, plan.Appointments[0].Key, plan.Appointments[1].Key)
+
+	for _, appointment := range plan.Appointments {
+		test.StrContains(t, appointment.Reason, "every 4 weeks")
+	}
 }
 
 func TestPlanRefuses(t *testing.T) {
